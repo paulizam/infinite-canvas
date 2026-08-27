@@ -136,6 +136,20 @@ describe("Agent Run API", () => {
         await worker(`/internal/v1/agent/runs/${runId}/transition`, {
           workerId: "agent-worker",
           operation: {
+            type: "result.add",
+            result: {
+              kind: "canvas_operation",
+              payload: { ops: [{ type: "delete_node", id: "node-1" }] },
+            },
+          },
+        })
+      ).status,
+    ).toBe(409);
+    expect(
+      (
+        await worker(`/internal/v1/agent/runs/${runId}/transition`, {
+          workerId: "agent-worker",
+          operation: {
             type: "subtask.upsert",
             subtask: {
               kind: "generation",

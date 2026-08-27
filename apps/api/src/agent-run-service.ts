@@ -293,7 +293,19 @@ function applyOperation(
       event("subtask.updated", { subtaskId: value.id, status: value.status });
       break;
     }
-    case "result.add":
+    case "result.add": {
+      const approval = requiredApproval(operation.result);
+      if (
+        approval &&
+        !detail.approvals.some(
+          (value) => value.action === approval && value.status === "approved",
+        )
+      )
+        throw new DomainError(
+          "AGENT_APPROVAL_REQUIRED",
+          409,
+          `操作需要 ${approval} approval`,
+        );
       detail.results.push({
         id: randomUUID(),
         runId: detail.run.id,
@@ -304,6 +316,7 @@ function applyOperation(
       });
       event("result.created", { kind: operation.result.kind });
       break;
+    }
     case "approval.request": {
       if (detail.approvals.some((value) => value.status === "pending"))
         throw new DomainError(
@@ -359,4 +372,33 @@ function sanitizeVisible(value: unknown) {
       "不得持久化内部推理",
     );
   return value === undefined ? null : structuredClone(value);
+}
+function requiredApproval(
+  result: Extract<AgentWorkerOperation, { type: "result.add" }>["result"],
+): AgentRunApproval["action"] | null {
+  const payload = result.payload;
+  const ops = Array.isArray(payload.ops) ? payload.ops : [];
+  if (
+    result.kind === "canvas_operation" &&
+    ops.some(
+      (value) =>
+        value &&
+        typeof value === "object" &&
+        ["delete_node", "delete_connections"].includes(
+          String((value as { type?: unknown }).type),
+        ),
+    )
+  )
+    return "delete";
+  if (
+    ["image", "video", "audio"].includes(result.kind) &&
+    Number(payload.count || 1) > 1
+  )
+    return "batch_paid_generation";
+  if (
+    typeof payload.externalUrl === "string" ||
+    (typeof payload.url === "string" && /^https?:\/\//i.test(payload.url))
+  )
+    return "external_access";
+  return null;
 }

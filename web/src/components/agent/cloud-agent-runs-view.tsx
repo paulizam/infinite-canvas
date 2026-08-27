@@ -3,6 +3,9 @@ import { Alert, Button, Input, Select, Tag } from "antd";
 import { Check, Play, RefreshCw, RotateCcw, Square, X } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { cloudPlatform, type CloudAgentRun, type CloudAgentRunDetail, type CloudAgentSession } from "@/services/cloud-platform";
+import type { LogicalModel } from "@infinite-canvas/contracts";
+import type { CanvasAgentOp } from "@/lib/canvas/canvas-agent-ops";
+import { useAgentStore } from "@/stores/use-agent-store";
 
 export function CloudAgentRunsView({ workspaceId }: { workspaceId: string }) {
     const { t } = useTranslation();
@@ -12,8 +15,12 @@ export function CloudAgentRunsView({ workspaceId }: { workspaceId: string }) {
     const [selected, setSelected] = useState<CloudAgentRunDetail | null>(null);
     const [title, setTitle] = useState("");
     const [prompt, setPrompt] = useState("");
+    const [models, setModels] = useState<LogicalModel[]>([]);
+    const [modelId, setModelId] = useState<string>();
+    const [skills, setSkills] = useState<string[]>([]);
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
+    const canvasContext = useAgentStore((state) => state.canvasContext);
     const loadSessions = useCallback(async () => {
         const values = await cloudPlatform.listAgentSessions(workspaceId);
         setSessions(values);
@@ -43,6 +50,16 @@ export function CloudAgentRunsView({ workspaceId }: { workspaceId: string }) {
         void loadSessions().catch((cause) => setError(cause instanceof Error ? cause.message : String(cause)));
     }, [loadSessions]);
     useEffect(() => {
+        void cloudPlatform
+            .listModels()
+            .then((values) => {
+                const eligible = values.filter((value) => value.enabled && value.capability === "text");
+                setModels(eligible);
+                setModelId((current) => current || eligible.find((value) => value.isDefault)?.id || eligible[0]?.id);
+            })
+            .catch((cause) => setError(cause instanceof Error ? cause.message : String(cause)));
+    }, []);
+    useEffect(() => {
         void loadRuns().catch((cause) => setError(cause instanceof Error ? cause.message : String(cause)));
     }, [loadRuns]);
     const createSession = async () => {
@@ -63,7 +80,7 @@ export function CloudAgentRunsView({ workspaceId }: { workspaceId: string }) {
         if (!sessionId || !prompt.trim()) return;
         setLoading(true);
         try {
-            const value = await cloudPlatform.createAgentRun(sessionId, { prompt: prompt.trim(), attachments: [], skillPolicy: {}, maxAttempts: 3 });
+            const value = await cloudPlatform.createAgentRun(sessionId, { prompt: prompt.trim(), attachments: [], modelId, skillPolicy: { allow: skills }, maxAttempts: 3 });
             setPrompt("");
             setSelected(value);
             await loadRuns();
@@ -100,6 +117,10 @@ export function CloudAgentRunsView({ workspaceId }: { workspaceId: string }) {
             {sessionId ? (
                 <div className="space-y-2 rounded-xl border p-3">
                     <Input.TextArea rows={3} maxLength={20_000} value={prompt} placeholder={t("agent.cloud.prompt")} onChange={(event) => setPrompt(event.target.value)} />
+                    <div className="flex gap-2">
+                        <Select className="min-w-0 flex-1" value={modelId} placeholder={t("agent.cloud.model")} options={models.map((value) => ({ value: value.id, label: value.name }))} onChange={setModelId} />
+                        <Select mode="tags" className="min-w-0 flex-1" maxCount={20} value={skills} placeholder={t("agent.cloud.skills")} onChange={setSkills} />
+                    </div>
                     <Button type="primary" block icon={<Play className="size-4" />} disabled={!prompt.trim()} loading={loading} onClick={() => void createRun()}>
                         {t("agent.cloud.run")}
                     </Button>
@@ -163,9 +184,17 @@ export function CloudAgentRunsView({ workspaceId }: { workspaceId: string }) {
                         </div>
                     ))}
                     {selected.results.map((result) => (
-                        <pre key={result.id} className="max-h-40 overflow-auto whitespace-pre-wrap rounded-lg bg-black/5 p-2 text-xs dark:bg-white/5">
-                            {result.kind}: {JSON.stringify(result.payload, null, 2)}
-                        </pre>
+                        <div key={result.id} className="rounded-lg bg-black/5 p-2 text-xs dark:bg-white/5">
+                            <pre className="max-h-40 overflow-auto whitespace-pre-wrap">
+                                {result.kind}: {JSON.stringify(result.payload, null, 2)}
+                            </pre>
+                            {result.kind === "canvas_operation" && canvasContext && Array.isArray(result.payload.ops) ? (
+                                <Button size="small" className="mt-2" onClick={() => canvasContext.applyOps(result.payload.ops as CanvasAgentOp[])}>
+                                    {t("agent.cloud.applyCanvas")}
+                                </Button>
+                            ) : null}
+                            {result.assetId ? <Tag className="mt-2">Asset {result.assetId}</Tag> : null}
+                        </div>
                     ))}
                 </section>
             ) : null}
