@@ -2,6 +2,7 @@
 
 ## Unreleased
 
++ [新增] 新增 Hono/PostgreSQL Cloud API，提供 Argon2 身份认证、Session、Workspace RBAC、云画布快照及带 revision/mutationId 的幂等变更事务。
 + [新增] 官方插件 Registry 升级为带 SHA-256 SRI 与权限清单的 v2 格式，第三方插件通过隔离 Worker 加载 declarative nodes，Docker 构建同步迁移到 pnpm workspace。
 + [修复] 插件加载器停止在主页面执行任意远程或历史缓存源码，仅允许部署者控制的同源 `/plugins/*.js` 构建产物。
 + [新增] 融合平台建立 pnpm workspace、共享领域契约、版本化画布迁移与纯 Canvas Operation reducer，现有画布存储及 v4 导入导出已接入新契约并兼容 v3 文件。

@@ -1,6 +1,6 @@
 # Infinite Canvas Fusion 产品架构方案
 
-> 状态：Draft for Implementation  
+> 状态：Implementation Active（R0 complete，R1 in progress）
 > 基线：`infinite-canvas@ed013e8`、`z3cz@31542084`、`VOZEB-PRO@f216abf`  
 > 日期：2026-08-27  
 > 决策：以 infinite-canvas 为地基；用户已确认持有 VOZEB-PRO 授权，可直接参考并迁移实现逻辑。

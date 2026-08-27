@@ -1,2 +1,2 @@
-export * from "./canvas";
-export * from "./platform";
+export * from "./canvas.js";
+export * from "./platform.js";

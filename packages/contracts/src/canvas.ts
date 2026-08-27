@@ -2,9 +2,37 @@ export const CANVAS_SCHEMA_VERSION = 4 as const;
 export type Position = { x: number; y: number };
 export type Size = { width: number; height: number };
 export type ViewportTransform = { x: number; y: number; k: number };
-export type CanvasNode = { id: string; type: string; title: string; position: Position; width: number; height: number; schemaVersion?: number; metadata?: Record<string, unknown>; pluginRef?: { id: string; version: string } };
-export type CanvasConnection = { id: string; fromNodeId: string; toNodeId: string };
-export type CanvasDocument = { id: string; schemaVersion: typeof CANVAS_SCHEMA_VERSION; revision: number; title: string; createdAt: string; updatedAt: string; nodes: CanvasNode[]; connections: CanvasConnection[]; chatSessions: unknown[]; activeChatId: string | null; backgroundMode: "lines" | "dots" | "blank"; showImageInfo: boolean; viewport: ViewportTransform };
+export type CanvasNode = {
+  id: string;
+  type: string;
+  title: string;
+  position: Position;
+  width: number;
+  height: number;
+  schemaVersion?: number;
+  metadata?: Record<string, unknown>;
+  pluginRef?: { id: string; version: string };
+};
+export type CanvasConnection = {
+  id: string;
+  fromNodeId: string;
+  toNodeId: string;
+};
+export type CanvasDocument = {
+  id: string;
+  schemaVersion: typeof CANVAS_SCHEMA_VERSION;
+  revision: number;
+  title: string;
+  createdAt: string;
+  updatedAt: string;
+  nodes: CanvasNode[];
+  connections: CanvasConnection[];
+  chatSessions: unknown[];
+  activeChatId: string | null;
+  backgroundMode: "lines" | "dots" | "blank";
+  showImageInfo: boolean;
+  viewport: ViewportTransform;
+};
 export type CanvasOperation =
   | { type: "node.upsert"; node: CanvasNode }
   | { type: "node.remove"; nodeIds: string[] }
@@ -13,6 +41,35 @@ export type CanvasOperation =
   | { type: "connection.upsert"; connection: CanvasConnection }
   | { type: "connection.remove"; connectionIds: string[] }
   | { type: "viewport.set"; viewport: ViewportTransform }
-  | { type: "document.sync"; patch: Partial<Pick<CanvasDocument, "nodes" | "connections" | "chatSessions" | "activeChatId" | "backgroundMode" | "showImageInfo" | "viewport">> }
-  | { type: "document.patch"; patch: Partial<Pick<CanvasDocument, "title" | "backgroundMode" | "showImageInfo" | "activeChatId">> };
-export type CanvasMutation = { mutationId: string; projectId: string; baseRevision: number; operations: CanvasOperation[]; clientId: string; createdAt: string };
+  | {
+      type: "document.sync";
+      patch: Partial<
+        Pick<
+          CanvasDocument,
+          | "nodes"
+          | "connections"
+          | "chatSessions"
+          | "activeChatId"
+          | "backgroundMode"
+          | "showImageInfo"
+          | "viewport"
+        >
+      >;
+    }
+  | {
+      type: "document.patch";
+      patch: Partial<
+        Pick<
+          CanvasDocument,
+          "title" | "backgroundMode" | "showImageInfo" | "activeChatId"
+        >
+      >;
+    };
+export type CanvasMutation = {
+  mutationId: string;
+  projectId: string;
+  baseRevision: number;
+  operations: CanvasOperation[];
+  clientId: string;
+  createdAt: string;
+};
