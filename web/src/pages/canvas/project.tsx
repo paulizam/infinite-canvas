@@ -70,6 +70,7 @@ import { registerBuiltinNodes } from "@/components/canvas/nodes/builtin-nodes";
 import { CanvasPluginManagerModal } from "@/components/canvas/canvas-plugin-manager-modal";
 import { CanvasRefreshShell } from "@/components/canvas/canvas-refresh-shell";
 import { CanvasTopBar } from "@/components/canvas/canvas-top-bar";
+import { CanvasCollaborationPresenceLayer, CanvasCollaborationStatus } from "@/components/canvas/canvas-collaboration-presence";
 import { CanvasWorkflowPublisher } from "@/components/canvas/canvas-workflow-publisher";
 import { ConnectionCreateMenu, NodeCreateMenu, type PendingConnectionCreate } from "@/components/canvas/canvas-create-menus";
 import {
@@ -91,6 +92,7 @@ import {
 import type { ReferenceImage } from "@/types/image";
 import type { ReferenceAudio } from "@/types/media";
 import { useCloudSessionStore } from "@/stores/use-cloud-session-store";
+import { useCollaborationStore } from "@/stores/use-collaboration-store";
 import { generateCanvasAudio, generateCanvasImage, generateCanvasText, generateCanvasVideo, generationConfigReady } from "@/services/canvas-generation-provider";
 
 // Register built-in nodes in the shared registry once when the module loads.
@@ -167,6 +169,8 @@ function InfiniteCanvasPage() {
     const historyCommitTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
     const viewportSaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
     const focusedQueryRef = useRef("");
+    const lastPresenceSentAtRef = useRef(0);
+    const presenceCursorRef = useRef<{ x: number; y: number } | undefined>(undefined);
     const applyingHistoryRef = useRef(false);
     const historyPausedRef = useRef(false);
     const didInitialCenterRef = useRef(false);
@@ -475,6 +479,36 @@ function InfiniteCanvasPage() {
             y: (localY - currentViewport.y) / currentViewport.k,
         };
     }, []);
+
+    const publishPresence = useCallback(
+        (cursor: { x: number; y: number } | undefined = presenceCursorRef.current) => {
+            presenceCursorRef.current = cursor;
+            useCollaborationStore.getState().publishPresence(projectId, cursor, [...selectedNodeIdsRef.current]);
+        },
+        [projectId],
+    );
+
+    const handlePresencePointerMove = useCallback(
+        (event: ReactPointerEvent<HTMLDivElement>) => {
+            const now = performance.now();
+            if (now - lastPresenceSentAtRef.current < 50) return;
+            lastPresenceSentAtRef.current = now;
+            publishPresence(screenToCanvas(event.clientX, event.clientY));
+        },
+        [publishPresence, screenToCanvas],
+    );
+
+    useEffect(() => {
+        if (!projectLoaded) return;
+        publishPresence();
+    }, [projectLoaded, publishPresence, selectedNodeIds]);
+
+    useEffect(
+        () => () => {
+            useCollaborationStore.getState().publishPresence(projectId, undefined, []);
+        },
+        [projectId],
+    );
 
     const getCanvasCenter = useCallback(() => {
         const rect = containerRef.current?.getBoundingClientRect();
@@ -2943,6 +2977,7 @@ function InfiniteCanvasPage() {
                     agentOpen={agentPanelOpen}
                     compactAgentStatus={{ connected: localAgentConnected, enabled: localAgentEnabled, activity: localAgentActivity }}
                     onToggleAgent={toggleAgentPanel}
+                    collaborationControl={<CanvasCollaborationStatus projectId={projectId} />}
                     workflowControl={currentProject ? <CanvasWorkflowPublisher projectId={projectId} projectRevision={currentProject.revision} projectName={currentProject.title} workspaceId={cloudWorkspaceId} onFocusNode={focusNode} /> : null}
                 />
 
@@ -2958,6 +2993,8 @@ function InfiniteCanvasPage() {
                     onCanvasMouseDown={(event) => {
                         if (!referencePickerNodeId) handleCanvasMouseDown(event);
                     }}
+                    onCanvasPointerMove={handlePresencePointerMove}
+                    onCanvasPointerLeave={() => publishPresence(undefined)}
                     onCanvasDeselect={referencePickerNodeId ? undefined : deselectCanvas}
                     onCanvasDoubleClick={(event) => {
                         if (referencePickerNodeId) return;
@@ -2967,6 +3004,7 @@ function InfiniteCanvasPage() {
                     onContextMenu={preventCanvasContextMenu}
                     onDrop={handleDrop}
                 >
+                    <CanvasCollaborationPresenceLayer projectId={projectId} nodes={nodes} zoom={viewport.k} />
                     <svg className="absolute left-0 top-0 h-[10000px] w-[10000px] overflow-visible" style={{ pointerEvents: "none", transform: "translateZ(0)", zIndex: 0 }}>
                         {connections
                             .map((connection) => {

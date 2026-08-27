@@ -19,30 +19,33 @@ export function CloudCanvasBridge() {
         const collaboration = new Map<string, CloudCollaborationClient>();
         let unsubscribe: (() => void) | undefined;
         const ensureCollaboration = (projectIds: string[]) => {
-            for (const [projectId, client] of collaboration) if (!projectIds.includes(projectId)) { client.stop(); collaboration.delete(projectId); }
+            for (const [projectId, client] of collaboration) {
+                if (projectIds.includes(projectId)) continue;
+                client.stop();
+                collaboration.delete(projectId);
+                useCollaborationStore.getState().unregisterProject(projectId);
+            }
             for (const projectId of projectIds) {
                 if (collaboration.has(projectId)) continue;
                 const clientId = getCloudClientId();
-                const client = new CloudCollaborationClient(
-                    collaborationWebSocketUrl((import.meta.env.VITE_API_BASE as string | undefined) || "", projectId, clientId),
-                    {
-                        snapshot: (document, presence) => {
-                            const project = document as unknown as import("@/stores/canvas/use-canvas-store").CanvasProject;
-                            engine.acceptSnapshot(project);
-                            const state = useCanvasStore.getState();
-                            state.replaceProjects(state.projects.map((item) => (item.id === projectId ? project : item)));
-                            useCollaborationStore.getState().setPresence(projectId, presence);
-                        },
-                        mutation: (event) => {
-                            if (event.payload.clientId === clientId) return;
-                            engine.noteRemoteRevision(projectId, event.aggregateVersion);
-                            useCanvasStore.getState().applyOperations(projectId, event.payload.operations);
-                        },
-                        presence: (type, presence) => useCollaborationStore.getState().updatePresence(projectId, type, presence),
-                        status: (connectionStatus) => useCollaborationStore.getState().setStatus(projectId, connectionStatus),
+                const client = new CloudCollaborationClient(collaborationWebSocketUrl((import.meta.env.VITE_API_BASE as string | undefined) || "", projectId, clientId), {
+                    snapshot: (document, presence) => {
+                        const project = document as unknown as import("@/stores/canvas/use-canvas-store").CanvasProject;
+                        engine.acceptSnapshot(project);
+                        const state = useCanvasStore.getState();
+                        state.replaceProjects(state.projects.map((item) => (item.id === projectId ? project : item)));
+                        useCollaborationStore.getState().setPresence(projectId, presence);
                     },
-                );
+                    mutation: (event) => {
+                        if (event.payload.clientId === clientId) return;
+                        engine.noteRemoteRevision(projectId, event.aggregateVersion);
+                        useCanvasStore.getState().applyOperations(projectId, event.payload.operations);
+                    },
+                    presence: (type, presence) => useCollaborationStore.getState().updatePresence(projectId, type, presence),
+                    status: (connectionStatus) => useCollaborationStore.getState().setStatus(projectId, connectionStatus),
+                });
                 collaboration.set(projectId, client);
+                useCollaborationStore.getState().registerPublisher(projectId, clientId, (cursor, selectionIds) => client.updatePresence(cursor, selectionIds));
                 client.connect();
             }
         };
@@ -61,7 +64,10 @@ export function CloudCanvasBridge() {
             .catch((error) => useCloudCanvasSyncStore.getState().update({ state: "error", message: error instanceof Error ? error.message : String(error) }));
         return () => {
             unsubscribe?.();
-            for (const client of collaboration.values()) client.stop();
+            for (const [projectId, client] of collaboration) {
+                client.stop();
+                useCollaborationStore.getState().unregisterProject(projectId);
+            }
             engine.stop();
         };
     }, [hydrated, status, workspaceId]);

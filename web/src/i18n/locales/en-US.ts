@@ -610,6 +610,7 @@ export default {
         source: { all: "All sources", canvas: "Current canvas", workspace_asset: "Workspace assets", generation_job: "Generation jobs" },
         group: { media: "Browse by media", node: "Browse by node", version: "Browse by revision" },
     },
+    collaboration: { connecting: "Connecting collaboration", connected: "Live collaboration connected", disconnected: "Collaboration disconnected", error: "Collaboration connection error", active: "Active", online: "Online", noMembers: "No members online", members: "{{count}} members online" },
     locale: {
         zhCN: "简体中文",
         enUS: "English",

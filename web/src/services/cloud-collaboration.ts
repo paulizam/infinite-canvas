@@ -37,7 +37,9 @@ export class CloudCollaborationClient {
     }
 
     updatePresence(cursor: { x: number; y: number } | undefined, selectionIds: string[]) {
-        if (this.socket?.readyState === WebSocket.OPEN) this.socket.send(JSON.stringify({ type: "presence.update", cursor, selectionIds: selectionIds.slice(0, 100) }));
+        const safeCursor = cursor && Number.isFinite(cursor.x) && Number.isFinite(cursor.y) ? cursor : undefined;
+        const safeSelectionIds = selectionIds.filter((id) => id.length > 0 && id.length <= 128).slice(0, 100);
+        if (this.socket?.readyState === WebSocket.OPEN) this.socket.send(JSON.stringify({ type: "presence.update", cursor: safeCursor, selectionIds: safeSelectionIds }));
     }
 
     stop() {

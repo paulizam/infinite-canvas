@@ -33,6 +33,7 @@ export function CanvasTopBar({
     compactAgentStatus,
     onToggleAgent,
     workflowControl,
+    collaborationControl,
 }: {
     title: string;
     titleDraft: string;
@@ -57,6 +58,7 @@ export function CanvasTopBar({
     compactAgentStatus: { connected: boolean; enabled: boolean; activity: string };
     onToggleAgent: () => void;
     workflowControl?: ReactNode;
+    collaborationControl?: ReactNode;
 }) {
     const colorTheme = useThemeStore((state) => state.theme);
     const { t } = useTranslation();
@@ -143,6 +145,7 @@ export function CanvasTopBar({
                 </div>
 
                 <div className="pointer-events-auto flex items-center gap-1.5">
+                    {collaborationControl}
                     <Button type="text" className="!h-10 !rounded-xl !px-3 !font-medium" style={{ background: theme.toolbar.panel, color: theme.node.text }} icon={<Clapperboard className="size-4" />} onClick={onStudio}>
                         {t("studio.studioView")}
                     </Button>

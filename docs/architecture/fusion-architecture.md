@@ -155,6 +155,8 @@ infra/
 
 Creative Studio 的实现遵守以下 projection contract：`CanvasProject` 始终是项目数据唯一真源，Studio 只读投影节点的文本、图片、视频和音频输出，不维护第二份可写项目状态；Workspace Asset 与 Generation Job AssetRef 作为带 `workspace_asset` / `generation_job` 来源标记的补充成果展示，不推断其归属当前 Project。Canvas 与 Studio 通过同一 Project ID 切换，返回 Canvas 时可用 `focusNode` 定位来源节点，因此切换视图不会改变节点、连线或 revision。
 
+协作 presence 遵守 ephemeral contract：光标使用 Canvas world coordinates，选区只传 node ID；二者仅由 WebSocket room 广播并保存在浏览器内存 store，不进入 Canvas document、mutation、IndexedDB 或 PostgreSQL。客户端将发送频率限制在 20Hz，服务端继续执行 payload schema、16KiB 消息上限和 30 msg/s 限流；断线、切换 Workspace、Project 删除与 bridge 卸载必须同步清空在线成员，禁止显示幽灵 presence。
+
 ## 6. 领域模块
 
 ### 6.1 Identity & Workspace
