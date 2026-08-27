@@ -1,4 +1,5 @@
 import type { WorkflowExecutionState } from "@infinite-canvas/workflow-runtime";
+import type { WorkflowDefinition } from "@infinite-canvas/contracts";
 import { DomainError } from "./domain.js";
 
 export type WorkflowExecutionRecord = {
@@ -6,6 +7,10 @@ export type WorkflowExecutionRecord = {
   revision: number;
   workspaceId: string;
   createdBy: string;
+  definition: WorkflowDefinition;
+  workerId: string | null;
+  leaseUntil: string | null;
+  nextRunAt: string;
 };
 export interface WorkflowExecutionRepository {
   create(
@@ -91,6 +96,7 @@ export function sameExecutionCreation(
     left.workspaceId === right.workspaceId &&
     left.state.workflowId === right.state.workflowId &&
     left.state.workflowVersion === right.state.workflowVersion &&
+    canonical(left.definition) === canonical(right.definition) &&
     canonical(left.state.selectedNodeIds) ===
       canonical(right.state.selectedNodeIds) &&
     canonical(left.state.initialInputs) === canonical(right.state.initialInputs)

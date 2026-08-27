@@ -29,8 +29,8 @@ export class PostgresWorkflowExecutionRepository implements WorkflowExecutionRep
       if (!access.rows[0])
         throw new DomainError("WORKFLOW_NOT_FOUND", 404, "Workflow 不存在");
       const inserted = await client.query(
-        `INSERT INTO workflow_executions(id,workflow_id,workflow_version,workspace_id,status,selected_node_ids,layers,initial_inputs,revision,created_by,created_at,updated_at,completed_at)
-         VALUES($1,$2,$3,$4,$5,$6::jsonb,$7::jsonb,$8::jsonb,0,$9,$10,$11,$12) ON CONFLICT(id) DO NOTHING RETURNING id`,
+        `INSERT INTO workflow_executions(id,workflow_id,workflow_version,workspace_id,status,selected_node_ids,layers,initial_inputs,revision,created_by,created_at,updated_at,completed_at,next_run_at)
+         VALUES($1,$2,$3,$4,$5,$6::jsonb,$7::jsonb,$8::jsonb,0,$9,$10,$11,$12,$13) ON CONFLICT(id) DO NOTHING RETURNING id`,
         executionValues(record),
       );
       if (!inserted.rows[0]) {
@@ -125,6 +125,7 @@ function executionValues(record: WorkflowExecutionRecord) {
     state.createdAt,
     state.updatedAt,
     state.completedAt || null,
+    record.nextRunAt,
   ];
 }
 async function writeChildren(
@@ -176,7 +177,9 @@ async function load(
   editor = false,
 ): Promise<WorkflowExecutionRecord | null> {
   const result = await db.query(
-    `SELECT e.* FROM workflow_executions e JOIN workspace_members m ON m.workspace_id=e.workspace_id
+    `SELECT e.*,v.definition AS workflow_definition FROM workflow_executions e
+     JOIN workflow_versions v ON v.workflow_id=e.workflow_id AND v.version=e.workflow_version
+     JOIN workspace_members m ON m.workspace_id=e.workspace_id
      WHERE e.id=$1 AND m.user_id=$2 ${editor ? "AND m.role IN ('owner','admin','editor')" : ""} ${lock ? "FOR UPDATE OF e" : ""}`,
     [executionId, userId],
   );
@@ -194,6 +197,10 @@ async function load(
     revision: Number(row.revision),
     workspaceId: String(row.workspace_id),
     createdBy: String(row.created_by),
+    definition: row.workflow_definition,
+    workerId: row.worker_id ? String(row.worker_id) : null,
+    leaseUntil: row.lease_until ? iso(row.lease_until) : null,
+    nextRunAt: iso(row.next_run_at),
     state: {
       id: String(row.id),
       workflowId: String(row.workflow_id),

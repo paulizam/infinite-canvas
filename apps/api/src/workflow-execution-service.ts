@@ -66,6 +66,10 @@ export class WorkflowExecutionService {
       revision: 0,
       workspaceId: publication.workflow.workspaceId,
       createdBy: userId,
+      definition: version.definition,
+      workerId: null,
+      leaseUntil: null,
+      nextRunAt: state.createdAt,
     });
   }
   async get(userId: string, executionId: string) {
