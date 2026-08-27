@@ -252,6 +252,18 @@ describe("Workflow publication API", () => {
         generate: { status: "ready" },
       },
     });
+    const history = await app.request(
+      `/api/v1/workflows/${firstData.workflow.id}/executions`,
+      { headers: { cookie: owner.cookie } },
+    );
+    expect(history.status).toBe(200);
+    expect(
+      (
+        (await history.json()) as {
+          data: Array<{ state: { id: string } }>;
+        }
+      ).data.map((record) => record.state.id),
+    ).toEqual([executionId]);
     expect(
       (
         await app.request(
@@ -509,6 +521,14 @@ describe("Workflow publication API", () => {
         await app.request(`/api/v1/workflow-executions/${executionId}`, {
           headers: { cookie: outsider.cookie },
         })
+      ).status,
+    ).toBe(404);
+    expect(
+      (
+        await app.request(
+          `/api/v1/workflows/${firstData.workflow.id}/executions`,
+          { headers: { cookie: outsider.cookie } },
+        )
       ).status,
     ).toBe(404);
   });

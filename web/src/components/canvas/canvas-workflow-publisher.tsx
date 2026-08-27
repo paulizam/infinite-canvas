@@ -4,6 +4,7 @@ import { GitBranch, LocateFixed, RefreshCw, Rocket } from "lucide-react";
 import { useTranslation } from "react-i18next";
 
 import { cloudModeEnabled, cloudPlatform, type CloudWorkflowPublication, type CloudWorkflowVersion, type WorkflowCompileIssue } from "@/services/cloud-platform";
+import { WorkflowExecutionPanel } from "./workflow-execution-panel";
 
 export function CanvasWorkflowPublisher({ projectId, projectRevision, projectName, onFocusNode }: { projectId: string; projectRevision: number; projectName: string; onFocusNode: (nodeId: string) => void }) {
     const { t } = useTranslation();
@@ -61,7 +62,7 @@ export function CanvasWorkflowPublisher({ projectId, projectRevision, projectNam
             <Button type="text" className="!h-10 !rounded-xl !px-3 !font-medium" icon={<GitBranch className="size-4" />} onClick={() => setOpen(true)}>
                 {t("canvas.workflow.button")}
             </Button>
-            <Modal title={t("canvas.workflow.title")} open={open} width={720} onCancel={() => setOpen(false)} footer={null} destroyOnHidden>
+            <Modal title={t("canvas.workflow.title")} open={open} width={1080} onCancel={() => setOpen(false)} footer={null} destroyOnHidden>
                 <div className="space-y-4 pt-2">
                     {error ? <Alert type="error" showIcon message={error} /> : null}
                     <div className="flex items-center justify-between rounded-xl border p-3">
@@ -122,6 +123,7 @@ export function CanvasWorkflowPublisher({ projectId, projectRevision, projectNam
                             <div className="rounded-lg border border-dashed p-6 text-center text-sm opacity-60">{t("canvas.workflow.noVersions")}</div>
                         )}
                     </section>
+                    {current ? <WorkflowExecutionPanel publication={current} versions={versions} onFocusNode={onFocusNode} onClose={() => setOpen(false)} /> : null}
                 </div>
             </Modal>
         </>

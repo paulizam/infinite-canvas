@@ -79,6 +79,22 @@ export class WorkflowExecutionService {
       throw new DomainError("EXECUTION_NOT_FOUND", 404, "执行不存在");
     return record;
   }
+  async list(userId: string, workflowId: string, limit = 50) {
+    let publication;
+    try {
+      publication = await this.workflows.getById(userId, workflowId);
+    } catch {
+      publication = null;
+    }
+    if (!publication)
+      throw new DomainError("WORKFLOW_NOT_FOUND", 404, "Workflow 不存在");
+    await this.platform.requireWorkspaceRole(
+      userId,
+      publication.workflow.workspaceId,
+      "viewer",
+    );
+    return this.executions.list(userId, workflowId, limit);
+  }
   async cancel(userId: string, executionId: string) {
     const record = await this.editable(userId, executionId);
     if (record.state.status === "cancelled") return record;

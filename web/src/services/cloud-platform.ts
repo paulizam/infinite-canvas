@@ -1,4 +1,4 @@
-import type { BillingEstimate, BillingLedgerEntry, BillingWallet, CanvasDocument, CanvasMutation, GenerationCapability, GenerationJob, LogicalModel } from "@infinite-canvas/contracts";
+import type { BillingEstimate, BillingLedgerEntry, BillingWallet, CanvasDocument, CanvasMutation, GenerationCapability, GenerationJob, LogicalModel, WorkflowDefinition } from "@infinite-canvas/contracts";
 
 export type CloudUser = { id: string; email: string; name: string; createdAt: string };
 export type CloudWorkspace = { id: string; name: string; createdAt: string; role: "owner" | "admin" | "editor" | "viewer" };
@@ -54,6 +54,40 @@ export type CloudWorkflowPublication = { workflow: CloudWorkflow; version: Cloud
 export type WorkflowPublishResult = {
     compile: { publishable: boolean; definition: unknown; sourceMapping: CloudWorkflowVersion["sourceMapping"]; issues: WorkflowCompileIssue[] };
     publication: CloudWorkflowPublication | null;
+};
+export type CloudWorkflowExecutionEvent = { sequence: number; type: string; createdAt: string; nodeId?: string; stepKey?: string; data?: Record<string, unknown> };
+export type CloudWorkflowNodeExecution = {
+    nodeId: string;
+    status: "pending" | "ready" | "running" | "waiting" | "succeeded" | "failed" | "skipped" | "cancelled";
+    attempt: number;
+    maxAttempts: number;
+    input?: unknown;
+    output?: unknown;
+    error?: { code: string; message: string };
+    skipReason?: string;
+    startedAt?: string;
+    completedAt?: string;
+    steps: Record<string, { status: string; attempt: number; input?: unknown; output?: unknown; error?: { code: string; message: string } }>;
+};
+export type CloudWorkflowExecution = {
+    id: string;
+    workflowId: string;
+    workflowVersion: number;
+    status: "queued" | "running" | "waiting" | "cancel_requested" | "succeeded" | "failed" | "cancelled";
+    selectedNodeIds: string[];
+    initialInputs: Record<string, unknown>;
+    nodes: Record<string, CloudWorkflowNodeExecution>;
+    events: CloudWorkflowExecutionEvent[];
+    createdAt: string;
+    updatedAt: string;
+    completedAt?: string;
+};
+export type CloudWorkflowExecutionRecord = {
+    state: CloudWorkflowExecution;
+    revision: number;
+    workspaceId: string;
+    createdBy: string;
+    definition: WorkflowDefinition;
 };
 
 type FetchLike = (input: RequestInfo | URL, init?: RequestInit) => Promise<Response>;
@@ -132,6 +166,29 @@ export class CloudPlatformClient {
 
     listWorkflowVersions(workflowId: string) {
         return this.request<CloudWorkflowVersion[]>(`/api/v1/workflows/${encodeURIComponent(workflowId)}/versions`);
+    }
+
+    listWorkflowExecutions(workflowId: string) {
+        return this.request<CloudWorkflowExecutionRecord[]>(`/api/v1/workflows/${encodeURIComponent(workflowId)}/executions`);
+    }
+
+    createWorkflowExecution(workflowId: string, input: { executionId: string; version?: number; startNodeIds?: string[]; initialInputs?: Record<string, unknown> }) {
+        return this.request<{ record: CloudWorkflowExecutionRecord; replayed: boolean }>(`/api/v1/workflows/${encodeURIComponent(workflowId)}/executions`, {
+            method: "POST",
+            body: JSON.stringify(input),
+        });
+    }
+
+    getWorkflowExecution(executionId: string) {
+        return this.request<CloudWorkflowExecutionRecord>(`/api/v1/workflow-executions/${encodeURIComponent(executionId)}`);
+    }
+
+    cancelWorkflowExecution(executionId: string) {
+        return this.request<CloudWorkflowExecutionRecord>(`/api/v1/workflow-executions/${encodeURIComponent(executionId)}/cancel`, { method: "POST" });
+    }
+
+    retryWorkflowNode(executionId: string, nodeId: string) {
+        return this.request<CloudWorkflowExecutionRecord>(`/api/v1/workflow-executions/${encodeURIComponent(executionId)}/nodes/${encodeURIComponent(nodeId)}/retry`, { method: "POST" });
     }
 
     listModels() {

@@ -20,6 +20,11 @@ export interface WorkflowExecutionRepository {
     userId: string,
     executionId: string,
   ): Promise<WorkflowExecutionRecord | null>;
+  list(
+    userId: string,
+    workflowId: string,
+    limit: number,
+  ): Promise<WorkflowExecutionRecord[]>;
   save(
     userId: string,
     record: WorkflowExecutionRecord,
@@ -86,6 +91,26 @@ export class MemoryWorkflowExecutionRepository implements WorkflowExecutionRepos
       return null;
     }
     return structuredClone(record);
+  }
+  async list(userId: string, workflowId: string, limit: number) {
+    const matches = [...this.records.values()]
+      .filter((record) => record.state.workflowId === workflowId)
+      .sort(
+        (a, b) =>
+          b.state.createdAt.localeCompare(a.state.createdAt) ||
+          b.state.id.localeCompare(a.state.id),
+      );
+    const visible: WorkflowExecutionRecord[] = [];
+    for (const record of matches) {
+      try {
+        await this.authorize(userId, record.workspaceId, "viewer");
+        visible.push(structuredClone(record));
+      } catch {
+        // Tenant isolation intentionally returns no cross-workspace records.
+      }
+      if (visible.length >= limit) break;
+    }
+    return visible;
   }
   async save(
     userId: string,

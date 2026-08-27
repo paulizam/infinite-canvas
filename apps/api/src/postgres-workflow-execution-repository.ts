@@ -64,6 +64,17 @@ export class PostgresWorkflowExecutionRepository implements WorkflowExecutionRep
   async get(userId: string, executionId: string) {
     return load(this.pool, userId, executionId, false);
   }
+  async list(userId: string, workflowId: string, limit: number) {
+    const result = await this.pool.query(
+      `SELECT e.*,v.definition AS workflow_definition FROM workflow_executions e
+       JOIN workflow_versions v ON v.workflow_id=e.workflow_id AND v.version=e.workflow_version
+       JOIN workspace_members m ON m.workspace_id=e.workspace_id
+       WHERE e.workflow_id=$1 AND m.user_id=$2
+       ORDER BY e.created_at DESC,e.id DESC LIMIT $3`,
+      [workflowId, userId, limit],
+    );
+    return Promise.all(result.rows.map((row) => hydrate(this.pool, row)));
+  }
   async save(
     userId: string,
     record: WorkflowExecutionRecord,

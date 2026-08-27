@@ -406,6 +406,15 @@ export function createApp(services: AppServices) {
     );
   }
   if (services.workflowExecutions) {
+    app.get("/api/v1/workflows/:workflowId/executions", async (c) =>
+      c.json({
+        data: await services.workflowExecutions!.list(
+          c.get("user").id,
+          c.req.param("workflowId"),
+        ),
+        requestId: requestId(c),
+      }),
+    );
     app.post("/api/v1/workflows/:workflowId/executions", async (c) => {
       const input = createWorkflowExecutionSchema.parse(await c.req.json());
       const result = await services.workflowExecutions!.create(

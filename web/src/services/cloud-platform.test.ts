@@ -65,4 +65,19 @@ describe("CloudPlatformClient", () => {
         expect(fetcher).toHaveBeenNthCalledWith(1, "/api/v1/projects/project%2Fa/workflow", expect.any(Object));
         expect(fetcher).toHaveBeenNthCalledWith(2, "/api/v1/workflows/workflow%2Fa/versions", expect.any(Object));
     });
+
+    it("uses encoded workflow execution lifecycle endpoints", async () => {
+        const fetcher = vi.fn(async () => Response.json({ data: [], requestId: "r9" }));
+        const client = new CloudPlatformClient("", fetcher);
+        await client.listWorkflowExecutions("workflow/a");
+        await client.createWorkflowExecution("workflow/a", { executionId: "run", startNodeIds: ["node/a"] });
+        await client.getWorkflowExecution("run/a");
+        await client.cancelWorkflowExecution("run/a");
+        await client.retryWorkflowNode("run/a", "node/a");
+        expect(fetcher).toHaveBeenNthCalledWith(1, "/api/v1/workflows/workflow%2Fa/executions", expect.any(Object));
+        expect(fetcher).toHaveBeenNthCalledWith(2, "/api/v1/workflows/workflow%2Fa/executions", expect.objectContaining({ method: "POST", body: JSON.stringify({ executionId: "run", startNodeIds: ["node/a"] }) }));
+        expect(fetcher).toHaveBeenNthCalledWith(3, "/api/v1/workflow-executions/run%2Fa", expect.any(Object));
+        expect(fetcher).toHaveBeenNthCalledWith(4, "/api/v1/workflow-executions/run%2Fa/cancel", expect.objectContaining({ method: "POST" }));
+        expect(fetcher).toHaveBeenNthCalledWith(5, "/api/v1/workflow-executions/run%2Fa/nodes/node%2Fa/retry", expect.objectContaining({ method: "POST" }));
+    });
 });

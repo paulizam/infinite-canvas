@@ -30,6 +30,20 @@ const record = (id: string, nextRunAt: string): WorkflowExecutionRecord => ({
 });
 
 describe("Workflow execution leases", () => {
+  it("lists visible workflow history newest first with a hard limit", async () => {
+    const repository = new MemoryWorkflowExecutionRepository(
+      async () => undefined,
+    );
+    const older = record("older", "2026-01-01T00:00:00.000Z");
+    const newer = record("newer", "2026-01-01T00:00:00.000Z");
+    newer.state.createdAt = "2026-01-02T00:00:00.000Z";
+    await repository.create(older);
+    await repository.create(newer);
+    expect(
+      (await repository.list("owner", "flow", 1)).map((item) => item.state.id),
+    ).toEqual(["newer"]);
+  });
+
   it("claims due work deterministically and permits takeover only after expiry", async () => {
     const repository = new MemoryWorkflowExecutionRepository(
       async () => undefined,
