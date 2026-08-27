@@ -122,6 +122,34 @@ export class WorkerApiClient {
       mimeType: payload.data.asset.mimeType,
     };
   }
+  async readAsset(
+    workerId: string,
+    jobId: string,
+    assetId: string,
+    signal?: AbortSignal,
+  ) {
+    const response = await this.fetcher(
+      new URL(
+        `/internal/v1/generation/jobs/${encodeURIComponent(jobId)}/assets/${encodeURIComponent(assetId)}`,
+        this.origin,
+      ),
+      {
+        method: "GET",
+        signal,
+        headers: {
+          authorization: `Bearer ${this.token}`,
+          "x-worker-id": workerId,
+        },
+      },
+    );
+    if (!response.ok)
+      throw new Error(`ASSET_READ_ERROR: HTTP ${response.status}`);
+    const bytes = new Uint8Array(await response.arrayBuffer());
+    const mimeType =
+      response.headers.get("content-type")?.split(";", 1)[0] ||
+      "application/octet-stream";
+    return { bytes, mimeType };
+  }
   private async request<T>(
     path: string,
     body: unknown,

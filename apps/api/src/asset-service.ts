@@ -96,6 +96,11 @@ export class AssetService {
       ? { asset, url }
       : { asset, bytes: await this.blobs.get(asset.storageKey) };
   }
+  async readBytes(userId: string, assetId: string) {
+    const asset = await this.repository.getAsset(userId, assetId);
+    if (!asset) throw new DomainError("ASSET_NOT_FOUND", 404, "素材不存在");
+    return { asset, bytes: await this.blobs.get(asset.storageKey) };
+  }
   async delete(userId: string, assetId: string) {
     const asset = await this.repository.deleteAsset(userId, assetId);
     await this.blobs.delete(asset.storageKey);

@@ -31,3 +31,6 @@
 - 生成配置节点在 Server mode 登录态 debounce 获取服务端权威预估与余额，展示预计积分/余额并阻止已知余额不足提交；controller 丢弃过期响应，Local mode 经测试不触发任何 Cloud API。
 - Canvas Server mode 主生成链改走 Cloud Generation Job：按 capability 解析默认逻辑模型，以稳定 clientRequestId 创建任务并轮询终态；浏览器 Abort 会请求服务端取消，失败/needs_review 保留诊断。
 - Cloud text 兼容 Gemini/OpenAI 结果归一化；image/video/audio 从 Job AssetRef 经 Session 鉴权下载 Blob，再复用现有本地媒体存储与节点回填，后端 reservation 成为权威扣费边界。
+- Cloud 参考图改为浏览器先上传 Workspace Asset，Job input 仅保存 AssetRef；并行相同引用使用 single-flight，服务端 SHA-256 继续兜底去重。
+- 新增租约绑定的 Worker input Asset 读取端点；严格校验 Worker Token、workerId、有效 lease 与 Workspace，S3 也由 API 读取原始字节，避免重定向携带内部请求头。
+- Worker Provider submit 前递归物化 AssetRef，单任务限制 16 个唯一输入、64MiB 原始字节，重复引用只读取一次且 Data URL 不回写 Job。

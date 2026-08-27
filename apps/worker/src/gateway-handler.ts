@@ -84,9 +84,16 @@ async function submit(
     undefined,
     signal,
   );
+  const parameters = await materializeInputAssets(
+    job.input,
+    job,
+    client,
+    workerId,
+    signal,
+  );
   const issues = validateModelParameters(
     resolved.binding.capabilityProfile,
-    job.input,
+    parameters,
   );
   if (issues.length) {
     await client.transition(
@@ -107,7 +114,7 @@ async function submit(
     job.phase === "claimed"
       ? await client.transition(workerId, job.id, "submitting", {}, signal)
       : job;
-  const request = buildSubmitRequest(resolved, capability, job.input);
+  const request = buildSubmitRequest(resolved, capability, parameters);
   let response: Response;
   try {
     response = await fetcher(request.url, { ...request.init, signal });
@@ -158,6 +165,50 @@ async function submit(
     binary,
   );
   await reportHealth(client, resolved.upstreamModel.id, "success", signal);
+}
+
+async function materializeInputAssets(
+  value: unknown,
+  job: GenerationJob,
+  client: WorkerApiClient,
+  workerId: string,
+  signal?: AbortSignal,
+): Promise<Record<string, unknown>> {
+  const cache = new Map<string, string>();
+  let totalBytes = 0;
+  const visit = async (input: unknown): Promise<unknown> => {
+    if (Array.isArray(input)) return Promise.all(input.map(visit));
+    if (!input || typeof input !== "object") return input;
+    const record = input as Record<string, unknown>;
+    if (typeof record.assetId === "string") {
+      const cached = cache.get(record.assetId);
+      if (cached) return cached;
+      if (cache.size >= 16)
+        throw new Error(
+          "Generation input assets exceed the safe materialization limit",
+        );
+      cache.set(record.assetId, "pending");
+      const asset = await client.readAsset(
+        workerId,
+        job.id,
+        record.assetId,
+        signal,
+      );
+      totalBytes += asset.bytes.byteLength;
+      if (totalBytes > 64 * 1024 * 1024)
+        throw new Error(
+          "Generation input assets exceed the safe materialization limit",
+        );
+      const dataUrl = `data:${asset.mimeType};base64,${Buffer.from(asset.bytes).toString("base64")}`;
+      cache.set(record.assetId, dataUrl);
+      return dataUrl;
+    }
+    const output: Record<string, unknown> = {};
+    for (const [key, child] of Object.entries(record))
+      output[key] = await visit(child);
+    return output;
+  };
+  return (await visit(value)) as Record<string, unknown>;
 }
 
 async function poll(

@@ -404,6 +404,28 @@ export function createApp(services: AppServices) {
     });
     return c.json({ data: result, requestId: requestId(c) }, 201);
   });
+  app.get("/internal/v1/generation/jobs/:jobId/assets/:assetId", async (c) => {
+    const workerId = c.req.header("x-worker-id")?.trim();
+    if (!workerId)
+      throw new DomainError("WORKER_ID_REQUIRED", 400, "缺少 Worker 标识");
+    const job = await services.jobRepository.getForWorker(
+      workerId,
+      c.req.param("jobId"),
+      new Date().toISOString(),
+    );
+    if (!job) throw new DomainError("JOB_LEASE_LOST", 409, "任务租约已失效");
+    const result = await services.assets.readBytes(
+      job.ownerId,
+      c.req.param("assetId"),
+    );
+    if (result.asset.workspaceId !== job.workspaceId)
+      throw new DomainError("ASSET_NOT_FOUND", 404, "素材不存在");
+    return c.body(new Uint8Array(result.bytes), 200, {
+      "content-type": result.asset.mimeType,
+      "content-length": String(result.asset.bytes),
+      "cache-control": "private, no-store",
+    });
+  });
   app.post("/internal/v1/model-gateway/resolve", async (c) => {
     const input = resolveModelSchema.parse(await c.req.json());
     const resolved = await services.modelGateway.resolve(

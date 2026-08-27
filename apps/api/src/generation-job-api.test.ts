@@ -297,9 +297,29 @@ describe("generation job API", () => {
       },
     );
     expect(persisted.status).toBe(201);
+    const persistedBody = (await persisted.json()) as {
+      data: { asset: { id: string; mimeType: string } };
+    };
+    expect(persistedBody.data.asset.mimeType).toBe("image/png");
+    const readUrl = `/internal/v1/generation/jobs/${jobId}/assets/${persistedBody.data.asset.id}`;
     expect(
-      ((await persisted.json()) as { data: { asset: { mimeType: string } } })
-        .data.asset.mimeType,
-    ).toBe("image/png");
+      (
+        await app.request(readUrl, {
+          headers: {
+            authorization: "Bearer test-worker-token-32-characters-long",
+            "x-worker-id": "worker-b",
+          },
+        })
+      ).status,
+    ).toBe(409);
+    const read = await app.request(readUrl, {
+      headers: {
+        authorization: "Bearer test-worker-token-32-characters-long",
+        "x-worker-id": "worker-a",
+      },
+    });
+    expect(read.status).toBe(200);
+    expect(read.headers.get("content-type")).toBe("image/png");
+    expect(Buffer.from(await read.arrayBuffer())).toEqual(png);
   });
 });

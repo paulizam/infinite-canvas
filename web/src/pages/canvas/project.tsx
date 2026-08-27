@@ -93,6 +93,7 @@ import type { ReferenceAudio } from "@/types/media";
 import { cloudModeEnabled } from "@/services/cloud-platform";
 import { runCloudMediaGeneration, runCloudTextGeneration } from "@/services/cloud-canvas-generation";
 import { useCloudSessionStore } from "@/stores/use-cloud-session-store";
+import { uploadCloudReferenceImages } from "@/services/cloud-reference-assets";
 
 // Register built-in nodes in the shared registry once when the module loads.
 registerBuiltinNodes();
@@ -2139,7 +2140,7 @@ function InfiniteCanvasPage() {
                     const context = await hydrateNodeGenerationContext(buildNodeGenerationContext(nodeId, nodesRef.current, connectionsRef.current, fullPrompt));
                     const refs = context.referenceImages;
                     const imageSource = cloudModeEnabled
-                        ? await runCloudMediaGeneration({ workspaceId: requireCloudWorkspace(cloudWorkspaceId), capability: "image", requestedModel: generationConfig.model, parameters: { prompt: context.prompt, images: refs.map((image) => image.dataUrl), count: 1, size: generationConfig.size, resolution: generationConfig.size, quality: generationConfig.quality }, signal: controller.signal }).then((items) => items[0])
+                        ? await runCloudMediaGeneration({ workspaceId: requireCloudWorkspace(cloudWorkspaceId), capability: "image", requestedModel: generationConfig.model, parameters: { prompt: context.prompt, images: await uploadCloudReferenceImages(requireCloudWorkspace(cloudWorkspaceId), refs, controller.signal), count: 1, size: generationConfig.size, resolution: generationConfig.size, quality: generationConfig.quality }, signal: controller.signal }).then((items) => items[0])
                         : await (refs.length
                               ? requestEdit({ ...generationConfig, count: "1" }, context.prompt, refs, undefined, { signal: controller.signal }).then((items) => items[0].dataUrl)
                               : requestGeneration({ ...generationConfig, count: "1" }, context.prompt, { signal: controller.signal }).then((items) => items[0].dataUrl));
@@ -2266,7 +2267,7 @@ function InfiniteCanvasPage() {
                         imageIds.map(async (imageId) => {
                             try {
                                 const imageSource = cloudModeEnabled
-                                    ? await runCloudMediaGeneration({ workspaceId: requireCloudWorkspace(cloudWorkspaceId), capability: "image", requestedModel: generationConfig.model, parameters: { prompt: effectivePrompt, images: referenceImages.map((image) => image.dataUrl), count: 1, size: generationConfig.size, resolution: generationConfig.size, quality: generationConfig.quality }, signal: controller.signal }).then((items) => items[0])
+                                    ? await runCloudMediaGeneration({ workspaceId: requireCloudWorkspace(cloudWorkspaceId), capability: "image", requestedModel: generationConfig.model, parameters: { prompt: effectivePrompt, images: await uploadCloudReferenceImages(requireCloudWorkspace(cloudWorkspaceId), referenceImages, controller.signal), count: 1, size: generationConfig.size, resolution: generationConfig.size, quality: generationConfig.quality }, signal: controller.signal }).then((items) => items[0])
                                     : await (referenceImages.length
                                           ? requestEdit({ ...generationConfig, count: "1" }, effectivePrompt, referenceImages, undefined, { signal: controller.signal }).then((items) => items[0].dataUrl)
                                           : requestGeneration({ ...generationConfig, count: "1" }, effectivePrompt, { signal: controller.signal }).then((items) => items[0].dataUrl));
@@ -2365,7 +2366,7 @@ function InfiniteCanvasPage() {
                     try {
                         const video = await storeGeneratedVideo(
                             cloudModeEnabled
-                                ? { blob: await runCloudMediaGeneration({ workspaceId: requireCloudWorkspace(cloudWorkspaceId), capability: "video", requestedModel: generationConfig.model, parameters: { prompt: effectivePrompt, images: generationContext.referenceImages.map((image) => image.dataUrl), durationSeconds: Number(generationConfig.videoSeconds), seconds: generationConfig.videoSeconds, size: generationConfig.size, resolution: generationConfig.vquality, generateAudio: generationConfig.videoGenerateAudio === "true", watermark: generationConfig.videoWatermark === "true" }, signal: controller.signal }).then((items) => items[0]) }
+                                ? { blob: await runCloudMediaGeneration({ workspaceId: requireCloudWorkspace(cloudWorkspaceId), capability: "video", requestedModel: generationConfig.model, parameters: { prompt: effectivePrompt, images: await uploadCloudReferenceImages(requireCloudWorkspace(cloudWorkspaceId), generationContext.referenceImages, controller.signal), durationSeconds: Number(generationConfig.videoSeconds), seconds: generationConfig.videoSeconds, size: generationConfig.size, resolution: generationConfig.vquality, generateAudio: generationConfig.videoGenerateAudio === "true", watermark: generationConfig.videoWatermark === "true" }, signal: controller.signal }).then((items) => items[0]) }
                                 : await requestVideoGeneration(generationConfig, effectivePrompt, generationContext.referenceImages, { signal: controller.signal }),
                         );
                         const videoSize = fitNodeSize(video.width || spec.width, video.height || spec.height, VIDEO_NODE_MAX_WIDTH, VIDEO_NODE_MAX_HEIGHT);

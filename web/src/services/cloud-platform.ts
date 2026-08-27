@@ -11,6 +11,14 @@ export type CloudProject = {
     createdAt: string;
     updatedAt: string;
 };
+export type CloudAsset = {
+    id: string;
+    workspaceId: string;
+    mimeType: string;
+    bytes: number;
+    originalName: string;
+    createdAt: string;
+};
 
 type FetchLike = (input: RequestInfo | URL, init?: RequestInit) => Promise<Response>;
 type Envelope<T> = { data: T; requestId: string };
@@ -99,6 +107,20 @@ export class CloudPlatformClient {
 
     listGenerationJobs(workspaceId: string) {
         return this.request<GenerationJob[]>(`/api/v1/workspaces/${encodeURIComponent(workspaceId)}/generation-jobs`);
+    }
+
+    async uploadAsset(workspaceId: string, blob: Blob, originalName: string, signal?: AbortSignal) {
+        const response = await this.fetcher(`${this.baseUrl}/api/v1/workspaces/${encodeURIComponent(workspaceId)}/assets`, {
+            method: "POST",
+            credentials: "include",
+            signal,
+            headers: { "content-type": blob.type || "application/octet-stream", "x-file-name": originalName },
+            body: blob,
+        });
+        const payload = (await response.json().catch(() => null)) as (Envelope<{ asset: CloudAsset; deduplicated: boolean }> & { error?: { code?: string; message?: string } }) | null;
+        if (!response.ok) throw new CloudApiError(response.status, payload?.error?.code || "ASSET_UPLOAD_FAILED", payload?.error?.message || response.statusText, payload?.requestId);
+        if (!payload?.data?.asset) throw new CloudApiError(response.status, "INVALID_RESPONSE", "Cloud API returned an invalid asset response");
+        return payload.data;
     }
 
     createGenerationJob(

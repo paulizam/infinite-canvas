@@ -36,3 +36,5 @@
 | PowerShell `Get-ChildItem -Filter` 误传数组 | 1 | 改用单次枚举后按 Name 过滤 |
 | 误判 Model Gateway adapter 文件名为 `runtime-adapters.ts` | 1 | 重新枚举目录并定位 `openai-compatible.ts`/`provider-adapters.ts` |
 | 对历史宽行 `project.tsx` 运行 Prettier 造成无关展开 | 1 | 回滚该文件并以小块语义 patch 重放，禁止整文件格式化 |
+| Worker 重复 AssetRef 因并行递归穿透 cache 被读取两次 | 1 | 读取前写入占位并复用结果，测试断言唯一素材只读取一次 |
+| Web reference 单测顶层加载 i18n 依赖 localStorage | 1 | 本地 BlobStore 改为按 storageKey 动态导入，Data URL 路径无环境副作用 |

@@ -33,6 +33,48 @@ const resolved = {
 } as WorkerResolvedModel;
 
 describe("model gateway worker handler", () => {
+  it("materializes leased input AssetRefs in memory without persisting data URLs in the job", async () => {
+    const assetJob = {
+      ...job,
+      input: {
+        prompt: "edit",
+        images: [{ assetId: "input-1" }, { assetId: "input-1" }],
+      },
+    } as GenerationJob;
+    const client = {
+      resolveModel: vi.fn(async () => resolved),
+      readAsset: vi.fn(async () => ({
+        bytes: Uint8Array.from([1, 2, 3]),
+        mimeType: "image/png",
+      })),
+      transition: vi.fn(async (_w, _id, phase, patch) => ({
+        ...assetJob,
+        ...patch,
+        phase,
+      })),
+      persistAsset: vi.fn(async () => ({ assetId: "output-1" })),
+      reportModelHealth: vi.fn(async () => ({ accepted: true as const })),
+    } as unknown as WorkerApiClient;
+    const fetcher = vi.fn(async (_url: string, init: RequestInit) => {
+      const body = JSON.parse(String(init.body)) as { images: string[] };
+      expect(body.images).toEqual([
+        "data:image/png;base64,AQID",
+        "data:image/png;base64,AQID",
+      ]);
+      return Response.json({ data: [{ url: "https://cdn.example/out.png" }] });
+    });
+    await createModelGatewayHandler(fetcher as typeof fetch)(
+      assetJob,
+      client,
+      "worker-a",
+    );
+    expect(client.readAsset).toHaveBeenCalledOnce();
+    expect(assetJob.input).toEqual({
+      prompt: "edit",
+      images: [{ assetId: "input-1" }, { assetId: "input-1" }],
+    });
+  });
+
   it("executes a synchronous provider result through every persistence phase", async () => {
     const phases: string[] = [];
     const client = {
