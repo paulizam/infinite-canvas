@@ -48,7 +48,12 @@ export class BrowserCanvasOperationQueue implements CanvasOperationQueue {
     }
     private enqueue<T>(workspaceId: string, task: () => Promise<T>): Promise<T> {
         const previous = this.chains.get(workspaceId) || Promise.resolve();
-        const lockedTask = () => (typeof navigator !== "undefined" && navigator.locks ? navigator.locks.request(`infinite-canvas:queue:${workspaceId}`, task) : task());
+        const lockedTask = async (): Promise<T> => {
+            if (typeof navigator !== "undefined" && navigator.locks) {
+                return await navigator.locks.request<Promise<T>>(`infinite-canvas:queue:${workspaceId}`, () => task());
+            }
+            return task();
+        };
         const current = previous.then(lockedTask, lockedTask);
         this.chains.set(workspaceId, current);
         return current.finally(() => {
