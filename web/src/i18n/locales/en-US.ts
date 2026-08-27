@@ -240,6 +240,7 @@ export default {
         agentDisconnected: "Codex disconnected",
         connecting: "Connecting",
         openAgent: "Open local Codex panel",
+        workflow: { button: "Workflow", title: "Publish as Workflow", unpublished: "Not published", canvasRevision: "Current Canvas revision: {{revision}}", refresh: "Refresh", publish: "Publish version", diagnostics: "Compile diagnostics", locate: "Locate node", history: "Version history", noVersions: "No published versions", loadFailed: "Failed to load workflow", publishFailed: "Failed to publish workflow" },
         nodeTypes: { image: "Image", text: "Text", config: "Generation config", video: "Video", audio: "Audio", group: "Group" },
         toolbar: {
             select: "Select", pan: "Move", text: "Text", image: "Image", video: "Video", audio: "Audio", config: "Generation config", group: "Group", extensions: "Extension nodes", upload: "Upload assets", appearance: "Canvas appearance", clear: "Clear canvas",

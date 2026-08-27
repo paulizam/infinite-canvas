@@ -48,4 +48,21 @@ describe("CloudPlatformClient", () => {
         expect(fetcher).toHaveBeenNthCalledWith(1, "/api/v1/billing/wallet", expect.objectContaining({ credentials: "include" }));
         expect(fetcher).toHaveBeenNthCalledWith(2, "/api/v1/billing/ledger", expect.objectContaining({ credentials: "include" }));
     });
+
+    it("publishes workflows with encoded ids and preserves 422 compile diagnostics", async () => {
+        const result = { compile: { publishable: false, definition: {}, sourceMapping: { nodes: {}, edges: {} }, issues: [{ code: "EMPTY_WORKFLOW", severity: "error", message: "empty" }] }, publication: null };
+        const fetcher = vi.fn(async () => Response.json({ data: result, requestId: "r7" }, { status: 422 }));
+        const client = new CloudPlatformClient("", fetcher);
+        await expect(client.publishWorkflow("project/a", { publicationId: "pub-1", expectedProjectRevision: 3 })).resolves.toEqual(result);
+        expect(fetcher).toHaveBeenCalledWith("/api/v1/projects/project%2Fa/workflows/publish", expect.objectContaining({ method: "POST", body: JSON.stringify({ publicationId: "pub-1", expectedProjectRevision: 3 }) }));
+    });
+
+    it("queries current workflow and immutable versions with encoded ids", async () => {
+        const fetcher = vi.fn(async () => Response.json({ data: [], requestId: "r8" }));
+        const client = new CloudPlatformClient("", fetcher);
+        await client.getProjectWorkflow("project/a");
+        await client.listWorkflowVersions("workflow/a");
+        expect(fetcher).toHaveBeenNthCalledWith(1, "/api/v1/projects/project%2Fa/workflow", expect.any(Object));
+        expect(fetcher).toHaveBeenNthCalledWith(2, "/api/v1/workflows/workflow%2Fa/versions", expect.any(Object));
+    });
 });

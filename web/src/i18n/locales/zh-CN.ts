@@ -240,6 +240,7 @@ export default {
         agentDisconnected: "Codex 未连接",
         connecting: "连接中",
         openAgent: "打开本地 Codex 面板",
+        workflow: { button: "Workflow", title: "发布为 Workflow", unpublished: "尚未发布", canvasRevision: "当前 Canvas revision：{{revision}}", refresh: "刷新", publish: "发布新版本", diagnostics: "编译诊断", locate: "定位节点", history: "版本历史", noVersions: "暂无已发布版本", loadFailed: "加载 Workflow 失败", publishFailed: "发布 Workflow 失败" },
         nodeTypes: { image: "图片", text: "文本", config: "生成配置", video: "视频", audio: "音频", group: "组" },
         toolbar: {
             select: "选择", pan: "移动", text: "文本", image: "图片", video: "视频", audio: "音频", config: "生成配置", group: "组", extensions: "扩展节点", upload: "上传资产", appearance: "画布外观", clear: "清空画布",

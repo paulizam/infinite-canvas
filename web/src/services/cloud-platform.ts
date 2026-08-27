@@ -19,6 +19,42 @@ export type CloudAsset = {
     originalName: string;
     createdAt: string;
 };
+export type WorkflowCompileIssue = {
+    code: string;
+    severity: "error" | "warning";
+    message: string;
+    canvasNodeId?: string;
+    canvasConnectionId?: string;
+    workflowNodeId?: string;
+    workflowEdgeId?: string;
+    portId?: string;
+};
+export type CloudWorkflow = {
+    id: string;
+    workspaceId: string;
+    projectId: string;
+    name: string;
+    currentVersion: number;
+    createdBy: string;
+    createdAt: string;
+    updatedAt: string;
+};
+export type CloudWorkflowVersion = {
+    workflowId: string;
+    version: number;
+    projectRevision: number;
+    publicationId: string;
+    definition: unknown;
+    sourceMapping: { nodes: Record<string, string>; edges: Record<string, string> };
+    warnings: WorkflowCompileIssue[];
+    publishedBy: string;
+    createdAt: string;
+};
+export type CloudWorkflowPublication = { workflow: CloudWorkflow; version: CloudWorkflowVersion; replayed: boolean };
+export type WorkflowPublishResult = {
+    compile: { publishable: boolean; definition: unknown; sourceMapping: CloudWorkflowVersion["sourceMapping"]; issues: WorkflowCompileIssue[] };
+    publication: CloudWorkflowPublication | null;
+};
 
 type FetchLike = (input: RequestInfo | URL, init?: RequestInit) => Promise<Response>;
 type Envelope<T> = { data: T; requestId: string };
@@ -84,6 +120,18 @@ export class CloudPlatformClient {
             method: "POST",
             body: JSON.stringify(mutation),
         });
+    }
+
+    publishWorkflow(projectId: string, input: { publicationId: string; expectedProjectRevision: number; name?: string; entryNodeIds?: string[] }) {
+        return this.request<WorkflowPublishResult>(`/api/v1/projects/${encodeURIComponent(projectId)}/workflows/publish`, { method: "POST", body: JSON.stringify(input) }, [422]);
+    }
+
+    getProjectWorkflow(projectId: string) {
+        return this.request<CloudWorkflowPublication | null>(`/api/v1/projects/${encodeURIComponent(projectId)}/workflow`);
+    }
+
+    listWorkflowVersions(workflowId: string) {
+        return this.request<CloudWorkflowVersion[]>(`/api/v1/workflows/${encodeURIComponent(workflowId)}/versions`);
     }
 
     listModels() {
@@ -172,14 +220,14 @@ export class CloudPlatformClient {
         return response.blob();
     }
 
-    private async request<T>(path: string, init: RequestInit = {}): Promise<T> {
+    private async request<T>(path: string, init: RequestInit = {}, acceptedStatuses: readonly number[] = []): Promise<T> {
         const response = await this.fetcher(`${this.baseUrl}${path}`, {
             ...init,
             credentials: "include",
             headers: { "content-type": "application/json", ...init.headers },
         });
         const payload = (await response.json().catch(() => null)) as (Envelope<T> & { error?: { code?: string; message?: string } }) | null;
-        if (!response.ok) {
+        if (!response.ok && !acceptedStatuses.includes(response.status)) {
             throw new CloudApiError(response.status, payload?.error?.code || "HTTP_ERROR", payload?.error?.message || response.statusText, payload?.requestId);
         }
         if (!payload || !("data" in payload)) throw new CloudApiError(response.status, "INVALID_RESPONSE", "Cloud API returned an invalid response");
