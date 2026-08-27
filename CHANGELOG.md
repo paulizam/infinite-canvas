@@ -2,6 +2,8 @@
 
 ## Unreleased
 
++ [新增] Project Checkpoint 支持命名不可变快照、viewer 预览、editor 恢复为新 revision，并通过乐观锁与实时 canonical snapshot 阻断静默覆盖。
++ [安全] 文档与前端构建链升级 Next.js，并锁定已修复的 Sharp、PostCSS、PrismJS，官方 npm audit 收敛为零已知漏洞。
 + [新增] Model Gateway Maintenance API 新增渠道连接测试与模型发现，支持 OpenAI-compatible、Gemini 及显式 Custom catalog path，返回去重规范化模型目录并反馈渠道健康状态。
 + [安全] 模型发现使用运行时解密凭据、30 秒超时、禁止重定向、DNS 后内网/保留地址拦截、2MiB 响应上限和脱敏错误；Provider body 与 API Key 不进入响应或日志。
 + [重构] Canvas Local/Cloud 生成统一收口到 provider facade，Server mode 现覆盖普通生成、批量槽位、Retry、Mask Edit、Angle Edit 及 image/video/audio 引用；Job 终态自动刷新积分余额。
