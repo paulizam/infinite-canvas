@@ -29,4 +29,12 @@ references share one in-flight read and materialized data never returns to Job s
 report health for routing cooldown. Cancellation calls
 the original provider when the binding declares `supportsCancel`; an uncertain unsupported cancel
 moves to `needs_review` rather than falsely claiming that billing stopped. SSE text streaming and
-provider-specific adapters remain follow-up work.
+provider-specific adapters use the same normalized gateway contract.
+
+The same process also claims durable Workflow Executions, Schedule Triggers, and Cloud Agent
+Runs. The stock Agent handler executes text-only Runs through the configured logical text model,
+persists visible output deltas/results, and deliberately discards Provider reasoning. Runs with
+Asset attachments or executable Skills require an injected remote `AgentRunHandler`. If a lease
+expires after a Provider attempt started, the stock handler fails closed with
+`AGENT_AMBIGUOUS_RECOVERY`; an explicit user retry is required instead of silently duplicating a
+potentially billable request.

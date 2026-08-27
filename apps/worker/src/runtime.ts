@@ -5,6 +5,7 @@ import { createModelGatewayHandler } from "./gateway-handler.js";
 import { runWorkflowCycle, type WorkflowHandler } from "./workflow-runtime.js";
 import type { WorkflowNodeAdapters } from "./workflow-executor.js";
 import { runScheduleTriggerCycle } from "./trigger-runtime.js";
+import { runAgentCycle, type AgentRunHandler } from "./agent-runtime.js";
 
 export type JobHandler = (
   job: GenerationJob,
@@ -73,12 +74,13 @@ export async function runWorker(input: {
   handler?: JobHandler;
   workflowHandler?: WorkflowHandler;
   workflowAdapters?: WorkflowNodeAdapters;
+  agentHandler?: AgentRunHandler;
   signal?: AbortSignal;
 }) {
   let idleBatches = 0;
   while (!input.signal?.aborted) {
     try {
-      const [generationClaimed, workflowClaimed, triggerClaimed] =
+      const [generationClaimed, workflowClaimed, triggerClaimed, agentClaimed] =
         await Promise.all([
           runWorkerCycle({
             client: input.client,
@@ -104,8 +106,17 @@ export async function runWorker(input: {
             leaseMs: input.leaseMs || 90_000,
             signal: input.signal,
           }),
+          runAgentCycle({
+            client: input.client,
+            workerId: input.workerId,
+            limit: input.limit || 10,
+            leaseMs: input.leaseMs || 90_000,
+            handler: input.agentHandler,
+            signal: input.signal,
+          }),
         ]);
-      const claimed = generationClaimed + workflowClaimed + triggerClaimed;
+      const claimed =
+        generationClaimed + workflowClaimed + triggerClaimed + agentClaimed;
       const policy = nextPollDelay({
         claimed,
         idleBatches,
