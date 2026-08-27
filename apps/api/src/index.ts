@@ -22,6 +22,8 @@ import { PostgresWorkflowPublicApiRepository } from "./postgres-workflow-public-
 import { WorkflowPublicApiService } from "./workflow-public-api-service.js";
 import { PostgresAgentRunRepository } from "./postgres-agent-run-repository.js";
 import { AgentRunService } from "./agent-run-service.js";
+import { PostgresDramaRepository } from "./postgres-drama-repository.js";
+import { DramaService } from "./drama-service.js";
 import {
   IdentityService,
   ProjectService,
@@ -109,6 +111,7 @@ const app = createApp({
     workflowPublicApiRepository,
   ),
   agentRuns: new AgentRunService(repository, agentRunRepository),
+  drama: new DramaService(repository, new PostgresDramaRepository(databaseUrl)),
   maintenanceToken,
   collaboration,
   secureCookies: process.env.NODE_ENV === "production",

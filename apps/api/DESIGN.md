@@ -80,3 +80,11 @@ pnpm --filter @infinite-canvas/api build
 ```
 
 变更历史：2026-08-28 建立 Server mode 领域与 Agent Run 设计基线。
+
+## Drama production domain
+
+- `DramaService` owns DRM-001～004 validation and generated identifiers.
+- `DramaRepository` has Memory and PostgreSQL adapters; production writes lock the aggregate row.
+- Every mutation requires `expectedRevision` and `mutationId`; request hashes reject idempotency drift.
+- Script/shot version tables are immutable. Media foreign keys include `workspace_id` to prevent cross-tenant references.
+- API coverage lives in `drama-api.test.ts`.

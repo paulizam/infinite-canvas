@@ -23,6 +23,7 @@ import type { WorkflowTriggerService } from "./workflow-trigger-service.js";
 import type { WorkflowLibraryService } from "./workflow-library-service.js";
 import type { WorkflowPublicApiService } from "./workflow-public-api-service.js";
 import type { AgentRunService } from "./agent-run-service.js";
+import type { DramaService } from "./drama-service.js";
 import { ModelDiscoveryService } from "./model-discovery.js";
 import { createModelDiscoveryApi } from "./model-discovery-api.js";
 import {
@@ -52,6 +53,7 @@ export type AppServices = {
   workflowLibrary?: WorkflowLibraryService;
   workflowPublicApi?: WorkflowPublicApiService;
   agentRuns?: AgentRunService;
+  drama?: DramaService;
   maintenanceToken: string;
   secureCookies: boolean;
   modelDiscovery?: ModelDiscoveryService;
@@ -257,6 +259,88 @@ export function createApp(services: AppServices) {
   app.get("/api/v1/me", (c) =>
     c.json({ data: c.get("user"), requestId: requestId(c) }),
   );
+  if (services.drama) {
+    app.get("/api/v1/workspaces/:workspaceId/drama-projects", async (c) =>
+      c.json({
+        data: await services.drama!.list(
+          c.get("user").id,
+          c.req.param("workspaceId"),
+        ),
+        requestId: requestId(c),
+      }),
+    );
+    app.post("/api/v1/workspaces/:workspaceId/drama-projects", async (c) =>
+      c.json(
+        {
+          data: await services.drama!.create(
+            c.get("user").id,
+            c.req.param("workspaceId"),
+            dramaCreateSchema.parse(await c.req.json()),
+          ),
+          requestId: requestId(c),
+        },
+        201,
+      ),
+    );
+    app.get("/api/v1/drama-projects/:dramaId", async (c) =>
+      c.json({
+        data: await services.drama!.get(
+          c.get("user").id,
+          c.req.param("dramaId"),
+        ),
+        requestId: requestId(c),
+      }),
+    );
+    app.patch("/api/v1/drama-projects/:dramaId", async (c) =>
+      c.json({
+        data: await services.drama!.update(
+          c.get("user").id,
+          c.req.param("dramaId"),
+          dramaUpdateSchema.parse(await c.req.json()),
+        ),
+        requestId: requestId(c),
+      }),
+    );
+    app.post("/api/v1/drama-projects/:dramaId/script-versions", async (c) =>
+      c.json(
+        {
+          data: await services.drama!.addScript(
+            c.get("user").id,
+            c.req.param("dramaId"),
+            dramaScriptSchema.parse(await c.req.json()),
+          ),
+          requestId: requestId(c),
+        },
+        201,
+      ),
+    );
+    app.post("/api/v1/drama-projects/:dramaId/entities", async (c) =>
+      c.json(
+        {
+          data: await services.drama!.addEntity(
+            c.get("user").id,
+            c.req.param("dramaId"),
+            dramaEntitySchema.parse(await c.req.json()),
+          ),
+          requestId: requestId(c),
+        },
+        201,
+      ),
+    );
+    app.post("/api/v1/drama-projects/:dramaId/shots", async (c) =>
+      c.json(
+        {
+          data: await services.drama!.addShot(
+            c.get("user").id,
+            c.req.param("dramaId"),
+            dramaShotSchema.parse(await c.req.json()),
+          ),
+          requestId: requestId(c),
+        },
+        201,
+      ),
+    );
+  }
   app.get("/api/v1/workspaces", async (c) =>
     c.json({
       data: await services.workspaces.list(c.get("user").id),
@@ -2333,6 +2417,57 @@ function validateCustomProtocol(config: Record<string, unknown>) {
     );
   }
 }
+const dramaMutationBase = {
+  expectedRevision: z.number().int().nonnegative(),
+  mutationId: z.string().trim().min(8).max(200),
+};
+const dramaCreateSchema = z
+  .object({
+    title: z.string().trim().min(1).max(160),
+    sourceText: z.string().max(2_000_000).optional(),
+    sourceAssetId: z.uuid().optional(),
+  })
+  .strict();
+const dramaUpdateSchema = z
+  .object({
+    ...dramaMutationBase,
+    title: z.string().trim().min(1).max(160),
+    sourceText: z.string().max(2_000_000).optional(),
+    sourceAssetId: z.uuid().nullable().optional(),
+  })
+  .strict();
+const dramaScriptSchema = z
+  .object({
+    ...dramaMutationBase,
+    content: z.string().max(2_000_000),
+    segments: z.array(z.unknown()).max(10_000).optional(),
+    analysis: z.record(z.string(), z.unknown()).optional(),
+    reviewStatus: z.enum(["draft", "reviewing", "approved", "rejected"]),
+    operation: z.enum(["revision", "split", "merge", "analysis"]),
+  })
+  .strict();
+const dramaEntitySchema = z
+  .object({
+    ...dramaMutationBase,
+    kind: z.enum(["character", "scene", "prop"]),
+    name: z.string().trim().min(1).max(120),
+    description: z.string().max(20_000).optional(),
+    prompt: z.string().max(20_000).optional(),
+    referenceAssetId: z.uuid().optional(),
+    sortOrder: z.number().int().nonnegative(),
+  })
+  .strict();
+const dramaShotSchema = z
+  .object({
+    ...dramaMutationBase,
+    title: z.string().trim().min(1).max(160),
+    prompt: z.string().max(20_000).optional(),
+    framing: z.string().max(120).optional(),
+    cameraMovement: z.string().max(120).optional(),
+    durationMs: z.number().int().min(100).max(3_600_000),
+    sortOrder: z.number().int().nonnegative(),
+  })
+  .strict();
 function writeSession(
   c: Parameters<typeof setCookie>[0],
   token: string,

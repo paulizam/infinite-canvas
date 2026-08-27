@@ -366,3 +366,7 @@ PR 门禁：format、lint、typecheck、unit/integration tests、production buil
 - Local mode 是否保留浏览器直连 Provider；默认应优先 Server mode。
 - 首发支付渠道、对象存储和部署平台范围。
 - 第一期是否包含短剧与社区；技术上建议 Foundation/Generation 完成后再启用。
+
+## R3 Drama Production 基座（2026-08-28）
+
+已实现 DRM-001～DRM-004 的后端领域边界：`drama_projects` 聚合以 revision + mutationId 提供乐观并发与幂等；剧本与镜头版本不可变；角色/场景/道具及来源媒体使用 Workspace 复合外键隔离。API 只允许 editor 写入、viewer 读取，所有 Asset 在 Service 与数据库双层校验同 Workspace。后续 DRM-005～010 在该聚合上接入生成、音轨、合成、导出与审批。
