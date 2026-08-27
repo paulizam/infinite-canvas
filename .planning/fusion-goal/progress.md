@@ -13,3 +13,4 @@
 - 完成 WebSocket Collaboration Hub、Origin/Session/project 鉴权、canonical mutation、presence、room isolation 与前端重连/去重。
 - 完成 Workspace 不可变媒体素材：magic-byte 校验、SHA-256 去重、Local FS/S3 adapter、服务端 object key、RBAC、跨租户隐藏与 AssetRef 删除保护。
 - 修复 PostgreSQL mutation project_id 类型漂移；初始快照及 mutation 均事务化同步 AssetRef。API 13 项测试、typecheck、build 与 dist import 通过。
+- 启动 Generation Job：补齐跨端 job contract、严格 phase state machine、同 attempt upstreamTaskId 不可变规则、Job/Worker heartbeat schema；migration runner 改为 checksum ledger。API 15 项测试通过。

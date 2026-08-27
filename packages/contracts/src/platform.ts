@@ -21,14 +21,30 @@ export type GenerationJobPhase =
   | "cancel_requested"
   | "cancelled"
   | "needs_review";
+export type GenerationJobStatus =
+  "queued" | "running" | "succeeded" | "failed" | "cancelled" | "needs_review";
 export type GenerationJob = {
   id: string;
+  workspaceId: string;
+  ownerId: string;
   clientRequestId: string;
   capability: GenerationCapability;
+  status: GenerationJobStatus;
   phase: GenerationJobPhase;
   attempt: number;
+  retryOf: string | null;
   logicalModelId: string;
-  upstreamTaskId?: string;
+  input: Record<string, unknown>;
+  result: Record<string, unknown> | null;
+  upstreamTaskId: string | null;
+  provider: string | null;
+  channelId: string | null;
+  workerId: string | null;
+  leaseUntil: string | null;
+  lastHeartbeatAt: string | null;
+  nextRunAt: string;
+  errorCode: string | null;
+  errorMessage: string | null;
   createdAt: string;
   updatedAt: string;
 };

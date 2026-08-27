@@ -2,6 +2,8 @@
 
 ## Unreleased
 
++ [新增] 建立 Generation Job 完整 phase/status contract、严格状态转换和同 attempt 上游任务标识不可变约束，并新增 lease/heartbeat 数据结构。
++ [优化] 数据库迁移升级为按编号执行的 SHA-256 ledger，已应用 migration 禁止静默改写。
 + [新增] 新增 Workspace 不可变媒体素材 API，支持 magic-byte 类型识别、SHA-256 去重、Local FS/S3 存储、短期签名读取与 Canvas AssetRef 删除保护。
 + [修复] 修正 Canvas mutation 外键类型漂移，并在初始项目快照及后续 mutation 中同步 PostgreSQL AssetRef 索引。
 + [新增] 新增鉴权 WebSocket Collaboration Hub：按项目隔离 canonical mutation 广播、snapshot、presence、光标与选区，客户端支持去重、revision 推进和指数重连。

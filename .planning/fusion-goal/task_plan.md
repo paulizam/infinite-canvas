@@ -18,7 +18,8 @@
 - [x] Web Local/Server repository adapter 与登录/Workspace UI
 - [x] WebSocket collaboration hub
 - [x] Asset storage（magic-byte、SHA-256、Local/S3、RBAC、AssetRef 保护）
-- [ ] Generation Job Worker、Model Gateway、Billing ledger
+- [▶] Generation Job Worker（contract/state/schema 已完成；repository、lease runtime 待完成）
+- [ ] Model Gateway、Billing ledger
 
 ## 错误账本
 

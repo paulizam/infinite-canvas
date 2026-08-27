@@ -22,6 +22,9 @@ pnpm --filter @infinite-canvas/api build
 pnpm --filter @infinite-canvas/api start
 ```
 
+Migrations are ordered SQL files with a SHA-256 ledger. Applied files are immutable: editing one
+causes startup migration to fail instead of silently drifting the schema; add a new numbered file.
+
 Development uses `pnpm --filter @infinite-canvas/api dev`. The API listens on port `3001` unless
 `PORT` is set.
 
