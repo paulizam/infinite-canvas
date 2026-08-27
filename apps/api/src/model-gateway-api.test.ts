@@ -190,5 +190,15 @@ describe("model gateway control plane", () => {
         })
       ).status,
     ).toBe(400);
+    expect(
+      (
+        await put("model-protocols/custom", {
+          name: "Unsafe custom",
+          adapter: "custom",
+          enabled: true,
+          config: { submitPath: "/../internal" },
+        })
+      ).status,
+    ).toBe(400);
   });
 });

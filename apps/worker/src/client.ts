@@ -62,11 +62,12 @@ export class WorkerApiClient {
   resolveModel(
     capability: "text" | "image" | "video" | "audio",
     logicalModelId: string,
+    preferredChannelId?: string,
     signal?: AbortSignal,
   ) {
     return this.request<WorkerResolvedModel>(
       "/internal/v1/model-gateway/resolve",
-      { capability, logicalModelId },
+      { capability, logicalModelId, preferredChannelId },
       signal,
     );
   }

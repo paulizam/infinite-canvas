@@ -6,6 +6,11 @@ import {
   buildOpenAiCompatibleRequest,
   openAiCompatibleEndpoint,
 } from "./openai-compatible.js";
+import {
+  buildCustomProtocolRequest,
+  buildGeminiRequest,
+  providerOperationRequest,
+} from "./provider-adapters.js";
 
 const catalog: ModelRoutingCatalog = {
   protocols: [
@@ -163,5 +168,73 @@ describe("OpenAI-compatible request policy", () => {
     expect(() =>
       openAiCompatibleEndpoint("https://user:pass@example.com", "text"),
     ).toThrow(/credentials/);
+  });
+});
+
+describe("provider adapters", () => {
+  it("builds Gemini content without putting credentials in the URL", () => {
+    const request = buildGeminiRequest({
+      baseUrl: "https://generativelanguage.googleapis.com",
+      apiKey: "gemini-secret",
+      capability: "image",
+      upstreamModel: "gemini-2.5-flash-image",
+      parameters: { prompt: "draw" },
+    });
+    expect(request.url).toContain(
+      "/v1beta/models/gemini-2.5-flash-image:generateContent",
+    );
+    expect(request.url).not.toContain("gemini-secret");
+    expect(request.init.headers).toMatchObject({
+      "x-goog-api-key": "gemini-secret",
+    });
+    expect(JSON.parse(String(request.init.body))).toMatchObject({
+      contents: [{ role: "user", parts: [{ text: "draw" }] }],
+      generationConfig: { responseModalities: ["TEXT", "IMAGE"] },
+    });
+  });
+  it("maps only declared custom fields and protects the upstream model", () => {
+    const request = buildCustomProtocolRequest({
+      baseUrl: "https://provider.example",
+      apiKey: "custom-secret",
+      capability: "video",
+      upstreamModel: "real-video-model",
+      parameters: { prompt: "scene", durationSeconds: 5, model: "forged" },
+      config: {
+        submitPath: "/api/tasks",
+        auth: "x-api-key",
+        modelField: "model_id",
+        parameterMap: { prompt: "text", durationSeconds: "duration" },
+        staticBody: { quality: "high" },
+      },
+    });
+    expect(request.url).toBe("https://provider.example/api/tasks");
+    expect(JSON.parse(String(request.init.body))).toEqual({
+      quality: "high",
+      text: "scene",
+      duration: 5,
+      model_id: "real-video-model",
+    });
+  });
+  it("rejects unsafe custom paths and encodes operation IDs", () => {
+    expect(() =>
+      buildCustomProtocolRequest({
+        baseUrl: "https://provider.example",
+        apiKey: "secret",
+        capability: "text",
+        upstreamModel: "m",
+        parameters: {},
+        config: { submitPath: "/../admin" },
+      }),
+    ).toThrow(/unsafe/);
+    expect(
+      providerOperationRequest({
+        baseUrl: "https://provider.example",
+        apiKey: "secret",
+        adapter: "custom",
+        operation: "poll",
+        taskId: "a/b",
+        config: { submitPath: "/tasks", pollPath: "/tasks/{taskId}" },
+      }).url,
+    ).toBe("https://provider.example/tasks/a%2Fb");
   });
 });

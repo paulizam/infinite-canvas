@@ -154,4 +154,107 @@ describe("model gateway worker handler", () => {
       expect(fetcher).not.toHaveBeenCalled();
     },
   );
+
+  it("calls the submitted provider before finalizing cancellation", async () => {
+    const cancelledJob = {
+      ...job,
+      phase: "cancel_requested",
+      capability: "video",
+      upstreamTaskId: "task/42",
+      channelId: "c",
+    } as GenerationJob;
+    const cancellable = {
+      ...resolved,
+      binding: { capabilityProfile: { supportsCancel: true } },
+    } as WorkerResolvedModel;
+    const client = {
+      resolveModel: vi.fn(async () => cancellable),
+      transition: vi.fn(async (_w, _id, phase, patch) => ({
+        ...cancelledJob,
+        ...patch,
+        phase,
+      })),
+    } as unknown as WorkerApiClient;
+    const fetcher = vi.fn(async () => new Response(null, { status: 204 }));
+    await createModelGatewayHandler(fetcher as typeof fetch)(
+      cancelledJob,
+      client,
+      "worker-a",
+    );
+    expect(fetcher).toHaveBeenCalledWith(
+      "https://api.example.com/v1/videos/task%2F42/cancel",
+      expect.objectContaining({ method: "POST" }),
+    );
+    expect(client.transition).toHaveBeenCalledWith(
+      "worker-a",
+      "job-1",
+      "cancelled",
+      {},
+      undefined,
+    );
+  });
+
+  it("normalizes a Gemini inline image before Asset persistence", async () => {
+    const gemini = {
+      ...resolved,
+      protocol: { ...resolved.protocol, adapter: "gemini" },
+    } as WorkerResolvedModel;
+    const client = {
+      resolveModel: vi.fn(async () => gemini),
+      transition: vi.fn(async (_w, _id, phase, patch) => ({
+        ...job,
+        ...patch,
+        phase,
+      })),
+      persistAsset: vi.fn(async () => ({
+        assetId: "gemini-image",
+        mimeType: "image/png",
+      })),
+      reportModelHealth: vi.fn(async () => ({ accepted: true as const })),
+    } as unknown as WorkerApiClient;
+    const fetcher = vi.fn(async (_input: string | URL | Request) =>
+      Response.json({
+        candidates: [
+          {
+            content: {
+              parts: [{ inlineData: { data: "iVBORw0KGgo=" } }],
+            },
+          },
+        ],
+      }),
+    );
+    await createModelGatewayHandler(fetcher as typeof fetch)(
+      job,
+      client,
+      "worker-a",
+    );
+    expect(fetcher.mock.calls[0]?.[0]).toContain(":generateContent");
+    expect(client.persistAsset).toHaveBeenCalledOnce();
+  });
+
+  it("redacts provider credentials before persisting a diagnostic", async () => {
+    const patches: Record<string, unknown>[] = [];
+    const client = {
+      resolveModel: vi.fn(async () => resolved),
+      transition: vi.fn(async (_w, _id, phase, patch) => {
+        patches.push(patch);
+        return { ...job, ...patch, phase } as GenerationJob;
+      }),
+      reportModelHealth: vi.fn(async () => ({ accepted: true as const })),
+    } as unknown as WorkerApiClient;
+    const fetcher = vi.fn(async () => {
+      throw new Error(
+        "Authorization: Bearer exposed-token api_key=secret sk-12345678",
+      );
+    });
+    await createModelGatewayHandler(fetcher as typeof fetch)(
+      job,
+      client,
+      "worker-a",
+    );
+    const diagnostic = JSON.stringify(patches.at(-1));
+    expect(diagnostic).not.toContain("exposed-token");
+    expect(diagnostic).not.toContain("sk-12345678");
+    expect(diagnostic).toContain("[REDACTED]");
+  });
 });

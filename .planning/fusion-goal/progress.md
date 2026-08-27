@@ -23,3 +23,5 @@
 - 打通生成媒体持久化：Worker 支持 provider URL/Base64 与 binary audio，下载结果通过租约绑定的内部 API 经 magic-byte 校验、Workspace 去重写入 Asset BlobStore，Job result 仅保留 AssetRef。
 - Provider 媒体下载强制 credential-free HTTPS，限制重定向次数并拒绝显式 private/local host；内部上传校验 Worker Token、workerId、有效租约及持久化阶段。
 - 打通 Model Gateway 运行态健康反馈：Worker 上报 submit/poll 成败，连续失败依次进入 degraded/cooldown，60 秒冷却期间 Router 自动排除，成功后恢复 healthy。
+- 新增 Gemini `generateContent` 与无脚本声明式 Custom runtime adapter；Custom 仅允许安全相对路径、固定鉴权模式、静态 JSON 与字段映射。
+- cancel_requested 在存在上游任务且 capability 声明支持时调用原渠道 cancel endpoint；不支持或渠道身份不确定时转 needs_review，避免虚假取消与错误退款依据。

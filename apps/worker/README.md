@@ -19,8 +19,11 @@ channels are configured, claimed generation work is moved to `needs_review` rath
 calling or charging an unknown provider; cancellation requests are completed normally.
 
 For configured jobs, the Worker resolves a logical model through the API, validates request
-parameters against its capability profile, and invokes the selected OpenAI-compatible channel.
+parameters against its capability profile, and invokes the selected OpenAI-compatible, Gemini, or
+declarative Custom channel.
 Provider credentials remain API-managed and are never stored in Worker configuration. URL,
 Base64, and binary audio media results are persisted through the API Asset pipeline, and Job JSON
-retains only Asset references. SSE text streaming, Gemini/custom adapters, provider-side
-cancellation, and health feedback remain follow-up work.
+retains only Asset references. Runtime calls report health for routing cooldown. Cancellation calls
+the original provider when the binding declares `supportsCancel`; an uncertain unsupported cancel
+moves to `needs_review` rather than falsely claiming that billing stopped. SSE text streaming and
+provider-specific adapters remain follow-up work.

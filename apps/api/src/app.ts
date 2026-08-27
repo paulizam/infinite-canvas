@@ -2,6 +2,7 @@ import { Hono, type Context } from "hono";
 import { timingSafeEqual } from "node:crypto";
 import { deleteCookie, getCookie, setCookie } from "hono/cookie";
 import { z } from "zod";
+import { parseCustomProtocolConfig } from "@infinite-canvas/model-gateway";
 import type { PublicUser } from "./domain.js";
 import { DomainError } from "./domain.js";
 import type { AssetService } from "./asset-service.js";
@@ -402,6 +403,7 @@ export function createApp(services: AppServices) {
   });
   app.put("/internal/v1/maintenance/model-protocols/:id", async (c) => {
     const input = protocolSchema.parse(await c.req.json());
+    if (input.adapter === "custom") validateCustomProtocol(input.config);
     return c.json({
       data: await services.modelGateway.saveProtocol({
         ...input,
@@ -720,6 +722,17 @@ const bindingSchema = z
     capabilityProfile: capabilityProfileSchema.default({}),
   })
   .strict();
+function validateCustomProtocol(config: Record<string, unknown>) {
+  try {
+    parseCustomProtocolConfig(config);
+  } catch {
+    throw new DomainError(
+      "INVALID_CUSTOM_PROTOCOL",
+      400,
+      "声明式自定义协议配置无效",
+    );
+  }
+}
 function writeSession(
   c: Parameters<typeof setCookie>[0],
   token: string,

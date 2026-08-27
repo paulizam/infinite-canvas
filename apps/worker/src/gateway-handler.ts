@@ -3,12 +3,18 @@ import type {
   GenerationJob,
   ModelCapability,
 } from "@infinite-canvas/contracts";
+import { validateModelParameters } from "@infinite-canvas/model-gateway";
+import { WorkerApiClient } from "./client.js";
 import {
-  buildOpenAiCompatibleRequest,
-  openAiCompatibleEndpoint,
-  validateModelParameters,
-} from "@infinite-canvas/model-gateway";
-import { WorkerApiClient, type WorkerResolvedModel } from "./client.js";
+  buildOperationRequest,
+  buildSubmitRequest,
+  isPending,
+  normalizePayload,
+  redactProviderError,
+  safeJson,
+  taskId,
+  upstreamStatus,
+} from "./provider-runtime.js";
 
 export function createModelGatewayHandler(fetcher: typeof fetch = fetch) {
   return async (
@@ -17,11 +23,11 @@ export function createModelGatewayHandler(fetcher: typeof fetch = fetch) {
     workerId: string,
     signal?: AbortSignal,
   ) => {
-    if (job.phase === "cancel_requested") {
-      await client.transition(workerId, job.id, "cancelled", {}, signal);
-      return;
-    }
     try {
+      if (job.phase === "cancel_requested") {
+        await cancel(job, client, workerId, fetcher, signal);
+        return;
+      }
       if (job.phase === "result_ready") {
         const persisting = await client.transition(
           workerId,
@@ -51,7 +57,7 @@ export function createModelGatewayHandler(fetcher: typeof fetch = fetch) {
     } catch (error) {
       const message =
         error instanceof Error
-          ? error.message.slice(0, 500)
+          ? redactProviderError(error.message).slice(0, 500)
           : "Model Gateway execution failed";
       await client.transition(
         workerId,
@@ -75,6 +81,7 @@ async function submit(
   const resolved = await client.resolveModel(
     capability,
     job.logicalModelId,
+    undefined,
     signal,
   );
   const issues = validateModelParameters(
@@ -100,18 +107,7 @@ async function submit(
     job.phase === "claimed"
       ? await client.transition(workerId, job.id, "submitting", {}, signal)
       : job;
-  if (resolved.protocol.adapter !== "openai-compatible")
-    throw new Error(
-      `Unsupported protocol adapter: ${resolved.protocol.adapter}`,
-    );
-  const request = buildOpenAiCompatibleRequest({
-    baseUrl: resolved.channel.baseUrl,
-    apiKey: resolved.apiKey,
-    capability,
-    upstreamModel: resolved.upstreamModel.modelId,
-    parameters: job.input,
-    allowInsecure: resolved.channel.config.allowInsecure === true,
-  });
+  const request = buildSubmitRequest(resolved, capability, job.input);
   let response: Response;
   try {
     response = await fetcher(request.url, { ...request.init, signal });
@@ -124,9 +120,10 @@ async function submit(
     throw new Error(`Provider submit failed with HTTP ${response.status}`);
   }
   const binary = await binaryMediaResponse(response, capability);
-  const payload = binary ? {} : await safeJson(response);
-  const upstreamTaskId = taskId(payload);
-  const status = upstreamStatus(payload);
+  const rawPayload = binary ? {} : await safeJson(response);
+  const payload = normalizePayload(resolved, rawPayload, capability);
+  const upstreamTaskId = taskId(payload, resolved);
+  const status = upstreamStatus(payload, resolved);
   const submitted = await client.transition(
     workerId,
     submitting.id,
@@ -176,18 +173,20 @@ async function poll(
   const resolved = await client.resolveModel(
     capability,
     job.logicalModelId,
+    job.channelId,
     signal,
   );
   if (resolved.channel.id !== job.channelId)
     throw new Error("Resolved channel differs from submitted channel");
-  const url = pollingUrl(resolved, capability, job.upstreamTaskId);
+  const request = buildOperationRequest(
+    resolved,
+    capability,
+    "poll",
+    job.upstreamTaskId,
+  );
   let response: Response;
   try {
-    response = await fetcher(url, {
-      method: "GET",
-      signal,
-      headers: { authorization: `Bearer ${resolved.apiKey}` },
-    });
+    response = await fetcher(request.url, { ...request.init, signal });
   } catch (error) {
     await reportHealth(client, resolved.upstreamModel.id, "failure", signal);
     throw error;
@@ -196,8 +195,12 @@ async function poll(
     await reportHealth(client, resolved.upstreamModel.id, "failure", signal);
     throw new Error(`Provider poll failed with HTTP ${response.status}`);
   }
-  const payload = await safeJson(response);
-  const status = upstreamStatus(payload);
+  const payload = normalizePayload(
+    resolved,
+    await safeJson(response),
+    capability,
+  );
+  const status = upstreamStatus(payload, resolved);
   if (isPending(status)) {
     await reportHealth(client, resolved.upstreamModel.id, "success", signal);
     await client.transition(
@@ -236,6 +239,52 @@ async function reportHealth(
   await client
     .reportModelHealth(upstreamModelId, outcome, signal)
     .catch(() => undefined);
+}
+
+async function cancel(
+  job: GenerationJob,
+  client: WorkerApiClient,
+  workerId: string,
+  fetcher: typeof fetch,
+  signal?: AbortSignal,
+) {
+  if (!job.upstreamTaskId || !job.channelId) {
+    await client.transition(workerId, job.id, "cancelled", {}, signal);
+    return;
+  }
+  const capability = job.capability === "agent" ? "text" : job.capability;
+  const resolved = await client.resolveModel(
+    capability,
+    job.logicalModelId,
+    job.channelId,
+    signal,
+  );
+  if (
+    resolved.channel.id !== job.channelId ||
+    !resolved.binding.capabilityProfile.supportsCancel
+  ) {
+    await client.transition(
+      workerId,
+      job.id,
+      "needs_review",
+      {
+        errorCode: "UPSTREAM_CANCEL_UNSUPPORTED",
+        errorMessage: "上游任务不支持可靠取消，需要人工复核消费状态",
+      },
+      signal,
+    );
+    return;
+  }
+  const request = buildOperationRequest(
+    resolved,
+    capability,
+    "cancel",
+    job.upstreamTaskId,
+  );
+  const response = await fetcher(request.url, { ...request.init, signal });
+  if (!response.ok)
+    throw new Error(`Provider cancel failed with HTTP ${response.status}`);
+  await client.transition(workerId, job.id, "cancelled", {}, signal);
 }
 
 async function complete(
@@ -408,50 +457,4 @@ function safeRemoteName(
   return name && /^[a-zA-Z0-9._-]{1,160}$/.test(name)
     ? name
     : `${capability}-${index + 1}.${extensionFor(capability)}`;
-}
-function pollingUrl(
-  resolved: WorkerResolvedModel,
-  capability: ModelCapability,
-  id: string,
-) {
-  const create = new URL(
-    openAiCompatibleEndpoint(
-      resolved.channel.baseUrl,
-      capability,
-      resolved.channel.config.allowInsecure === true,
-    ),
-  );
-  create.pathname = `${create.pathname.replace(/\/(chat\/completions|images\/generations|videos\/generations|audio\/speech)$/i, "")}/videos/${encodeURIComponent(id)}`;
-  return create.toString();
-}
-async function safeJson(response: Response) {
-  const value = await response.json();
-  if (!value || typeof value !== "object" || Array.isArray(value))
-    throw new Error("Provider returned a malformed JSON object");
-  return value as Record<string, unknown>;
-}
-function taskId(value: Record<string, unknown>) {
-  const data =
-    value.data && typeof value.data === "object"
-      ? (value.data as Record<string, unknown>)
-      : undefined;
-  const id = value.id ?? value.task_id ?? value.taskId ?? data?.id;
-  return typeof id === "string" && id.trim() ? id.trim() : null;
-}
-function upstreamStatus(value: Record<string, unknown>) {
-  return String(
-    value.status ??
-      (value.data as Record<string, unknown> | undefined)?.status ??
-      "succeeded",
-  ).toLowerCase();
-}
-function isPending(status: string) {
-  return [
-    "queued",
-    "pending",
-    "submitted",
-    "processing",
-    "in_progress",
-    "running",
-  ].includes(status);
 }
