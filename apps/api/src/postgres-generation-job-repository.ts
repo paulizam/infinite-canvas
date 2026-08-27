@@ -63,6 +63,17 @@ export class PostgresGenerationJobRepository implements GenerationJobRepository 
     );
     return result.rows[0] ? mapJob(result.rows[0]) : null;
   }
+  async getByClientRequest(
+    userId: string,
+    workspaceId: string,
+    clientRequestId: string,
+  ) {
+    const result = await this.pool.query(
+      "SELECT * FROM generation_jobs WHERE owner_id=$1 AND workspace_id=$2 AND client_request_id=$3 AND attempt=1",
+      [userId, workspaceId, clientRequestId],
+    );
+    return result.rows[0] ? mapJob(result.rows[0]) : null;
+  }
   async listForUser(userId: string, workspaceId: string) {
     const result = await this.pool.query(
       "SELECT * FROM generation_jobs WHERE owner_id=$1 AND workspace_id=$2 ORDER BY created_at DESC LIMIT 200",

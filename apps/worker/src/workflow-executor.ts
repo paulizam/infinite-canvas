@@ -9,22 +9,54 @@ export type WorkflowNodeAdapter = (input: {
   node: WorkflowNodeDefinition;
   inputs: Record<string, unknown>;
   execution: WorkflowWorkerRecord;
+  client: WorkflowExecutorClient;
+  workerId: string;
   signal?: AbortSignal;
 }) => Promise<unknown>;
 export type WorkflowNodeAdapters = Readonly<
   Record<string, WorkflowNodeAdapter>
 >;
+type WorkflowExecutorClient = Pick<WorkerApiClient, "transitionWorkflow"> &
+  Partial<
+    Pick<
+      WorkerApiClient,
+      "createWorkflowGeneration" | "cancelWorkflowGeneration"
+    >
+  >;
+
+export class WorkflowAdapterWait {
+  constructor(
+    readonly wakeAt: string,
+    readonly stepKey: string,
+    readonly stepInput: unknown,
+  ) {}
+}
+export class WorkflowAdapterComplete {
+  constructor(
+    readonly output: unknown,
+    readonly stepKey: string,
+    readonly stepOutput: unknown,
+  ) {}
+}
+export class WorkflowAdapterFailure {
+  constructor(
+    readonly error: { code: string; message: string },
+    readonly stepKey: string,
+    readonly stepOutput: unknown,
+  ) {}
+}
 
 export async function executeWorkflow(
   source: WorkflowWorkerRecord,
-  client: Pick<WorkerApiClient, "transitionWorkflow">,
+  client: WorkflowExecutorClient,
   workerId: string,
   adapters: WorkflowNodeAdapters = builtinWorkflowAdapters,
   signal?: AbortSignal,
 ) {
   let record = source;
   while (!signal?.aborted) {
-    if (record.state.status === "cancel_requested")
+    if (record.state.status === "cancel_requested") {
+      await cancelChildGenerations(record, client, workerId, signal);
       return client.transitionWorkflow(
         workerId,
         record.state.id,
@@ -32,6 +64,7 @@ export async function executeWorkflow(
         { type: "execution.cancel.complete" },
         signal,
       );
+    }
     if (
       ["waiting", "succeeded", "failed", "cancelled"].includes(
         record.state.status,
@@ -78,6 +111,8 @@ export async function executeWorkflow(
               node,
               inputs: started.get(node.id)!,
               execution: record,
+              client,
+              workerId,
               signal,
             }),
           } as const;
@@ -88,6 +123,79 @@ export async function executeWorkflow(
     );
     for (const result of results) {
       const node = record.state.nodes[result.nodeId]!;
+      if ("output" in result && result.output instanceof WorkflowAdapterWait) {
+        record = await ensureWorkflowStep(
+          record,
+          client,
+          workerId,
+          result.nodeId,
+          result.output.stepKey,
+          result.output.stepInput,
+          signal,
+        );
+        record = await client.transitionWorkflow(
+          workerId,
+          record.state.id,
+          record.revision,
+          {
+            type: "step.wait",
+            nodeId: result.nodeId,
+            key: result.output.stepKey,
+            wakeAt: result.output.wakeAt,
+          },
+          signal,
+        );
+        continue;
+      }
+      if (
+        "output" in result &&
+        result.output instanceof WorkflowAdapterComplete
+      ) {
+        record = await completeWorkflowAdapterStep(
+          record,
+          client,
+          workerId,
+          result.nodeId,
+          result.output.stepKey,
+          result.output.stepOutput,
+          signal,
+        );
+        record = await client.transitionWorkflow(
+          workerId,
+          record.state.id,
+          record.revision,
+          {
+            type: "node.complete",
+            nodeId: result.nodeId,
+            output: result.output.output,
+          },
+          signal,
+        );
+        continue;
+      }
+      if (
+        "output" in result &&
+        result.output instanceof WorkflowAdapterFailure
+      ) {
+        record = await completeWorkflowAdapterStep(
+          record,
+          client,
+          workerId,
+          result.nodeId,
+          result.output.stepKey,
+          result.output.stepOutput,
+          signal,
+        );
+        record = await failWorkflowAdapterNode(
+          record,
+          client,
+          workerId,
+          result.nodeId,
+          result.output.error,
+          signal,
+        );
+        continue;
+      }
       let operation: WorkflowWorkerOperation;
       if (result.error) {
         operation = {
@@ -171,6 +279,10 @@ export const builtinWorkflowAdapters: WorkflowNodeAdapters = {
   "canvas.audio": async ({ node, inputs }) => ({
     output: configValue(node.config, "asset") ?? inputs.input,
   }),
+  "ai.generate.text": generationAdapter("text"),
+  "ai.generate.image": generationAdapter("image"),
+  "ai.generate.video": generationAdapter("video"),
+  "ai.generate.audio": generationAdapter("audio"),
 };
 
 class WorkflowAdapterError extends Error {
@@ -198,4 +310,163 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 }
 function configValue(config: unknown, key: string) {
   return isRecord(config) ? config[key] : undefined;
+}
+
+function generationAdapter(
+  capability: "text" | "image" | "video" | "audio",
+): WorkflowNodeAdapter {
+  return async ({ node, inputs, execution, client, workerId, signal }) => {
+    if (!client.createWorkflowGeneration)
+      throw new WorkflowAdapterError(
+        "WORKFLOW_GENERATION_UNAVAILABLE",
+        "Worker client cannot create child generation jobs",
+      );
+    const logicalModelId =
+      configValue(node.config, "logicalModelId") ??
+      configValue(node.config, "model");
+    if (typeof logicalModelId !== "string" || !logicalModelId.trim())
+      throw new WorkflowAdapterError(
+        "WORKFLOW_MODEL_REQUIRED",
+        `Node ${node.id} requires logicalModelId`,
+      );
+    const configured = configValue(node.config, "parameters");
+    const nodeParameters = isRecord(node.config) ? { ...node.config } : {};
+    delete nodeParameters.logicalModelId;
+    delete nodeParameters.model;
+    delete nodeParameters.parameters;
+    const parameters = {
+      ...nodeParameters,
+      ...(isRecord(configured) ? configured : {}),
+      ...inputs,
+    };
+    const attempt = execution.state.nodes[node.id]!.attempt;
+    const { job } = await client.createWorkflowGeneration(
+      workerId,
+      execution.state.id,
+      { nodeId: node.id, attempt, capability, logicalModelId, parameters },
+      signal,
+    );
+    const stepOutput = {
+      jobId: job.id,
+      phase: job.phase,
+      billing: job.billing,
+    };
+    if (job.phase === "succeeded")
+      return new WorkflowAdapterComplete(job.result, "generation", stepOutput);
+    if (["failed", "cancelled", "needs_review"].includes(job.phase))
+      return new WorkflowAdapterFailure(
+        {
+          code: job.errorCode || `GENERATION_${job.phase.toUpperCase()}`,
+          message: job.errorMessage || `Child generation job ${job.phase}`,
+        },
+        "generation",
+        stepOutput,
+      );
+    return new WorkflowAdapterWait(
+      new Date(Date.now() + 2_000).toISOString(),
+      "generation",
+      { jobId: job.id, capability, attempt },
+    );
+  };
+}
+
+async function ensureWorkflowStep(
+  record: WorkflowWorkerRecord,
+  client: WorkflowExecutorClient,
+  workerId: string,
+  nodeId: string,
+  key: string,
+  input: unknown,
+  signal?: AbortSignal,
+) {
+  if (record.state.nodes[nodeId]?.steps[key]) return record;
+  return client.transitionWorkflow(
+    workerId,
+    record.state.id,
+    record.revision,
+    { type: "step.start", nodeId, key, input },
+    signal,
+  );
+}
+
+async function completeWorkflowAdapterStep(
+  record: WorkflowWorkerRecord,
+  client: WorkflowExecutorClient,
+  workerId: string,
+  nodeId: string,
+  key: string,
+  output: unknown,
+  signal?: AbortSignal,
+) {
+  record = await ensureWorkflowStep(
+    record,
+    client,
+    workerId,
+    nodeId,
+    key,
+    output,
+    signal,
+  );
+  if (record.state.nodes[nodeId]?.steps[key]?.status === "succeeded")
+    return record;
+  return client.transitionWorkflow(
+    workerId,
+    record.state.id,
+    record.revision,
+    { type: "step.complete", nodeId, key, output },
+    signal,
+  );
+}
+
+function failWorkflowAdapterNode(
+  record: WorkflowWorkerRecord,
+  client: WorkflowExecutorClient,
+  workerId: string,
+  nodeId: string,
+  error: { code: string; message: string },
+  signal?: AbortSignal,
+) {
+  const node = record.state.nodes[nodeId]!;
+  return client.transitionWorkflow(
+    workerId,
+    record.state.id,
+    record.revision,
+    {
+      type: "node.fail",
+      nodeId,
+      error,
+      ...(node.attempt < node.maxAttempts
+        ? {
+            retryAt: new Date(
+              Date.now() + Math.min(60_000, 2 ** node.attempt * 1_000),
+            ).toISOString(),
+          }
+        : {}),
+    },
+    signal,
+  );
+}
+
+async function cancelChildGenerations(
+  record: WorkflowWorkerRecord,
+  client: WorkflowExecutorClient,
+  workerId: string,
+  signal?: AbortSignal,
+) {
+  if (!client.cancelWorkflowGeneration) return;
+  await Promise.all(
+    record.definition.nodes.map(async (definition) => {
+      const capability = definition.type.match(
+        /^ai\.generate\.(text|image|video|audio)$/,
+      )?.[1] as "text" | "image" | "video" | "audio" | undefined;
+      const execution = record.state.nodes[definition.id];
+      if (!capability || !execution?.attempt) return;
+      await client.cancelWorkflowGeneration!(
+        workerId,
+        record.state.id,
+        { nodeId: definition.id, attempt: execution.attempt, capability },
+        signal,
+      );
+    }),
+  );
 }

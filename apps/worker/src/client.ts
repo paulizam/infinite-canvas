@@ -86,6 +86,40 @@ export class WorkerApiClient {
       signal,
     );
   }
+  createWorkflowGeneration(
+    workerId: string,
+    executionId: string,
+    input: {
+      nodeId: string;
+      attempt: number;
+      capability: "text" | "image" | "video" | "audio";
+      logicalModelId: string;
+      parameters: Record<string, unknown>;
+    },
+    signal?: AbortSignal,
+  ) {
+    return this.request<{ job: GenerationJob; replayed: boolean }>(
+      `/internal/v1/workflow/executions/${encodeURIComponent(executionId)}/generation`,
+      { workerId, ...input },
+      signal,
+    );
+  }
+  cancelWorkflowGeneration(
+    workerId: string,
+    executionId: string,
+    input: {
+      nodeId: string;
+      attempt: number;
+      capability: "text" | "image" | "video" | "audio";
+    },
+    signal?: AbortSignal,
+  ) {
+    return this.request<GenerationJob | null>(
+      `/internal/v1/workflow/executions/${encodeURIComponent(executionId)}/generation/cancel`,
+      { workerId, ...input },
+      signal,
+    );
+  }
   transition(
     workerId: string,
     jobId: string,

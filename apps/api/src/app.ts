@@ -1,5 +1,5 @@
 import { Hono, type Context } from "hono";
-import { timingSafeEqual } from "node:crypto";
+import { createHash, timingSafeEqual } from "node:crypto";
 import { deleteCookie, getCookie, setCookie } from "hono/cookie";
 import { streamSSE } from "hono/streaming";
 import { z } from "zod";
@@ -17,6 +17,7 @@ import type { ModelGatewayRepository } from "./model-gateway-repository.js";
 import type { WorkflowPublicationService } from "./workflow-service.js";
 import type { WorkflowExecutionService } from "./workflow-execution-service.js";
 import type { WorkflowExecutionWorkerService } from "./workflow-execution-worker-service.js";
+import type { WorkflowExecutionRecord } from "./workflow-execution-repository.js";
 import { ModelDiscoveryService } from "./model-discovery.js";
 import { createModelDiscoveryApi } from "./model-discovery-api.js";
 import {
@@ -562,6 +563,68 @@ export function createApp(services: AppServices) {
         });
       },
     );
+    app.post(
+      "/internal/v1/workflow/executions/:executionId/generation",
+      async (c) => {
+        const input = workflowGenerationSchema.parse(await c.req.json());
+        const executionId = c.req.param("executionId");
+        const record = await services.workflowWorker!.getLeased(
+          input.workerId,
+          executionId,
+          new Date().toISOString(),
+        );
+        requireWorkflowGenerationNode(record, input);
+        const clientRequestId = workflowGenerationRequestId(
+          executionId,
+          input.nodeId,
+          input.attempt,
+        );
+        const result = await services.jobs.create(
+          record.createdBy,
+          record.workspaceId,
+          {
+            capability: input.capability,
+            logicalModelId: input.logicalModelId,
+            clientRequestId,
+            parameters: input.parameters,
+          },
+        );
+        if (
+          result.job.clientRequestId !== clientRequestId ||
+          result.job.capability !== input.capability ||
+          result.job.logicalModelId !== input.logicalModelId
+        )
+          throw new DomainError(
+            "WORKFLOW_GENERATION_CONFLICT",
+            409,
+            "幂等生成请求与已有任务不一致",
+          );
+        return c.json({ data: result, requestId: requestId(c) });
+      },
+    );
+    app.post(
+      "/internal/v1/workflow/executions/:executionId/generation/cancel",
+      async (c) => {
+        const input = workflowGenerationCancelSchema.parse(await c.req.json());
+        const executionId = c.req.param("executionId");
+        const record = await services.workflowWorker!.getLeased(
+          input.workerId,
+          executionId,
+          new Date().toISOString(),
+        );
+        requireWorkflowGenerationNode(record, input);
+        const job = await services.jobRepository.getByClientRequest(
+          record.createdBy,
+          record.workspaceId,
+          workflowGenerationRequestId(executionId, input.nodeId, input.attempt),
+        );
+        if (!job) return c.json({ data: null, requestId: requestId(c) });
+        const cancelled = isTerminalPhase(job.phase)
+          ? job
+          : await services.jobs.cancel(record.createdBy, job.id);
+        return c.json({ data: cancelled, requestId: requestId(c) });
+      },
+    );
   }
   app.post("/internal/v1/generation/heartbeat", async (c) => {
     const input = workerHeartbeatSchema.parse(await c.req.json());
@@ -954,6 +1017,28 @@ const workflowWorkerHeartbeatSchema = z.object({
   workerId: z.string().trim().min(1).max(160),
   executionIds: z.array(z.uuid()).max(50),
 });
+const workflowGenerationCapabilitySchema = z.enum([
+  "text",
+  "image",
+  "video",
+  "audio",
+]);
+const workflowGenerationSchema = z
+  .object({
+    workerId: z.string().trim().min(1).max(160),
+    nodeId: z.string().trim().min(1).max(160),
+    attempt: z.number().int().positive(),
+    capability: workflowGenerationCapabilitySchema,
+    logicalModelId: z.string().trim().min(1).max(160),
+    parameters: z.record(z.string(), z.unknown()),
+  })
+  .strict();
+const workflowGenerationCancelSchema = workflowGenerationSchema.pick({
+  workerId: true,
+  nodeId: true,
+  attempt: true,
+  capability: true,
+});
 const workflowErrorSchema = z.object({
   code: z.string().trim().min(1).max(160),
   message: z.string().max(2_000),
@@ -1231,6 +1316,49 @@ const bindingSchema = z
     capabilityProfile: capabilityProfileSchema.default({}),
   })
   .strict();
+function workflowGenerationRequestId(
+  executionId: string,
+  nodeId: string,
+  attempt: number,
+) {
+  const nodeHash = createHash("sha256")
+    .update(nodeId)
+    .digest("hex")
+    .slice(0, 24);
+  return `workflow:${executionId}:${nodeHash}:${attempt}`;
+}
+function requireWorkflowGenerationNode(
+  record: WorkflowExecutionRecord,
+  input: {
+    nodeId: string;
+    attempt: number;
+    capability: "text" | "image" | "video" | "audio";
+  },
+) {
+  const node = record.definition.nodes.find((item) => item.id === input.nodeId);
+  const execution = record.state.nodes[input.nodeId];
+  if (!node || !execution)
+    throw new DomainError(
+      "WORKFLOW_NODE_NOT_FOUND",
+      404,
+      "Workflow 节点不存在",
+    );
+  if (node.type !== `ai.generate.${input.capability}`)
+    throw new DomainError(
+      "WORKFLOW_GENERATION_CAPABILITY_MISMATCH",
+      409,
+      "Workflow 节点与生成能力不匹配",
+    );
+  if (
+    execution.attempt !== input.attempt ||
+    !["running", "waiting"].includes(execution.status)
+  )
+    throw new DomainError(
+      "WORKFLOW_GENERATION_ATTEMPT_STALE",
+      409,
+      "Workflow 节点 attempt 已失效",
+    );
+}
 function validateCustomProtocol(config: Record<string, unknown>) {
   try {
     parseCustomProtocolConfig(config);

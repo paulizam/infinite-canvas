@@ -377,6 +377,65 @@ describe("Workflow publication API", () => {
     expect(
       (await transition(0, { type: "node.start", nodeId: "generate" })).status,
     ).toBe(200);
+    const createChild = (capability = "text") =>
+      app.request(
+        `/internal/v1/workflow/executions/${workerExecutionId}/generation`,
+        {
+          method: "POST",
+          headers: workerHeaders,
+          body: JSON.stringify({
+            workerId: "worker",
+            nodeId: "generate",
+            attempt: 1,
+            capability,
+            logicalModelId: "text.default",
+            parameters: { input: "hello" },
+          }),
+        },
+      );
+    const child = await createChild();
+    expect(child.status).toBe(200);
+    const childData = (
+      (await child.json()) as {
+        data: {
+          job: { id: string; billing: { state: string } };
+          replayed: boolean;
+        };
+      }
+    ).data;
+    expect(childData).toMatchObject({
+      replayed: false,
+      job: { billing: { state: "free" } },
+    });
+    const childReplay = await createChild();
+    expect(
+      (
+        (await childReplay.json()) as {
+          data: { job: { id: string }; replayed: boolean };
+        }
+      ).data,
+    ).toEqual({
+      job: expect.objectContaining({ id: childData.job.id }),
+      replayed: true,
+    });
+    expect((await createChild("image")).status).toBe(409);
+    const childCancelled = await app.request(
+      `/internal/v1/workflow/executions/${workerExecutionId}/generation/cancel`,
+      {
+        method: "POST",
+        headers: workerHeaders,
+        body: JSON.stringify({
+          workerId: "worker",
+          nodeId: "generate",
+          attempt: 1,
+          capability: "text",
+        }),
+      },
+    );
+    expect(childCancelled.status).toBe(200);
+    expect(
+      ((await childCancelled.json()) as { data: { phase: string } }).data.phase,
+    ).toBe("cancel_requested");
     const completed = await transition(1, {
       type: "node.complete",
       nodeId: "generate",

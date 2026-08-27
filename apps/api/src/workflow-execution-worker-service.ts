@@ -91,6 +91,16 @@ export class WorkflowExecutionWorkerService {
   ) {
     return this.executions.heartbeat(workerId, executionIds, now, leaseUntil);
   }
+  async getLeased(workerId: string, executionId: string, now: string) {
+    const record = await this.executions.getForWorker(
+      workerId,
+      executionId,
+      now,
+    );
+    if (!record)
+      throw new DomainError("EXECUTION_LEASE_LOST", 409, "执行租约已失效");
+    return record;
+  }
   async transition(input: {
     workerId: string;
     executionId: string;
@@ -98,13 +108,11 @@ export class WorkflowExecutionWorkerService {
     now: string;
     operation: WorkflowWorkerOperation;
   }) {
-    const record = await this.executions.getForWorker(
+    const record = await this.getLeased(
       input.workerId,
       input.executionId,
       input.now,
     );
-    if (!record)
-      throw new DomainError("EXECUTION_LEASE_LOST", 409, "执行租约已失效");
     if (record.revision !== input.revision)
       throw new DomainError("EXECUTION_REVISION_CONFLICT", 409, "执行版本冲突");
     try {

@@ -18,6 +18,11 @@ export interface GenerationJobRepository {
     job: GenerationJob,
   ): Promise<{ job: GenerationJob; replayed: boolean }>;
   getForUser(userId: string, jobId: string): Promise<GenerationJob | null>;
+  getByClientRequest(
+    userId: string,
+    workspaceId: string,
+    clientRequestId: string,
+  ): Promise<GenerationJob | null>;
   listForUser(userId: string, workspaceId: string): Promise<GenerationJob[]>;
   cancel(userId: string, jobId: string, now: string): Promise<GenerationJob>;
   retry(
@@ -101,6 +106,21 @@ export class MemoryGenerationJobRepository implements GenerationJobRepository {
   async getForUser(userId: string, jobId: string) {
     const job = this.jobs.get(jobId);
     return job?.ownerId === userId ? job : null;
+  }
+  async getByClientRequest(
+    userId: string,
+    workspaceId: string,
+    clientRequestId: string,
+  ) {
+    return (
+      [...this.jobs.values()].find(
+        (job) =>
+          job.ownerId === userId &&
+          job.workspaceId === workspaceId &&
+          job.clientRequestId === clientRequestId &&
+          job.attempt === 1,
+      ) || null
+    );
   }
   async listForUser(userId: string, workspaceId: string) {
     return [...this.jobs.values()]
