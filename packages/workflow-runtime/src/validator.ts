@@ -97,11 +97,9 @@ function validateNodes(
         !options.availableCredentials.has(credential)
       )
         issues.push(
-          issue(
-            "MISSING_CREDENTIAL",
-            `Credential is unavailable: ${credential}`,
-            { nodeId: node.id },
-          ),
+          issue("MISSING_CREDENTIAL", "Referenced credential is unavailable", {
+            nodeId: node.id,
+          }),
         );
   }
 }

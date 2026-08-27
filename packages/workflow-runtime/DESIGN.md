@@ -12,6 +12,7 @@ WorkflowDefinition
   ├─ structural / policy validator ──> structured issues
   └─ Kahn topological scheduler ─────> deterministic parallel layers
                                          └─ selection planner / skip reasons
+CanvasDocument ── declarative CompileRule ──> WorkflowDefinition + source mapping + diagnostics
 ```
 
 跨端 contract 位于 `@infinite-canvas/contracts`：`WorkflowNodeSchema` 描述注册节点，`WorkflowNodeDefinition` 是发布版本中的可执行快照。定义携带 ports，避免节点插件升级后静默改变既有 Workflow 语义。
@@ -24,6 +25,7 @@ WorkflowDefinition
 4. 有向图无环；显式 entry 存在时，每个节点必须可达。
 5. 可用集合由调用方从已鉴权 Workspace 上下文提供；Runtime 只比较 capability/credential opaque ID。
 6. 拓扑层与部分执行计划确定性排序，可被持久执行器幂等重建。
+7. Canvas generic handle 只有在 rule 指定默认 port 或 schema 恰有一个 port 时才可映射；多 port 禁止猜测。
 
 ## 类型规则
 
@@ -43,6 +45,7 @@ WorkflowDefinition
 | Kahn 分层而非 DFS 排序             | 直接表达同层并行并自然检测 cycle                               | 动态 condition 在执行时产生 skip，不改变静态 DAG   |
 | Durable step 作为 adapter          | 吸收 z3cz 的 `step/sleep/waitForEvent` 优势且不绑定 Cloudflare | PostgreSQL step store 尚需下一阶段实现             |
 | 部分执行选择节点及全部 descendants | 与“从选中节点执行”交互一致                                     | 上游输入必须由已保存 snapshot 或显式参数提供       |
+| 声明式 config/credential binding   | 服务端可复验，且不会执行插件脚本                               | 复杂转换须由受信任、版本化 adapter 实现            |
 
 ## 安全
 
@@ -54,6 +57,5 @@ WorkflowDefinition
 
 ## 后续
 
-- Canvas compiler/source mapping（WFL-003）。
 - PostgreSQL Execution/NodeExecution/Event、lease 与 durable step（WFL-004~007）。
 - condition/trigger adapter 以及 config JSON Schema registry。
