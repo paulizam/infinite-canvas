@@ -1,6 +1,8 @@
 import { beforeEach, describe, expect, it } from "vitest";
 import { createApp } from "./app.js";
 import { MemoryPlatformRepository } from "./memory-repository.js";
+import { AssetService } from "./asset-service.js";
+import { MemoryAssetBlobStore } from "./blob-store.js";
 import {
   IdentityService,
   ProjectService,
@@ -14,6 +16,11 @@ beforeEach(() => {
     identity: new IdentityService(repository, 60_000),
     workspaces: new WorkspaceService(repository),
     projects: new ProjectService(repository),
+    assets: new AssetService(
+      repository,
+      new MemoryAssetBlobStore(),
+      1024 * 1024,
+    ),
     secureCookies: false,
   });
 });
@@ -125,7 +132,11 @@ describe("cloud workspace API", () => {
       ).status,
     ).toBe(200);
     expect(
-      (await app.request(`/api/v1/projects/${project.id}`, { headers: { cookie } })).status,
+      (
+        await app.request(`/api/v1/projects/${project.id}`, {
+          headers: { cookie },
+        })
+      ).status,
     ).toBe(404);
   });
   it("prevents cross-workspace project access", async () => {
@@ -256,5 +267,165 @@ describe("cloud workspace API", () => {
     expect(data.data.project.document.nodes[0]?.extensionPayload).toEqual({
       keep: true,
     });
+  });
+});
+
+describe("workspace asset API", () => {
+  const png = Buffer.from(
+    "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=",
+    "base64",
+  );
+
+  async function upload(workspaceId: string, cookie: string, bytes = png) {
+    return app.request(`/api/v1/workspaces/${workspaceId}/assets`, {
+      method: "POST",
+      headers: { cookie, "x-file-name": "../pixel.png" },
+      body: bytes,
+    });
+  }
+
+  it("sniffs, deduplicates, lists and downloads immutable media", async () => {
+    const { body, cookie } = await register("asset@example.com");
+    const workspaceId = body.data.workspace.id;
+    const first = await upload(workspaceId, cookie);
+    expect(first.status).toBe(201);
+    const firstData = (await first.json()) as {
+      data: {
+        asset: { id: string; mimeType: string; originalName: string };
+        deduplicated: boolean;
+      };
+    };
+    expect(firstData.data.asset.mimeType).toBe("image/png");
+    expect(firstData.data.asset.originalName).toBe("pixel.png");
+    expect(firstData.data.deduplicated).toBe(false);
+
+    const duplicate = await upload(workspaceId, cookie);
+    const duplicateData = (await duplicate.json()) as typeof firstData;
+    expect(duplicateData.data.asset.id).toBe(firstData.data.asset.id);
+    expect(duplicateData.data.deduplicated).toBe(true);
+
+    const listed = await app.request(
+      `/api/v1/workspaces/${workspaceId}/assets`,
+      {
+        headers: { cookie },
+      },
+    );
+    expect(((await listed.json()) as { data: unknown[] }).data).toHaveLength(1);
+    const content = await app.request(
+      `/api/v1/assets/${firstData.data.asset.id}/content`,
+      { headers: { cookie } },
+    );
+    expect(content.status).toBe(200);
+    expect(content.headers.get("content-type")).toBe("image/png");
+    expect(Buffer.from(await content.arrayBuffer())).toEqual(png);
+  });
+
+  it("rejects forged media and hides assets across tenants", async () => {
+    const owner = await register("asset-owner@example.com");
+    const uploaded = await upload(owner.body.data.workspace.id, owner.cookie);
+    const data = (await uploaded.json()) as { data: { asset: { id: string } } };
+    const outsider = await register("asset-outsider@example.com");
+    expect(
+      (
+        await app.request(`/api/v1/assets/${data.data.asset.id}/content`, {
+          headers: { cookie: outsider.cookie },
+        })
+      ).status,
+    ).toBe(404);
+    expect(
+      (
+        await upload(
+          owner.body.data.workspace.id,
+          owner.cookie,
+          Buffer.from("not an image"),
+        )
+      ).status,
+    ).toBe(400);
+    expect(
+      (
+        await upload(
+          owner.body.data.workspace.id,
+          owner.cookie,
+          Buffer.alloc(1024 * 1024 + 1),
+        )
+      ).status,
+    ).toBe(400);
+  });
+
+  it("blocks deletion while a canvas references the asset", async () => {
+    const { body, cookie } = await register("asset-ref@example.com");
+    const workspaceId = body.data.workspace.id;
+    const uploaded = await upload(workspaceId, cookie);
+    const assetId = (
+      (await uploaded.json()) as { data: { asset: { id: string } } }
+    ).data.asset.id;
+    const created = await app.request(
+      `/api/v1/workspaces/${workspaceId}/projects`,
+      {
+        method: "POST",
+        headers: { cookie, "content-type": "application/json" },
+        body: JSON.stringify({ title: "素材引用" }),
+      },
+    );
+    const projectId = ((await created.json()) as { data: { id: string } }).data
+      .id;
+    const mutate = (
+      baseRevision: number,
+      mutationId: string,
+      operations: unknown[],
+    ) =>
+      app.request(`/api/v1/projects/${projectId}/mutations`, {
+        method: "POST",
+        headers: { cookie, "content-type": "application/json" },
+        body: JSON.stringify({
+          mutationId,
+          projectId,
+          baseRevision,
+          clientId: "asset-test",
+          createdAt: new Date().toISOString(),
+          operations,
+        }),
+      });
+    expect(
+      (
+        await mutate(0, "add-ref", [
+          {
+            type: "node.upsert",
+            node: {
+              id: "asset-node",
+              type: "image",
+              title: "Pixel",
+              position: { x: 0, y: 0 },
+              width: 64,
+              height: 64,
+              assetId,
+            },
+          },
+        ])
+      ).status,
+    ).toBe(200);
+    expect(
+      (
+        await app.request(`/api/v1/assets/${assetId}`, {
+          method: "DELETE",
+          headers: { cookie },
+        })
+      ).status,
+    ).toBe(409);
+    expect(
+      (
+        await mutate(1, "remove-ref", [
+          { type: "node.remove", nodeIds: ["asset-node"] },
+        ])
+      ).status,
+    ).toBe(200);
+    expect(
+      (
+        await app.request(`/api/v1/assets/${assetId}`, {
+          method: "DELETE",
+          headers: { cookie },
+        })
+      ).status,
+    ).toBe(200);
   });
 });

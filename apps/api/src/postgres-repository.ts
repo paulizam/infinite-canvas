@@ -11,7 +11,9 @@ import {
   type UserRecord,
   type WorkspaceRecord,
   type WorkspaceRole,
+  type AssetRecord,
 } from "./domain.js";
+import { extractAssetIds } from "./asset-references.js";
 
 export class PostgresPlatformRepository implements PlatformRepository {
   private pool: pg.Pool;
@@ -125,19 +127,30 @@ export class PostgresPlatformRepository implements PlatformRepository {
     return r.rows.map(mapProject);
   }
   async createProject(userId: string, p: ProjectRecord) {
-    await this.requireRole(this.pool, userId, p.workspaceId, "editor");
-    await this.pool.query(
-      "INSERT INTO canvas_projects(id,workspace_id,owner_id,document,revision,created_at,updated_at) VALUES($1,$2,$3,$4::jsonb,$5,$6,$7)",
-      [
-        p.id,
-        p.workspaceId,
-        p.ownerId,
-        JSON.stringify(p.document),
-        p.document.revision,
-        p.createdAt,
-        p.updatedAt,
-      ],
-    );
+    const client = await this.pool.connect();
+    try {
+      await client.query("BEGIN");
+      await this.requireRole(client, userId, p.workspaceId, "editor");
+      await client.query(
+        "INSERT INTO canvas_projects(id,workspace_id,owner_id,document,revision,created_at,updated_at) VALUES($1,$2,$3,$4::jsonb,$5,$6,$7)",
+        [
+          p.id,
+          p.workspaceId,
+          p.ownerId,
+          JSON.stringify(p.document),
+          p.document.revision,
+          p.createdAt,
+          p.updatedAt,
+        ],
+      );
+      await syncAssetReferences(client, p.id, p.document);
+      await client.query("COMMIT");
+    } catch (error) {
+      await client.query("ROLLBACK");
+      throw error;
+    } finally {
+      client.release();
+    }
   }
   async deleteProject(userId: string, id: string) {
     const project = await this.getProject(userId, id);
@@ -195,6 +208,7 @@ export class PostgresPlatformRepository implements PlatformRepository {
         "INSERT INTO canvas_project_mutations(project_id,mutation_id,revision,created_at) VALUES($1,$2,$3,$4)",
         [projectId, mutation.mutationId, document.revision, mutation.createdAt],
       );
+      await syncAssetReferences(c, projectId, document);
       await c.query("COMMIT");
       return {
         project: { ...current, document, updatedAt: document.updatedAt },
@@ -205,6 +219,76 @@ export class PostgresPlatformRepository implements PlatformRepository {
       throw e;
     } finally {
       c.release();
+    }
+  }
+  async findAssetByHash(userId: string, workspaceId: string, sha256: string) {
+    await this.requireRole(this.pool, userId, workspaceId, "viewer");
+    const result = await this.pool.query(
+      "SELECT * FROM media_assets WHERE workspace_id=$1 AND sha256=$2",
+      [workspaceId, sha256],
+    );
+    return result.rows[0] ? mapAsset(result.rows[0]) : null;
+  }
+  async createAsset(userId: string, asset: AssetRecord) {
+    await this.requireRole(this.pool, userId, asset.workspaceId, "editor");
+    const result = await this.pool.query(
+      "INSERT INTO media_assets(id,workspace_id,owner_id,storage_key,sha256,bytes,mime_type,kind,original_name,created_at) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10) ON CONFLICT(workspace_id,sha256) DO UPDATE SET sha256=EXCLUDED.sha256 RETURNING *",
+      [
+        asset.id,
+        asset.workspaceId,
+        asset.ownerId,
+        asset.storageKey,
+        asset.sha256,
+        asset.bytes,
+        asset.mimeType,
+        asset.kind,
+        asset.originalName,
+        asset.createdAt,
+      ],
+    );
+    return mapAsset(result.rows[0]);
+  }
+  async getAsset(userId: string, assetId: string) {
+    const result = await this.pool.query(
+      "SELECT a.* FROM media_assets a JOIN workspace_members m ON m.workspace_id=a.workspace_id WHERE a.id=$1 AND m.user_id=$2",
+      [assetId, userId],
+    );
+    return result.rows[0] ? mapAsset(result.rows[0]) : null;
+  }
+  async listAssets(userId: string, workspaceId: string) {
+    await this.requireRole(this.pool, userId, workspaceId, "viewer");
+    const result = await this.pool.query(
+      "SELECT * FROM media_assets WHERE workspace_id=$1 ORDER BY created_at DESC",
+      [workspaceId],
+    );
+    return result.rows.map(mapAsset);
+  }
+  async deleteAsset(userId: string, assetId: string) {
+    const client = await this.pool.connect();
+    try {
+      await client.query("BEGIN");
+      const result = await client.query(
+        "SELECT * FROM media_assets WHERE id=$1 FOR UPDATE",
+        [assetId],
+      );
+      if (!result.rows[0])
+        throw new DomainError("ASSET_NOT_FOUND", 404, "素材不存在");
+      const asset = mapAsset(result.rows[0]);
+      await this.requireRole(client, userId, asset.workspaceId, "editor");
+      const references = await client.query(
+        "SELECT 1 FROM media_asset_references WHERE asset_id=$1 LIMIT 1",
+        [assetId],
+      );
+      if (references.rows[0])
+        throw new DomainError("ASSET_IN_USE", 409, "素材仍被项目引用");
+      await client.query("DELETE FROM media_assets WHERE id=$1", [assetId]);
+      await client.query("COMMIT");
+      return asset;
+    } catch (error) {
+      await client.query("ROLLBACK");
+      throw error;
+    } finally {
+      client.release();
     }
   }
   private async requireRole(
@@ -246,6 +330,39 @@ function mapProject(r: Record<string, unknown>): ProjectRecord {
     createdAt: iso(r.created_at),
     updatedAt: iso(r.updated_at),
   };
+}
+function mapAsset(r: Record<string, unknown>): AssetRecord {
+  return {
+    id: String(r.id),
+    workspaceId: String(r.workspace_id),
+    ownerId: String(r.owner_id),
+    storageKey: String(r.storage_key),
+    sha256: String(r.sha256),
+    bytes: Number(r.bytes),
+    mimeType: String(r.mime_type),
+    kind: r.kind as AssetRecord["kind"],
+    originalName: String(r.original_name),
+    createdAt: iso(r.created_at),
+  };
+}
+async function syncAssetReferences(
+  client: Pick<pg.PoolClient, "query">,
+  projectId: string,
+  document: unknown,
+) {
+  const ids = [...extractAssetIds(document)].filter((id) =>
+    /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(
+      id,
+    ),
+  );
+  await client.query("DELETE FROM media_asset_references WHERE project_id=$1", [
+    projectId,
+  ]);
+  if (ids.length)
+    await client.query(
+      "INSERT INTO media_asset_references(asset_id,project_id) SELECT id,$1 FROM media_assets WHERE id=ANY($2::uuid[]) ON CONFLICT DO NOTHING",
+      [projectId, ids],
+    );
 }
 function iso(v: unknown) {
   return v instanceof Date ? v.toISOString() : String(v);

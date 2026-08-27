@@ -11,3 +11,5 @@
 - 加固 Mutation runtime schema：拒绝 Document 保留字段伪造，扩展节点字段保持 round-trip。
 - 完成 Cloud Canvas CRUD/snapshot sync、remote revision 分账、409 熔断与 Local/Workspace 缓存隔离。
 - 完成 WebSocket Collaboration Hub、Origin/Session/project 鉴权、canonical mutation、presence、room isolation 与前端重连/去重。
+- 完成 Workspace 不可变媒体素材：magic-byte 校验、SHA-256 去重、Local FS/S3 adapter、服务端 object key、RBAC、跨租户隐藏与 AssetRef 删除保护。
+- 修复 PostgreSQL mutation project_id 类型漂移；初始快照及 mutation 均事务化同步 AssetRef。API 13 项测试、typecheck、build 与 dist import 通过。

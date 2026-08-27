@@ -1,12 +1,16 @@
 # Infinite Canvas API
 
-Hono/Node API for Server mode identity, workspaces, RBAC, and durable cloud canvas projects.
+Hono/Node API for Server mode identity, workspaces, RBAC, durable cloud canvas projects, collaboration, and immutable media assets.
 
 ## Configure
 
 Copy `.env.example` into your deployment secret/config system. `DATABASE_URL` and
 `SESSION_TTL_SECONDS` are required. The session TTL intentionally has no implicit default so each
 deployment must choose its own expiry policy.
+
+Media uploads require `MAX_UPLOAD_BYTES` and `BLOB_STORAGE_DRIVER`. Use `local` with
+`ASSET_LOCAL_ROOT` for a single-node deployment, or `s3` with the `S3_*` settings for shared
+object storage. File types are derived from magic bytes rather than request headers.
 
 ## Run
 
@@ -28,5 +32,7 @@ Development uses `pnpm --filter @infinite-canvas/api dev`. The API listens on po
 - Workspace roles are `owner`, `admin`, `editor`, and `viewer`.
 - Project mutation requires the current base revision and an idempotent `mutationId`.
 - Cross-tenant resource lookups return `404` instead of revealing resource existence.
+- Asset keys are server-generated, content is SHA-256 deduplicated per workspace, and referenced
+  assets cannot be deleted. S3 content is served through short-lived signed URLs.
 
 The in-memory repository exists only for contract tests. Production startup always uses PostgreSQL.

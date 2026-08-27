@@ -199,6 +199,8 @@ queued -> claimed -> submitting -> submitted -> polling
 
 `Asset` 保存 owner、hash、mime、bytes、dimensions、duration、provider、storageKey、source、status。预览 variant 与原件分离；引用来自 Canvas、消息、任务、短剧、作品。删除先做引用图检查，后台 GC 只清理无引用且超过 retention 的对象。
 
+浏览器上传入口在读取 request body 时执行硬大小上限，随后以 magic bytes 判定真实媒体类型；不得信任客户端 MIME、文件名或 object key。服务端生成不可变 key，并按 Workspace + SHA-256 去重。Local FS 必须做路径收敛，S3 读取使用短期 signed URL；数据库删除先于 Blob 删除，使失败最多形成可 GC 的 orphan，而不形成指向缺失 Blob 的记录。
+
 ### 6.8 Billing & Commerce
 
 钱包/积分流水为 ledger，不直接覆写余额；扣费、任务创建、流水写入同一事务。商品、套餐、促销、优惠券、CDK、邀请、订单、支付、退款、对账均通过状态机与 webhook idempotency key 保护。

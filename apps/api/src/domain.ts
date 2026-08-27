@@ -32,6 +32,19 @@ export type ProjectRecord = {
   updatedAt: string;
 };
 export type MutationResult = { project: ProjectRecord; replayed: boolean };
+export type MediaKind = "image" | "video" | "audio";
+export type AssetRecord = {
+  id: string;
+  workspaceId: string;
+  ownerId: string;
+  storageKey: string;
+  sha256: string;
+  bytes: number;
+  mimeType: string;
+  kind: MediaKind;
+  originalName: string;
+  createdAt: string;
+};
 
 export interface PlatformRepository {
   createUserWithWorkspace(input: {
@@ -60,6 +73,15 @@ export interface PlatformRepository {
     projectId: string,
     mutation: CanvasMutation,
   ): Promise<MutationResult>;
+  findAssetByHash(
+    userId: string,
+    workspaceId: string,
+    sha256: string,
+  ): Promise<AssetRecord | null>;
+  createAsset(userId: string, asset: AssetRecord): Promise<AssetRecord>;
+  getAsset(userId: string, assetId: string): Promise<AssetRecord | null>;
+  listAssets(userId: string, workspaceId: string): Promise<AssetRecord[]>;
+  deleteAsset(userId: string, assetId: string): Promise<AssetRecord>;
 }
 
 export class DomainError extends Error {

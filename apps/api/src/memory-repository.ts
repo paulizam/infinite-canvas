@@ -10,7 +10,9 @@ import {
   type UserRecord,
   type WorkspaceRecord,
   type WorkspaceRole,
+  type AssetRecord,
 } from "./domain.js";
+import { extractAssetIds } from "./asset-references.js";
 
 export class MemoryPlatformRepository implements PlatformRepository {
   private users = new Map<string, UserRecord>();
@@ -20,6 +22,7 @@ export class MemoryPlatformRepository implements PlatformRepository {
   private memberships = new Map<string, MembershipRecord>();
   private projects = new Map<string, ProjectRecord>();
   private mutations = new Map<string, MutationResult>();
+  private assets = new Map<string, AssetRecord>();
 
   async createUserWithWorkspace(input: {
     user: UserRecord;
@@ -122,6 +125,53 @@ export class MemoryPlatformRepository implements PlatformRepository {
     this.projects.set(projectId, next);
     this.mutations.set(key, result);
     return result;
+  }
+  async findAssetByHash(userId: string, workspaceId: string, sha256: string) {
+    this.requireRole(userId, workspaceId, "viewer");
+    return (
+      [...this.assets.values()].find(
+        (asset) => asset.workspaceId === workspaceId && asset.sha256 === sha256,
+      ) || null
+    );
+  }
+  async createAsset(userId: string, asset: AssetRecord) {
+    this.requireRole(userId, asset.workspaceId, "editor");
+    const existing = [...this.assets.values()].find(
+      (item) =>
+        item.workspaceId === asset.workspaceId && item.sha256 === asset.sha256,
+    );
+    if (existing) return existing;
+    this.assets.set(asset.id, asset);
+    return asset;
+  }
+  async getAsset(userId: string, assetId: string) {
+    const asset = this.assets.get(assetId);
+    if (
+      !asset ||
+      !this.memberships.has(this.memberKey(asset.workspaceId, userId))
+    )
+      return null;
+    return asset;
+  }
+  async listAssets(userId: string, workspaceId: string) {
+    this.requireRole(userId, workspaceId, "viewer");
+    return [...this.assets.values()]
+      .filter((asset) => asset.workspaceId === workspaceId)
+      .sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+  }
+  async deleteAsset(userId: string, assetId: string) {
+    const asset = this.assets.get(assetId);
+    if (!asset) throw new DomainError("ASSET_NOT_FOUND", 404, "素材不存在");
+    this.requireRole(userId, asset.workspaceId, "editor");
+    const referenced = [...this.projects.values()].some(
+      (project) =>
+        project.workspaceId === asset.workspaceId &&
+        extractAssetIds(project.document).has(assetId),
+    );
+    if (referenced)
+      throw new DomainError("ASSET_IN_USE", 409, "素材仍被项目引用");
+    this.assets.delete(assetId);
+    return asset;
   }
   private memberKey(workspaceId: string, userId: string) {
     return `${workspaceId}:${userId}`;

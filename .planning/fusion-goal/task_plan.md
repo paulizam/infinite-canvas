@@ -17,7 +17,8 @@
 - [x] 标准 Node ESM build、文档与质量门禁
 - [x] Web Local/Server repository adapter 与登录/Workspace UI
 - [x] WebSocket collaboration hub
-- [ ] Asset storage、Generation Job Worker、Model Gateway、Billing ledger
+- [x] Asset storage（magic-byte、SHA-256、Local/S3、RBAC、AssetRef 保护）
+- [ ] Generation Job Worker、Model Gateway、Billing ledger
 
 ## 错误账本
 
@@ -26,3 +27,4 @@
 | 假定 `pending-test.mdx` 位于仓库根目录 | 1 | 已定位到 `docs/content/docs/progress/pending-test.mdx` |
 | `apply_patch` 同一路径 Delete/Add 冲突 | 1 | 改用 Update File 精确替换 |
 | API import patch 与实际 import 形态不一致 | 1 | 先枚举 import，再按原文精确修改 |
+| AssetRef 递归未处理循环对象 | 1 | 增加 WeakSet 防环并补回归测试 |

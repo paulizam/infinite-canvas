@@ -3,6 +3,7 @@ import { deleteCookie, getCookie, setCookie } from "hono/cookie";
 import { z } from "zod";
 import type { PublicUser } from "./domain.js";
 import { DomainError } from "./domain.js";
+import type { AssetService } from "./asset-service.js";
 import {
   IdentityService,
   ProjectService,
@@ -16,6 +17,7 @@ export type AppServices = {
   identity: IdentityService;
   workspaces: WorkspaceService;
   projects: ProjectService;
+  assets: AssetService;
   secureCookies: boolean;
   collaboration?: {
     publishMutation: (
@@ -148,6 +150,45 @@ export function createApp(services: AppServices) {
       },
       201,
     );
+  });
+  app.get("/api/v1/workspaces/:workspaceId/assets", async (c) =>
+    c.json({
+      data: await services.assets.list(
+        c.get("user").id,
+        c.req.param("workspaceId"),
+      ),
+      requestId: requestId(c),
+    }),
+  );
+  app.post("/api/v1/workspaces/:workspaceId/assets", async (c) => {
+    const result = await services.assets.upload(
+      c.get("user").id,
+      c.req.param("workspaceId"),
+      {
+        bytes: await services.assets.readUpload(c.req.raw),
+        originalName: c.req.header("x-file-name") || "asset",
+      },
+    );
+    return c.json({ data: result, requestId: requestId(c) }, 201);
+  });
+  app.get("/api/v1/assets/:assetId/content", async (c) => {
+    const result = await services.assets.read(
+      c.get("user").id,
+      c.req.param("assetId"),
+    );
+    if ("url" in result && result.url) return c.redirect(result.url, 307);
+    if (!("bytes" in result) || !result.bytes)
+      throw new Error("Blob store returned no readable asset content");
+    return c.body(new Uint8Array(result.bytes), 200, {
+      "content-type": result.asset.mimeType,
+      "content-length": String(result.asset.bytes),
+      "cache-control": "private, max-age=300",
+      "content-disposition": "inline",
+    });
+  });
+  app.delete("/api/v1/assets/:assetId", async (c) => {
+    await services.assets.delete(c.get("user").id, c.req.param("assetId"));
+    return c.json({ data: { ok: true }, requestId: requestId(c) });
   });
   app.get("/api/v1/projects/:projectId", async (c) => {
     const project = await services.projects.get(

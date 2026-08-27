@@ -2,6 +2,8 @@
 
 ## Unreleased
 
++ [新增] 新增 Workspace 不可变媒体素材 API，支持 magic-byte 类型识别、SHA-256 去重、Local FS/S3 存储、短期签名读取与 Canvas AssetRef 删除保护。
++ [修复] 修正 Canvas mutation 外键类型漂移，并在初始项目快照及后续 mutation 中同步 PostgreSQL AssetRef 索引。
 + [新增] 新增鉴权 WebSocket Collaboration Hub：按项目隔离 canonical mutation 广播、snapshot、presence、光标与选区，客户端支持去重、revision 推进和指数重连。
 + [安全] WebSocket upgrade 强制校验 Origin allowlist、HttpOnly Session 与项目成员权限，presence 限制 16KiB payload 和每秒 30 条消息，持久写仍统一走 REST transaction。
 + [新增] Server Workspace 接入云画布 CRUD 与 500ms 串行快照同步，远端 revision 独立记账；409 冲突保留本地内容并熔断自动重试。
