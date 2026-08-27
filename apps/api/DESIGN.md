@@ -108,3 +108,7 @@ Workers claim Drama render leases independently from model-generation jobs. Inpu
 ## Community publication domain
 
 Community works are revisioned drafts linked to same-Workspace Canvas projects. Submission refreshes a full Canvas `draftSnapshot`; approval copies it into an immutable publication version so later source changes cannot alter public content. Anonymous feed/detail/author APIs expose only published visibility, while authenticated mutations enforce ownership and idempotency hashes. Likes/follows use set semantics, reports and moderation write auditable events, and Maintenance retries are request-id idempotent.
+
+### Community social layer
+
+Comments use immutable IDs, per-author mutation keys, bounded content, reply ownership checks, soft moderation states, reports, and Maintenance audit events. Bookmarks are set-valued rows. Collections are owner-controlled revisioned aggregates with request hashes and public/unlisted/private visibility. Service-level sliding windows limit abusive comment/report/bookmark bursts; database uniqueness remains the authoritative consistency boundary.

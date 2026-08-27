@@ -28,6 +28,7 @@ import type { DramaProductionService } from "./drama-production-service.js";
 import type { DramaRenderService } from "./drama-render-service.js";
 import type { DramaInteropService } from "./drama-interop-service.js";
 import type { CommunityService } from "./community-service.js";
+import type { CommunitySocialService } from "./community-social-service.js";
 import { ModelDiscoveryService } from "./model-discovery.js";
 import { createModelDiscoveryApi } from "./model-discovery-api.js";
 import {
@@ -62,6 +63,7 @@ export type AppServices = {
   dramaRender?: DramaRenderService;
   dramaInterop?: DramaInteropService;
   community?: CommunityService;
+  communitySocial?: CommunitySocialService;
   maintenanceToken: string;
   secureCookies: boolean;
   modelDiscovery?: ModelDiscoveryService;
@@ -159,6 +161,40 @@ export function createApp(services: AppServices) {
         data: await services.community!.author(c.req.param("authorId")),
         requestId: requestId(c),
       }),
+    );
+  }
+  if (services.communitySocial) {
+    app.get("/api/public/v1/community/works/:workId/comments", async (c) =>
+      c.json({
+        data: await services.communitySocial!.comments(
+          c.req.param("workId"),
+          c.req.query("cursor"),
+          Number(c.req.query("limit") || 50),
+        ),
+        requestId: requestId(c),
+      }),
+    );
+    app.get("/api/public/v1/community/collections/:collectionId", async (c) => {
+      const x = await services.communitySocial!.collection(
+        c.req.param("collectionId"),
+      );
+      if (!x)
+        throw new DomainError(
+          "COMMUNITY_COLLECTION_NOT_FOUND",
+          404,
+          "合集不存在",
+        );
+      return c.json({ data: x, requestId: requestId(c) });
+    });
+    app.get(
+      "/api/public/v1/community/authors/:authorId/collections",
+      async (c) =>
+        c.json({
+          data: await services.communitySocial!.collections(
+            c.req.param("authorId"),
+          ),
+          requestId: requestId(c),
+        }),
     );
   }
 
@@ -376,6 +412,73 @@ export function createApp(services: AppServices) {
       );
       return c.json({ data: { ok: true }, requestId: requestId(c) }, 201);
     });
+  }
+  if (services.communitySocial) {
+    app.post("/api/v1/community/works/:workId/comments", async (c) =>
+      c.json(
+        {
+          data: await services.communitySocial!.comment(
+            c.get("user").id,
+            c.req.param("workId"),
+            communityCommentSchema.parse(await c.req.json()),
+          ),
+          requestId: requestId(c),
+        },
+        201,
+      ),
+    );
+    app.post("/api/v1/community/comments/:commentId/reports", async (c) => {
+      const x = communityReportSchema.parse(await c.req.json());
+      await services.communitySocial!.report(
+        c.get("user").id,
+        c.req.param("commentId"),
+        x.reasonCode,
+        x.detail || "",
+      );
+      return c.json({ data: { ok: true }, requestId: requestId(c) }, 201);
+    });
+    app.put("/api/v1/community/works/:workId/bookmark", async (c) => {
+      const x = z
+        .object({ value: z.boolean() })
+        .strict()
+        .parse(await c.req.json());
+      return c.json({
+        data: await services.communitySocial!.bookmark(
+          c.get("user").id,
+          c.req.param("workId"),
+          x.value,
+        ),
+        requestId: requestId(c),
+      });
+    });
+    app.get("/api/v1/community/bookmarks", async (c) =>
+      c.json({
+        data: await services.communitySocial!.bookmarks(c.get("user").id),
+        requestId: requestId(c),
+      }),
+    );
+    app.post("/api/v1/community/collections", async (c) =>
+      c.json(
+        {
+          data: await services.communitySocial!.createCollection(
+            c.get("user").id,
+            communityCollectionCreateSchema.parse(await c.req.json()),
+          ),
+          requestId: requestId(c),
+        },
+        201,
+      ),
+    );
+    app.patch("/api/v1/community/collections/:collectionId", async (c) =>
+      c.json({
+        data: await services.communitySocial!.mutateCollection(
+          c.get("user").id,
+          c.req.param("collectionId"),
+          communityCollectionMutationSchema.parse(await c.req.json()),
+        ),
+        requestId: requestId(c),
+      }),
+    );
   }
   if (services.drama) {
     app.get("/api/v1/workspaces/:workspaceId/drama-projects", async (c) =>
@@ -1412,6 +1515,22 @@ export function createApp(services: AppServices) {
       }),
     );
   }
+  if (services.communitySocial)
+    app.post(
+      "/internal/v1/community/comments/:commentId/moderate",
+      async (c) => {
+        const x = communityCommentModerateSchema.parse(await c.req.json());
+        return c.json({
+          data: await services.communitySocial!.moderate(
+            c.req.param("commentId"),
+            x.action,
+            x.reason,
+            requestId(c),
+          ),
+          requestId: requestId(c),
+        });
+      },
+    );
   if (services.dramaRender) {
     app.post("/internal/v1/drama-render/claim", async (c) => {
       const x = workerClaimSchema.parse(await c.req.json());
@@ -2991,6 +3110,51 @@ const communityModerateSchema = z
     reason: z.string().trim().max(4000),
   })
   .strict();
+const communityCommentSchema = z
+  .object({
+    mutationId: z.string().trim().min(8).max(200),
+    parentId: z.uuid().optional(),
+    content: z.string().trim().min(1).max(4000),
+  })
+  .strict();
+const communityCommentModerateSchema = z
+  .object({
+    action: z.enum(["hide", "restore"]),
+    reason: z.string().trim().max(4000),
+  })
+  .strict();
+const communityCollectionCreateSchema = z
+  .object({
+    title: z.string().trim().min(1).max(160),
+    description: z.string().max(4000).optional(),
+    visibility: z.enum(["public", "unlisted", "private"]),
+  })
+  .strict();
+const communityCollectionMutationSchema = z
+  .object({
+    expectedRevision: z.number().int().nonnegative(),
+    mutationId: z.string().trim().min(8).max(200),
+    title: z.string().trim().min(1).max(160).optional(),
+    description: z.string().max(4000).optional(),
+    visibility: z.enum(["public", "unlisted", "private"]).optional(),
+    item: z
+      .object({
+        workId: z.uuid(),
+        sortOrder: z.number().int().nonnegative(),
+        value: z.boolean(),
+      })
+      .strict()
+      .optional(),
+  })
+  .strict()
+  .refine(
+    (x) =>
+      x.title !== undefined ||
+      x.description !== undefined ||
+      x.visibility !== undefined ||
+      x.item !== undefined,
+    { message: "至少提供一个变更" },
+  );
 function writeSession(
   c: Parameters<typeof setCookie>[0],
   token: string,

@@ -13,6 +13,8 @@ import { MemoryAssetBlobStore } from "./blob-store.js";
 import { GenerationJobService } from "./generation-job-service.js";
 import { MemoryGenerationJobRepository } from "./generation-job-repository.js";
 import { MemoryModelGatewayRepository } from "./model-gateway-repository.js";
+import { MemoryCommunitySocialRepository } from "./community-social-repository.js";
+import { CommunitySocialService } from "./community-social-service.js";
 let app: ReturnType<typeof createApp>;
 const maintenance = "maintenance-token-at-least-32-chars";
 beforeEach(() => {
@@ -30,6 +32,15 @@ beforeEach(() => {
       },
     ),
   );
+  const social = new CommunitySocialService(
+    new MemoryCommunitySocialRepository(
+      async (id) => !!(await community.detail(id)),
+      async (id) => {
+        const u = await p.findUserById(id);
+        return u ? { name: u.name } : null;
+      },
+    ),
+  );
   app = createApp({
     identity: new IdentityService(p, 60_000),
     workspaces: new WorkspaceService(p),
@@ -43,6 +54,7 @@ beforeEach(() => {
     maintenanceToken: maintenance,
     secureCookies: false,
     community,
+    communitySocial: social,
   });
 });
 async function register(email: string, name: string) {
@@ -188,5 +200,84 @@ describe("Community API", () => {
         "work.restore",
       ]),
     );
+    const commentInput = {
+      mutationId: "comment-mutation-0001",
+      content: "很棒",
+    };
+    r = await app.request(`/api/v1/community/works/${work.id}/comments`, {
+      method: "POST",
+      headers: json(reader.cookie),
+      body: JSON.stringify(commentInput),
+    });
+    expect(r.status).toBe(201);
+    const comment = ((await r.json()) as any).data.comment;
+    r = await app.request(`/api/v1/community/works/${work.id}/comments`, {
+      method: "POST",
+      headers: json(reader.cookie),
+      body: JSON.stringify(commentInput),
+    });
+    expect(((await r.json()) as any).data.replayed).toBe(true);
+    expect(
+      (
+        (await (
+          await app.request(
+            `/api/public/v1/community/works/${work.id}/comments`,
+          )
+        ).json()) as any
+      ).data.items,
+    ).toHaveLength(1);
+    await app.request(`/api/v1/community/comments/${comment.id}/reports`, {
+      method: "POST",
+      headers: json(author.cookie),
+      body: JSON.stringify({ reasonCode: "spam", detail: "test" }),
+    });
+    await app.request(
+      `/internal/v1/community/comments/${comment.id}/moderate`,
+      {
+        method: "POST",
+        headers: {
+          authorization: `Bearer ${maintenance}`,
+          "content-type": "application/json",
+        },
+        body: JSON.stringify({ action: "hide", reason: "spam" }),
+      },
+    );
+    expect(
+      (
+        (await (
+          await app.request(
+            `/api/public/v1/community/works/${work.id}/comments`,
+          )
+        ).json()) as any
+      ).data.items,
+    ).toHaveLength(0);
+    r = await app.request(`/api/v1/community/works/${work.id}/bookmark`, {
+      method: "PUT",
+      headers: json(reader.cookie),
+      body: JSON.stringify({ value: true }),
+    });
+    expect(((await r.json()) as any).data.bookmarkCount).toBe(1);
+    r = await app.request("/api/v1/community/collections", {
+      method: "POST",
+      headers: json(reader.cookie),
+      body: JSON.stringify({ title: "最爱", visibility: "public" }),
+    });
+    const collection = ((await r.json()) as any).data;
+    r = await app.request(`/api/v1/community/collections/${collection.id}`, {
+      method: "PATCH",
+      headers: json(reader.cookie),
+      body: JSON.stringify({
+        expectedRevision: 0,
+        mutationId: "collection-mutation-001",
+        item: { workId: work.id, sortOrder: 0, value: true },
+      }),
+    });
+    expect(((await r.json()) as any).data.collection.items[0].workId).toBe(
+      work.id,
+    );
+    r = await app.request(
+      `/api/public/v1/community/collections/${collection.id}`,
+    );
+    expect(((await r.json()) as any).data.items).toHaveLength(1);
   });
 });

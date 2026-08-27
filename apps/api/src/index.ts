@@ -31,6 +31,8 @@ import { PostgresDramaRenderRepository } from "./postgres-drama-render-repositor
 import { DramaInteropService } from "./drama-interop-service.js";
 import { CommunityService } from "./community-service.js";
 import { PostgresCommunityRepository } from "./postgres-community-repository.js";
+import { CommunitySocialService } from "./community-social-service.js";
+import { PostgresCommunitySocialRepository } from "./postgres-community-social-repository.js";
 import {
   IdentityService,
   ProjectService,
@@ -149,6 +151,9 @@ const app = createApp({
     repository,
     projects,
     new PostgresCommunityRepository(databaseUrl),
+  ),
+  communitySocial: new CommunitySocialService(
+    new PostgresCommunitySocialRepository(databaseUrl),
   ),
   maintenanceToken,
   collaboration,

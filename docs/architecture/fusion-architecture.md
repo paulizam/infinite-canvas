@@ -386,3 +386,7 @@ Drama 可将来源、实体参考、镜头选择、时间轴或成片 Asset 投�
 ## R3 Community COM-001～005（2026-08-28）
 
 作品社区采用独立 Publication aggregate：草稿关联同 Workspace Canvas，提交时冻结完整 document snapshot，审核通过复制为不可变发布版本。公开 Feed/Search/Tag/Cursor、详情、分享链接与作者页无需 Session；草稿、点赞、关注、举报要求登录。审核、驳回、下架、恢复由 Maintenance 边界执行并记录 requestId 幂等 audit trail；互动使用唯一约束保证计数一致。
+
+### COM-006 社交层（2026-08-28）
+
+评论支持回复、游标读取、幂等创建、举报、隐藏与恢复；隐藏内容不会出现在公开 API。收藏采用唯一集合语义并实时计数。合集采用 owner revision + mutationId/request hash，支持公开/非公开可见性、作品增删和显式排序。评论、举报、收藏均配置分钟级反滥用限制，治理操作进入 audit trail。
