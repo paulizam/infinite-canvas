@@ -21,6 +21,7 @@ import type { WorkflowExecutionRecord } from "./workflow-execution-repository.js
 import type { WorkflowTriggerService } from "./workflow-trigger-service.js";
 import type { WorkflowLibraryService } from "./workflow-library-service.js";
 import type { WorkflowPublicApiService } from "./workflow-public-api-service.js";
+import type { AgentRunService } from "./agent-run-service.js";
 import { ModelDiscoveryService } from "./model-discovery.js";
 import { createModelDiscoveryApi } from "./model-discovery-api.js";
 import {
@@ -49,6 +50,7 @@ export type AppServices = {
   workflowTriggers?: WorkflowTriggerService;
   workflowLibrary?: WorkflowLibraryService;
   workflowPublicApi?: WorkflowPublicApiService;
+  agentRuns?: AgentRunService;
   maintenanceToken: string;
   secureCookies: boolean;
   modelDiscovery?: ModelDiscoveryService;
@@ -771,6 +773,130 @@ export function createApp(services: AppServices) {
     await services.projects.delete(c.get("user").id, c.req.param("projectId"));
     return c.json({ data: { ok: true }, requestId: requestId(c) });
   });
+  if (services.agentRuns) {
+    app.get("/api/v1/workspaces/:workspaceId/agent-sessions", async (c) =>
+      c.json({
+        data: await services.agentRuns!.listSessions(
+          c.get("user").id,
+          c.req.param("workspaceId"),
+        ),
+        requestId: requestId(c),
+      }),
+    );
+    app.post("/api/v1/workspaces/:workspaceId/agent-sessions", async (c) => {
+      const input = agentSessionCreateSchema.parse(await c.req.json());
+      return c.json(
+        {
+          data: await services.agentRuns!.createSession(
+            c.get("user").id,
+            c.req.param("workspaceId"),
+            input,
+          ),
+          requestId: requestId(c),
+        },
+        201,
+      );
+    });
+    app.get("/api/v1/agent-sessions/:sessionId/runs", async (c) =>
+      c.json({
+        data: await services.agentRuns!.listRuns(
+          c.get("user").id,
+          c.req.param("sessionId"),
+        ),
+        requestId: requestId(c),
+      }),
+    );
+    app.post("/api/v1/agent-sessions/:sessionId/runs", async (c) => {
+      const input = agentRunCreateSchema.parse(await c.req.json());
+      return c.json(
+        {
+          data: await services.agentRuns!.createRun(
+            c.get("user").id,
+            c.req.param("sessionId"),
+            input,
+          ),
+          requestId: requestId(c),
+        },
+        202,
+      );
+    });
+    app.get("/api/v1/agent-runs/:runId", async (c) =>
+      c.json({
+        data: await services.agentRuns!.getRun(
+          c.get("user").id,
+          c.req.param("runId"),
+        ),
+        requestId: requestId(c),
+      }),
+    );
+    app.post("/api/v1/agent-runs/:runId/cancel", async (c) =>
+      c.json({
+        data: await services.agentRuns!.cancel(
+          c.get("user").id,
+          c.req.param("runId"),
+        ),
+        requestId: requestId(c),
+      }),
+    );
+    app.post("/api/v1/agent-runs/:runId/retry", async (c) =>
+      c.json(
+        {
+          data: await services.agentRuns!.retry(
+            c.get("user").id,
+            c.req.param("runId"),
+          ),
+          requestId: requestId(c),
+        },
+        202,
+      ),
+    );
+    app.post("/api/v1/agent-approvals/:approvalId/decision", async (c) => {
+      const input = agentApprovalDecisionSchema.parse(await c.req.json());
+      return c.json({
+        data: await services.agentRuns!.decideApproval(
+          c.get("user").id,
+          c.req.param("approvalId"),
+          input.decision,
+        ),
+        requestId: requestId(c),
+      });
+    });
+    app.get("/api/v1/agent-runs/:runId/events", async (c) => {
+      const userId = c.get("user").id;
+      const runId = c.req.param("runId");
+      let cursor = Number(
+        c.req.header("last-event-id") || c.req.query("after") || 0,
+      );
+      if (!Number.isSafeInteger(cursor) || cursor < 0)
+        throw new DomainError("INVALID_EVENT_CURSOR", 400, "事件游标无效");
+      await services.agentRuns!.getRun(userId, runId);
+      c.header("cache-control", "private, no-cache, no-store");
+      c.header("x-accel-buffering", "no");
+      return streamSSE(c, async (stream) => {
+        const deadline = Date.now() + 5 * 60_000;
+        while (!stream.aborted && Date.now() < deadline) {
+          const detail = await services.agentRuns!.getRun(userId, runId);
+          const events = detail.events.filter(
+            (event) => event.sequence > cursor,
+          );
+          for (const event of events) {
+            await stream.writeSSE({
+              id: String(event.sequence),
+              event: event.type,
+              data: JSON.stringify(event),
+            });
+            cursor = event.sequence;
+          }
+          if (["succeeded", "failed", "cancelled"].includes(detail.run.status))
+            return;
+          if (!events.length) {
+            await stream.write(": heartbeat\n\n");
+            await stream.sleep(750);
+          }
+        }
+      });
+    });
+  }
   app.post("/api/v1/projects/:projectId/mutations", async (c) => {
     const input = mutationSchema.parse(await c.req.json());
     const result = await services.projects.mutate(
@@ -794,6 +920,14 @@ export function createApp(services: AppServices) {
     await next();
   });
   app.use("/internal/v1/workflow/*", async (c, next) => {
+    requireBearerToken(
+      c.req.header("authorization"),
+      services.workerToken,
+      "Worker",
+    );
+    await next();
+  });
+  app.use("/internal/v1/agent/*", async (c, next) => {
     requireBearerToken(
       c.req.header("authorization"),
       services.workerToken,
@@ -931,6 +1065,43 @@ export function createApp(services: AppServices) {
         return c.json({ data: cancelled, requestId: requestId(c) });
       },
     );
+  }
+  if (services.agentRuns) {
+    app.post("/internal/v1/agent/claim", async (c) => {
+      const input = agentWorkerClaimSchema.parse(await c.req.json());
+      return c.json({
+        data: await services.agentRuns!.claim(
+          input.workerId,
+          input.limit,
+          input.leaseMs,
+        ),
+        requestId: requestId(c),
+      });
+    });
+    app.post("/internal/v1/agent/heartbeat", async (c) => {
+      const input = agentWorkerHeartbeatSchema.parse(await c.req.json());
+      return c.json({
+        data: {
+          renewed: await services.agentRuns!.heartbeat(
+            input.workerId,
+            input.runIds,
+            input.leaseMs,
+          ),
+        },
+        requestId: requestId(c),
+      });
+    });
+    app.post("/internal/v1/agent/runs/:runId/transition", async (c) => {
+      const input = agentWorkerTransitionSchema.parse(await c.req.json());
+      return c.json({
+        data: await services.agentRuns!.transition(
+          input.workerId,
+          c.req.param("runId"),
+          input.operation,
+        ),
+        requestId: requestId(c),
+      });
+    });
   }
   if (services.workflowTriggers) {
     app.post("/internal/v1/workflow/triggers/schedules/claim", async (c) => {
@@ -1491,6 +1662,136 @@ const workflowWorkerHeartbeatSchema = z.object({
   workerId: z.string().trim().min(1).max(160),
   executionIds: z.array(z.uuid()).max(50),
 });
+const agentSessionCreateSchema = z
+  .object({
+    title: z.string().trim().min(1).max(200),
+    projectId: z.string().trim().min(1).max(160).optional(),
+  })
+  .strict();
+const agentRunCreateSchema = z
+  .object({
+    prompt: z.string().trim().min(1).max(20_000),
+    attachments: z
+      .array(
+        z
+          .object({
+            assetId: z.uuid(),
+            kind: z.enum(["image", "video", "audio", "file"]),
+          })
+          .strict(),
+      )
+      .max(20)
+      .default([]),
+    modelId: z.string().trim().min(1).max(160).optional(),
+    parameters: z.record(z.string(), z.unknown()).default({}),
+    skillPolicy: z.record(z.string(), z.unknown()).default({}),
+    maxAttempts: z.number().int().min(1).max(10).default(3),
+  })
+  .strict()
+  .refine(
+    (value) => Buffer.byteLength(JSON.stringify(value)) <= 1024 * 1024,
+    "Agent Run input exceeds 1 MiB",
+  );
+const agentApprovalDecisionSchema = z
+  .object({ decision: z.enum(["approved", "declined"]) })
+  .strict();
+const agentWorkerClaimSchema = z
+  .object({
+    workerId: z.string().trim().min(1).max(160),
+    limit: z.number().int().min(1).max(50).default(20),
+    leaseMs: z.number().int().min(30_000).max(300_000).default(90_000),
+  })
+  .strict();
+const agentWorkerHeartbeatSchema = z
+  .object({
+    workerId: z.string().trim().min(1).max(160),
+    runIds: z.array(z.uuid()).max(50),
+    leaseMs: z.number().int().min(30_000).max(300_000).default(90_000),
+  })
+  .strict();
+const agentWorkerOperationSchema = z.discriminatedUnion("type", [
+  z
+    .object({ type: z.literal("run.start"), plan: z.unknown().optional() })
+    .strict(),
+  z
+    .object({
+      type: z.literal("event.append"),
+      eventType: z.string().trim().min(1).max(160),
+      data: z.record(z.string(), z.unknown()).default({}),
+    })
+    .strict(),
+  z
+    .object({
+      type: z.literal("subtask.upsert"),
+      subtask: z
+        .object({
+          id: z.uuid().optional(),
+          kind: z.string().trim().min(1).max(160),
+          title: z.string().trim().min(1).max(500),
+          status: z.enum([
+            "pending",
+            "running",
+            "succeeded",
+            "failed",
+            "skipped",
+          ]),
+          input: z.unknown().optional(),
+          output: z.unknown().optional(),
+          error: z.unknown().optional(),
+        })
+        .strict(),
+    })
+    .strict(),
+  z
+    .object({
+      type: z.literal("result.add"),
+      result: z
+        .object({
+          kind: z.enum([
+            "text",
+            "image",
+            "video",
+            "audio",
+            "asset",
+            "canvas_operation",
+            "drama_item",
+          ]),
+          payload: z.record(z.string(), z.unknown()),
+          assetId: z.uuid().optional(),
+        })
+        .strict(),
+    })
+    .strict(),
+  z
+    .object({
+      type: z.literal("approval.request"),
+      action: z.enum(["delete", "batch_paid_generation", "external_access"]),
+      request: z.record(z.string(), z.unknown()),
+    })
+    .strict(),
+  z.object({ type: z.literal("run.complete") }).strict(),
+  z
+    .object({
+      type: z.literal("run.fail"),
+      error: z
+        .object({
+          code: z.string().trim().min(1).max(160),
+          message: z.string().max(2000),
+        })
+        .strict(),
+    })
+    .strict(),
+]);
+const agentWorkerTransitionSchema = z
+  .object({
+    workerId: z.string().trim().min(1).max(160),
+    operation: agentWorkerOperationSchema,
+  })
+  .strict()
+  .refine(
+    (value) => Buffer.byteLength(JSON.stringify(value)) <= 1024 * 1024,
+    "Agent transition exceeds 1 MiB",
+  );
 const workflowGenerationCapabilitySchema = z.enum([
   "text",
   "image",

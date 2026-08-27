@@ -129,6 +129,33 @@ export type CloudWorkflowApiToken = {
 };
 export type CloudWorkflowApiCredential = { token: CloudWorkflowApiToken; secret: string };
 export type CloudWorkflowApiAuditEvent = { id: string; tokenId: string; tokenName: string; action: CloudWorkflowApiScope; executionId: string | null; requestId: string | null; createdAt: string };
+export type CloudAgentSession = { id: string; workspaceId: string; projectId: string | null; createdBy: string; title: string; createdAt: string; updatedAt: string };
+export type CloudAgentRun = {
+    id: string;
+    sessionId: string;
+    workspaceId: string;
+    createdBy: string;
+    prompt: string;
+    attachments: Array<{ assetId: string; kind: "image" | "video" | "audio" | "file" }>;
+    modelId: string | null;
+    parameters: Record<string, unknown>;
+    skillPolicy: Record<string, unknown>;
+    plan: unknown;
+    status: "queued" | "claimed" | "running" | "waiting_approval" | "succeeded" | "failed" | "cancelled";
+    attempt: number;
+    maxAttempts: number;
+    error: { code: string; message: string } | null;
+    createdAt: string;
+    updatedAt: string;
+    completedAt: string | null;
+};
+export type CloudAgentRunDetail = {
+    run: CloudAgentRun;
+    events: Array<{ sequence: number; type: string; data: Record<string, unknown>; createdAt: string }>;
+    subtasks: Array<{ id: string; kind: string; title: string; status: string; output: unknown; error: unknown }>;
+    results: Array<{ id: string; kind: string; payload: Record<string, unknown>; assetId: string | null }>;
+    approvals: Array<{ id: string; action: "delete" | "batch_paid_generation" | "external_access"; status: "pending" | "approved" | "declined"; request: Record<string, unknown> }>;
+};
 
 type FetchLike = (input: RequestInfo | URL, init?: RequestInit) => Promise<Response>;
 type Envelope<T> = { data: T; requestId: string };
@@ -293,6 +320,31 @@ export class CloudPlatformClient {
 
     revokeWorkflowApiToken(tokenId: string) {
         return this.request<CloudWorkflowApiToken>(`/api/v1/workflow-api-tokens/${encodeURIComponent(tokenId)}`, { method: "DELETE" });
+    }
+
+    listAgentSessions(workspaceId: string) {
+        return this.request<CloudAgentSession[]>(`/api/v1/workspaces/${encodeURIComponent(workspaceId)}/agent-sessions`);
+    }
+    createAgentSession(workspaceId: string, input: { title: string; projectId?: string }) {
+        return this.request<CloudAgentSession>(`/api/v1/workspaces/${encodeURIComponent(workspaceId)}/agent-sessions`, { method: "POST", body: JSON.stringify(input) });
+    }
+    listAgentRuns(sessionId: string) {
+        return this.request<CloudAgentRun[]>(`/api/v1/agent-sessions/${encodeURIComponent(sessionId)}/runs`);
+    }
+    createAgentRun(sessionId: string, input: { prompt: string; attachments?: CloudAgentRun["attachments"]; modelId?: string; parameters?: Record<string, unknown>; skillPolicy?: Record<string, unknown>; maxAttempts?: number }) {
+        return this.request<CloudAgentRunDetail>(`/api/v1/agent-sessions/${encodeURIComponent(sessionId)}/runs`, { method: "POST", body: JSON.stringify(input) });
+    }
+    getAgentRun(runId: string) {
+        return this.request<CloudAgentRunDetail>(`/api/v1/agent-runs/${encodeURIComponent(runId)}`);
+    }
+    cancelAgentRun(runId: string) {
+        return this.request<CloudAgentRunDetail>(`/api/v1/agent-runs/${encodeURIComponent(runId)}/cancel`, { method: "POST" });
+    }
+    retryAgentRun(runId: string) {
+        return this.request<CloudAgentRunDetail>(`/api/v1/agent-runs/${encodeURIComponent(runId)}/retry`, { method: "POST" });
+    }
+    decideAgentApproval(approvalId: string, decision: "approved" | "declined") {
+        return this.request<CloudAgentRunDetail>(`/api/v1/agent-approvals/${encodeURIComponent(approvalId)}/decision`, { method: "POST", body: JSON.stringify({ decision }) });
     }
 
     listModels() {

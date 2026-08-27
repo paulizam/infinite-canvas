@@ -121,4 +121,23 @@ describe("CloudPlatformClient", () => {
         expect(fetcher).toHaveBeenNthCalledWith(4, "/api/v1/workflow-api-tokens/token%2Fa/rotate", expect.objectContaining({ method: "POST" }));
         expect(fetcher).toHaveBeenNthCalledWith(5, "/api/v1/workflow-api-tokens/token%2Fa", expect.objectContaining({ method: "DELETE" }));
     });
+
+    it("uses encoded durable Agent Run lifecycle endpoints", async () => {
+        const fetcher = vi.fn(async () => Response.json({ data: [], requestId: "r13" }));
+        const client = new CloudPlatformClient("", fetcher);
+        await client.listAgentSessions("team/a");
+        await client.createAgentSession("team/a", { title: "Campaign" });
+        await client.listAgentRuns("session/a");
+        await client.createAgentRun("session/a", { prompt: "Launch", attachments: [] });
+        await client.getAgentRun("run/a");
+        await client.cancelAgentRun("run/a");
+        await client.retryAgentRun("run/a");
+        await client.decideAgentApproval("approval/a", "approved");
+        expect(fetcher).toHaveBeenNthCalledWith(1, "/api/v1/workspaces/team%2Fa/agent-sessions", expect.any(Object));
+        expect(fetcher).toHaveBeenNthCalledWith(2, "/api/v1/workspaces/team%2Fa/agent-sessions", expect.objectContaining({ method: "POST", body: JSON.stringify({ title: "Campaign" }) }));
+        expect(fetcher).toHaveBeenNthCalledWith(3, "/api/v1/agent-sessions/session%2Fa/runs", expect.any(Object));
+        expect(fetcher).toHaveBeenNthCalledWith(4, "/api/v1/agent-sessions/session%2Fa/runs", expect.objectContaining({ method: "POST" }));
+        expect(fetcher).toHaveBeenNthCalledWith(5, "/api/v1/agent-runs/run%2Fa", expect.any(Object));
+        expect(fetcher).toHaveBeenNthCalledWith(8, "/api/v1/agent-approvals/approval%2Fa/decision", expect.objectContaining({ body: JSON.stringify({ decision: "approved" }) }));
+    });
 });

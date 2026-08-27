@@ -25,6 +25,12 @@ wallet adjustments. Job creation, point reservation, wallet update, and immutabl
 share one PostgreSQL transaction; terminal settlement or refund shares the Job transition
 transaction. Never update or delete ledger rows—the database trigger rejects both operations.
 
+Cloud Agent Runs persist sessions, multimodal Asset references, plans, public events, subtasks,
+results, and high-risk approvals. Workers claim Runs through a lease/heartbeat protocol under
+`/internal/v1/agent/*`; private reasoning fields are rejected and the event timeline is
+database-enforced append-only. Delete, batch paid generation, and external access must pause in
+`waiting_approval` until an editor decides the durable approval record.
+
 ## Run
 
 ```bash
@@ -58,5 +64,7 @@ Development uses `pnpm --filter @infinite-canvas/api dev`. The API listens on po
   caps catalog responses at 2 MiB, and never returns provider bodies or credentials in diagnostics.
 - Paid Job retries create a new reservation for a new attempt. Failed/cancelled attempts refund
   once; uncertain `needs_review` attempts retain their reservation for explicit reconciliation.
+- Agent Run opaque identifiers are tenant-hidden, Worker transitions require a live lease, result
+  Assets are checked against the Run Workspace, and transition payloads are capped at 1 MiB.
 
 The in-memory repository exists only for contract tests. Production startup always uses PostgreSQL.

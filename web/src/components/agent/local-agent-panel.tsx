@@ -2,7 +2,7 @@ import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } fr
 import { useLocation, useNavigate, useSearchParams } from "react-router-dom";
 import { App, Button, Tooltip } from "antd";
 import dayjs from "dayjs";
-import { Bot, History, MessageSquare, PanelRightClose, PlugZap, Plus, Sparkles, Terminal } from "lucide-react";
+import { Bot, History, ListTodo, MessageSquare, PanelRightClose, PlugZap, Plus, Sparkles, Terminal } from "lucide-react";
 import { useTranslation } from "react-i18next";
 
 import i18n from "@/i18n";
@@ -66,6 +66,9 @@ import { AgentHistoryView } from "./agent-history-view";
 import { AgentLogView } from "./agent-log-view";
 import { AgentPanelTabs } from "./agent-panel-tabs";
 import { AgentSkillsView } from "./agent-skills-view";
+import { CloudAgentRunsView } from "./cloud-agent-runs-view";
+import { cloudModeEnabled } from "@/services/cloud-platform";
+import { useCloudSessionStore } from "@/stores/use-cloud-session-store";
 
 const MAX_ATTACHMENTS = 6;
 const MAX_ATTACHMENT_PAYLOAD_BYTES = 28 * 1024 * 1024;
@@ -130,6 +133,7 @@ export function LocalAgentPanel({ embedded, headless, autoConnect }: { embedded?
     const { hash } = useLocation();
     const [searchParams] = useSearchParams();
     const navigate = useNavigate();
+    const cloudWorkspaceId = useCloudSessionStore((state) => state.activeWorkspaceId);
     // Field-level selectors with useShallow rerender only when these fields change.
     // canvasContext is intentionally excluded because project updates it every frame during dragging and resizing.
     // The panel uses it only for ref synchronization and debounced postState calls, never during rendering.
@@ -165,6 +169,9 @@ export function LocalAgentPanel({ embedded, headless, autoConnect }: { embedded?
         })),
     );
     const setAgentState = useAgentStore((state) => state.setAgentState);
+    useEffect(() => {
+        if (activeTab === "runs" && (!cloudModeEnabled || !cloudWorkspaceId)) setAgentState({ activeTab: "chat" });
+    }, [activeTab, cloudWorkspaceId, setAgentState]);
     const conversationReady = conversation.status === "ready" || conversation.status === "warning";
     const conversationBusy = conversation.status === "preparing" || conversation.status === "running";
     const closePanel = useAgentStore((state) => state.closePanel);
@@ -1337,6 +1344,7 @@ export function LocalAgentPanel({ embedded, headless, autoConnect }: { embedded?
                     { value: "chat", label: t("agent.panel.chat"), icon: <MessageSquare className="size-3.5" /> },
                     { value: "history", label: t("agent.panel.history"), icon: <History className="size-3.5" />, count: threads.length },
                     { value: "skills", label: t("agent.panel.skills"), icon: <Sparkles className="size-3.5" />, count: skillCount },
+                    ...(cloudModeEnabled && cloudWorkspaceId ? [{ value: "runs" as const, label: t("agent.panel.runs"), icon: <ListTodo className="size-3.5" /> }] : []),
                     { value: "log", label: t("agent.panel.logs"), icon: <Terminal className="size-3.5" />, count: eventLogs.length },
                 ]}
                 onChange={(activeTab) => {
@@ -1386,6 +1394,8 @@ export function LocalAgentPanel({ embedded, headless, autoConnect }: { embedded?
                     onResumeThread={(threadId) => void resumeThread(threadId)}
                     onDeleteThreads={confirmDeleteThreads}
                 />
+            ) : activeTab === "runs" && cloudWorkspaceId ? (
+                <CloudAgentRunsView workspaceId={cloudWorkspaceId} />
             ) : activeTab === "log" ? (
                 <AgentLogView
                     logs={eventLogs}

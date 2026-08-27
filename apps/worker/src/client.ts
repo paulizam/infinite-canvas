@@ -8,6 +8,7 @@ import type {
   WorkflowWorkerOperation,
   WorkflowWorkerRecord,
 } from "./workflow-types.js";
+import type { AgentWorkerOperation, AgentWorkerRun } from "./agent-types.js";
 
 export type WorkerResolvedModel = ResolvedModelCandidate & { apiKey: string };
 export type WorkerScheduleTrigger = {
@@ -75,6 +76,42 @@ export class WorkerApiClient {
     return this.request<{ renewed: number }>(
       "/internal/v1/workflow/heartbeat",
       { workerId, executionIds },
+      signal,
+    );
+  }
+  claimAgentRuns(
+    workerId: string,
+    limit: number,
+    leaseMs: number,
+    signal?: AbortSignal,
+  ) {
+    return this.request<AgentWorkerRun[]>(
+      "/internal/v1/agent/claim",
+      { workerId, limit, leaseMs },
+      signal,
+    );
+  }
+  heartbeatAgentRuns(
+    workerId: string,
+    runIds: string[],
+    leaseMs = 90_000,
+    signal?: AbortSignal,
+  ) {
+    return this.request<{ renewed: number }>(
+      "/internal/v1/agent/heartbeat",
+      { workerId, runIds, leaseMs },
+      signal,
+    );
+  }
+  transitionAgentRun(
+    workerId: string,
+    runId: string,
+    operation: AgentWorkerOperation,
+    signal?: AbortSignal,
+  ) {
+    return this.request<AgentWorkerRun>(
+      `/internal/v1/agent/runs/${encodeURIComponent(runId)}/transition`,
+      { workerId, operation },
       signal,
     );
   }

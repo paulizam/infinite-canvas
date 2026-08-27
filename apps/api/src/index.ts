@@ -20,6 +20,8 @@ import { PostgresWorkflowLibraryRepository } from "./postgres-workflow-library-r
 import { WorkflowLibraryService } from "./workflow-library-service.js";
 import { PostgresWorkflowPublicApiRepository } from "./postgres-workflow-public-api-repository.js";
 import { WorkflowPublicApiService } from "./workflow-public-api-service.js";
+import { PostgresAgentRunRepository } from "./postgres-agent-run-repository.js";
+import { AgentRunService } from "./agent-run-service.js";
 import {
   IdentityService,
   ProjectService,
@@ -58,6 +60,7 @@ const workflowLibraryRepository = new PostgresWorkflowLibraryRepository(
 const workflowPublicApiRepository = new PostgresWorkflowPublicApiRepository(
   databaseUrl,
 );
+const agentRunRepository = new PostgresAgentRunRepository(databaseUrl);
 const assets = new AssetService(
   repository,
   createBlobStore(),
@@ -105,6 +108,7 @@ const app = createApp({
     workflowExecutionService,
     workflowPublicApiRepository,
   ),
+  agentRuns: new AgentRunService(repository, agentRunRepository),
   maintenanceToken,
   collaboration,
   secureCookies: process.env.NODE_ENV === "production",

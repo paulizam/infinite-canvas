@@ -37,7 +37,7 @@ export type AgentConversationState = {
     sourceClientId?: string;
     error?: string;
 };
-export type AgentPanelTab = "chat" | "setup" | "history" | "skills" | "log";
+export type AgentPanelTab = "chat" | "setup" | "history" | "skills" | "runs" | "log";
 
 const CONNECT_TIMEOUT_MS = 6000;
 let agentSource: EventSource | null = null;
