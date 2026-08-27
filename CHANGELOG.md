@@ -2,6 +2,8 @@
 
 ## Unreleased
 
++ [新增] 新增显式 Local/Server Mode 账户页、登录注册、HttpOnly Session 恢复与 Workspace 切换；Local Mode 不会隐式连接云端。
++ [安全] Cloud API 强制注册密码长度并对 Canvas Mutation 做运行时 schema 校验，Document 字段严格拒绝伪造，同时保留扩展节点字段 round-trip。
 + [新增] Web 新增类型化 Cloud Platform client，统一携带 HttpOnly Session cookie，并保留服务端错误码与 requestId 供登录、Workspace 和云画布界面使用。
 + [新增] 新增 Hono/PostgreSQL Cloud API，提供 Argon2 身份认证、Session、Workspace RBAC、云画布快照及带 revision/mutationId 的幂等变更事务。
 + [新增] 官方插件 Registry 升级为带 SHA-256 SRI 与权限清单的 v2 格式，第三方插件通过隔离 Worker 加载 declarative nodes，Docker 构建同步迁移到 pnpm workspace。

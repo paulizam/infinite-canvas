@@ -4,6 +4,7 @@ export default {
         description: "一个无限画布创作工具",
     },
     theme: { toggle: "切换主题" },
+    account: { title: "账户与工作空间", description: "保持纯本地创作，或连接 Server 工作空间。", localTitle: "当前为 Local Mode", localDescription: "项目与凭据保留在当前浏览器；需要云身份和协作时再显式启用 Server Mode。", login: "登录", register: "注册", logout: "退出登录", email: "邮箱", password: "密码", name: "显示名称", workspace: "当前工作空间", loginSuccess: "登录成功", registerSuccess: "账户创建成功" },
     common: {
         cancel: "取消",
         save: "保存",

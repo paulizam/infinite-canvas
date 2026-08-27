@@ -2,6 +2,7 @@ import type { CanvasDocument, CanvasMutation } from "@infinite-canvas/contracts"
 
 export type CloudUser = { id: string; email: string; name: string; createdAt: string };
 export type CloudWorkspace = { id: string; name: string; createdAt: string; role: "owner" | "admin" | "editor" | "viewer" };
+export type CloudWorkspaceRecord = Omit<CloudWorkspace, "role">;
 export type CloudProject = {
     id: string;
     workspaceId: string;
@@ -32,7 +33,7 @@ export class CloudPlatformClient {
     ) {}
 
     register(input: { email: string; password: string; name: string }) {
-        return this.request<{ user: CloudUser; workspace: CloudWorkspace }>("/api/v1/auth/register", { method: "POST", body: JSON.stringify(input) });
+        return this.request<{ user: CloudUser; workspace: CloudWorkspaceRecord }>("/api/v1/auth/register", { method: "POST", body: JSON.stringify(input) });
     }
 
     login(email: string, password: string) {
@@ -89,3 +90,4 @@ export class CloudPlatformClient {
 }
 
 export const cloudPlatform = new CloudPlatformClient((import.meta.env.VITE_API_BASE as string | undefined)?.replace(/\/$/, "") || "");
+export const cloudModeEnabled = import.meta.env.VITE_PLATFORM_MODE === "server";

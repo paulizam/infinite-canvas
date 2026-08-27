@@ -61,8 +61,8 @@ export function createApp(services: AppServices) {
 
   const registerSchema = z.object({
     email: z.email(),
-    password: z.string().min(1),
-    name: z.string().min(1),
+    password: z.string().min(8).max(128),
+    name: z.string().trim().min(1).max(80),
   });
   app.post("/api/v1/auth/register", async (c) => {
     const input = registerSchema.parse(await c.req.json());
@@ -167,15 +167,95 @@ export function createApp(services: AppServices) {
   return app;
 }
 
+const idSchema = z.string().min(1).max(128);
+const positionSchema = z.object({
+  x: z.number().finite(),
+  y: z.number().finite(),
+});
+const viewportSchema = positionSchema.extend({
+  k: z.number().finite().positive(),
+});
+const nodeSchema = z
+  .object({
+    id: idSchema,
+    type: z.string().min(1).max(128),
+    title: z.string().max(10_000),
+    position: positionSchema,
+    width: z.number().finite().positive(),
+    height: z.number().finite().positive(),
+    schemaVersion: z.number().int().positive().optional(),
+    metadata: z.record(z.string(), z.unknown()).optional(),
+    pluginRef: z
+      .object({ id: idSchema, version: z.string().min(1).max(128) })
+      .optional(),
+  })
+  .passthrough();
+const connectionSchema = z.object({
+  id: idSchema,
+  fromNodeId: idSchema,
+  toNodeId: idSchema,
+});
+const canvasOperationSchema = z.discriminatedUnion("type", [
+  z.object({ type: z.literal("node.upsert"), node: nodeSchema }),
+  z.object({
+    type: z.literal("node.remove"),
+    nodeIds: z.array(idSchema).min(1).max(1_000),
+  }),
+  z.object({
+    type: z.literal("node.move"),
+    nodeId: idSchema,
+    position: positionSchema,
+  }),
+  z.object({
+    type: z.literal("node.resize"),
+    nodeId: idSchema,
+    size: z.object({
+      width: z.number().finite().positive(),
+      height: z.number().finite().positive(),
+    }),
+  }),
+  z.object({
+    type: z.literal("connection.upsert"),
+    connection: connectionSchema,
+  }),
+  z.object({
+    type: z.literal("connection.remove"),
+    connectionIds: z.array(idSchema).min(1).max(1_000),
+  }),
+  z.object({ type: z.literal("viewport.set"), viewport: viewportSchema }),
+  z.object({
+    type: z.literal("document.sync"),
+    patch: z
+      .object({
+        nodes: z.array(nodeSchema).max(10_000).optional(),
+        connections: z.array(connectionSchema).max(20_000).optional(),
+        chatSessions: z.array(z.unknown()).max(10_000).optional(),
+        activeChatId: z.string().max(128).nullable().optional(),
+        backgroundMode: z.enum(["lines", "dots", "blank"]).optional(),
+        showImageInfo: z.boolean().optional(),
+        viewport: viewportSchema.optional(),
+      })
+      .strict(),
+  }),
+  z.object({
+    type: z.literal("document.patch"),
+    patch: z
+      .object({
+        title: z.string().trim().min(1).max(10_000).optional(),
+        backgroundMode: z.enum(["lines", "dots", "blank"]).optional(),
+        showImageInfo: z.boolean().optional(),
+        activeChatId: z.string().max(128).nullable().optional(),
+      })
+      .strict(),
+  }),
+]);
 const mutationSchema = z.object({
-  mutationId: z.string().min(1),
-  projectId: z.string().min(1),
+  mutationId: z.string().min(1).max(128),
+  projectId: z.string().min(1).max(128),
   baseRevision: z.number().int().nonnegative(),
-  clientId: z.string().min(1),
-  createdAt: z.string().min(1),
-  operations: z.array(
-    z.custom<import("@infinite-canvas/contracts").CanvasOperation>(),
-  ),
+  clientId: z.string().min(1).max(128),
+  createdAt: z.iso.datetime(),
+  operations: z.array(canvasOperationSchema).min(1).max(1_000),
 });
 function writeSession(
   c: Parameters<typeof setCookie>[0],
