@@ -116,6 +116,17 @@ describe("cloud workspace API", () => {
         })
       ).status,
     ).toBe(409);
+    expect(
+      (
+        await app.request(`/api/v1/projects/${project.id}`, {
+          method: "DELETE",
+          headers: { cookie },
+        })
+      ).status,
+    ).toBe(200);
+    expect(
+      (await app.request(`/api/v1/projects/${project.id}`, { headers: { cookie } })).status,
+    ).toBe(404);
   });
   it("prevents cross-workspace project access", async () => {
     const owner = await register();

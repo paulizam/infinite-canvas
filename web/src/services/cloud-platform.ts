@@ -56,15 +56,19 @@ export class CloudPlatformClient {
         return this.request<CloudProject[]>(`/api/v1/workspaces/${encodeURIComponent(workspaceId)}/projects`);
     }
 
-    createProject(workspaceId: string, title: string) {
+    createProject(workspaceId: string, title: string, projectId?: string, document?: CanvasDocument) {
         return this.request<CloudProject>(`/api/v1/workspaces/${encodeURIComponent(workspaceId)}/projects`, {
             method: "POST",
-            body: JSON.stringify({ title }),
+            body: JSON.stringify({ title, projectId, document }),
         });
     }
 
     getProject(projectId: string) {
         return this.request<CloudProject>(`/api/v1/projects/${encodeURIComponent(projectId)}`);
+    }
+
+    deleteProject(projectId: string) {
+        return this.request<{ ok: true }>(`/api/v1/projects/${encodeURIComponent(projectId)}`, { method: "DELETE" });
     }
 
     mutateProject(projectId: string, mutation: CanvasMutation) {

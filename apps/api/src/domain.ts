@@ -53,6 +53,7 @@ export interface PlatformRepository {
   ): Promise<void>;
   listProjects(userId: string, workspaceId: string): Promise<ProjectRecord[]>;
   createProject(userId: string, project: ProjectRecord): Promise<void>;
+  deleteProject(userId: string, projectId: string): Promise<void>;
   getProject(userId: string, projectId: string): Promise<ProjectRecord | null>;
   applyProjectMutation(
     userId: string,

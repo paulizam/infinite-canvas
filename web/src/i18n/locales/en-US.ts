@@ -4,7 +4,7 @@ export default {
         description: "An infinite canvas creation tool",
     },
     theme: { toggle: "Toggle theme" },
-    account: { title: "Account & Workspace", description: "Use local-only creation or connect to a Server workspace.", localTitle: "Local mode is active", localDescription: "Projects and credentials stay in this browser. Enable Server mode explicitly when cloud identity and collaboration are required.", login: "Sign in", register: "Create account", logout: "Sign out", email: "Email", password: "Password", name: "Display name", workspace: "Active workspace", loginSuccess: "Signed in", registerSuccess: "Account created" },
+    account: { title: "Account & Workspace", description: "Use local-only creation or connect to a Server workspace.", localTitle: "Local mode is active", localDescription: "Projects and credentials stay in this browser. Enable Server mode explicitly when cloud identity and collaboration are required.", login: "Sign in", register: "Create account", logout: "Sign out", email: "Email", password: "Password", name: "Display name", workspace: "Active workspace", loginSuccess: "Signed in", registerSuccess: "Account created", syncConflict: "Cloud revision conflict", syncError: "Cloud synchronization failed", sync: { loading: "Loading cloud canvases…", ready: "Cloud workspace ready", syncing: "Saving to cloud…", synced: "Saved to cloud", conflict: "Local content is preserved; reload the workspace to resolve the conflict.", error: "Cloud save needs attention." } },
     common: {
         cancel: "Cancel",
         save: "Save",

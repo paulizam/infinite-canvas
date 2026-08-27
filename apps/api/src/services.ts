@@ -106,28 +106,41 @@ export class ProjectService {
   get(userId: string, projectId: string) {
     return this.repository.getProject(userId, projectId);
   }
+  delete(userId: string, projectId: string) {
+    return this.repository.deleteProject(userId, projectId);
+  }
   async create(
     userId: string,
     workspaceId: string,
-    title: string,
+    input: { title: string; projectId?: string; document?: CanvasDocument },
   ): Promise<ProjectRecord> {
     const now = new Date().toISOString();
-    const id = randomUUID();
-    const document: CanvasDocument = {
-      id,
-      schemaVersion: CANVAS_SCHEMA_VERSION,
-      revision: 0,
-      title: title.trim(),
-      createdAt: now,
-      updatedAt: now,
-      nodes: [],
-      connections: [],
-      chatSessions: [],
-      activeChatId: null,
-      backgroundMode: "lines",
-      showImageInfo: false,
-      viewport: { x: 0, y: 0, k: 1 },
-    };
+    const id = input.projectId || input.document?.id || randomUUID();
+    if (input.document && input.document.id !== id)
+      throw new DomainError("PROJECT_MISMATCH", 400, "项目标识不匹配");
+    const document: CanvasDocument = input.document
+      ? {
+          ...input.document,
+          id,
+          revision: 0,
+          title: input.title.trim(),
+          updatedAt: now,
+        }
+      : {
+          id,
+          schemaVersion: CANVAS_SCHEMA_VERSION,
+          revision: 0,
+          title: input.title.trim(),
+          createdAt: now,
+          updatedAt: now,
+          nodes: [],
+          connections: [],
+          chatSessions: [],
+          activeChatId: null,
+          backgroundMode: "lines",
+          showImageInfo: false,
+          viewport: { x: 0, y: 0, k: 1 },
+        };
     const project = {
       id,
       workspaceId,

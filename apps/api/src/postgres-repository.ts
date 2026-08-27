@@ -139,6 +139,12 @@ export class PostgresPlatformRepository implements PlatformRepository {
       ],
     );
   }
+  async deleteProject(userId: string, id: string) {
+    const project = await this.getProject(userId, id);
+    if (!project) throw new DomainError("PROJECT_NOT_FOUND", 404, "项目不存在");
+    await this.requireRole(this.pool, userId, project.workspaceId, "editor");
+    await this.pool.query("DELETE FROM canvas_projects WHERE id=$1", [id]);
+  }
   async getProject(userId: string, id: string) {
     const r = await this.pool.query(
       "SELECT p.* FROM canvas_projects p JOIN workspace_members m ON m.workspace_id=p.workspace_id WHERE p.id=$1 AND m.user_id=$2",

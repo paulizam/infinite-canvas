@@ -2,6 +2,8 @@
 
 ## Unreleased
 
++ [新增] Server Workspace 接入云画布 CRUD 与 500ms 串行快照同步，远端 revision 独立记账；409 冲突保留本地内容并熔断自动重试。
++ [修复] Local 与各 Cloud Workspace 使用独立 Canvas 缓存命名空间，切换空云空间不再覆盖本地项目；服务端项目 ID 改为兼容历史 nanoid。
 + [新增] 新增显式 Local/Server Mode 账户页、登录注册、HttpOnly Session 恢复与 Workspace 切换；Local Mode 不会隐式连接云端。
 + [安全] Cloud API 强制注册密码长度并对 Canvas Mutation 做运行时 schema 校验，Document 字段严格拒绝伪造，同时保留扩展节点字段 round-trip。
 + [新增] Web 新增类型化 Cloud Platform client，统一携带 HttpOnly Session cookie，并保留服务端错误码与 requestId 供登录、Workspace 和云画布界面使用。

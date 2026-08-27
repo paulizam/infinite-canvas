@@ -6,7 +6,9 @@ import { applyCanvasOperations, migrateCanvasDocument } from "@infinite-canvas/c
 import { CANVAS_SCHEMA_VERSION, type CanvasOperation } from "@infinite-canvas/contracts";
 import i18n from "@/i18n";
 import { localForageStorage } from "@/lib/localforage-storage";
+import { cloudModeEnabled } from "@/services/cloud-platform";
 import type { CanvasBackgroundMode } from "@/lib/canvas-theme";
+import { canvasStorageName } from "@/lib/canvas/canvas-storage-scope";
 import type { CanvasAssistantSession, CanvasConnection, CanvasNodeData, ViewportTransform } from "@/types/canvas";
 
 export type CanvasProject = {
@@ -46,23 +48,24 @@ let queuedPersistState: PersistedCanvasState | null = null;
 
 const canvasStorage: PersistStorage<PersistedCanvasState> = {
     getItem: async (name) => {
-        const value = await localForageStorage.getItem(name);
+        const value = await localForageStorage.getItem(canvasStorageName(name, cloudModeEnabled));
         if (!value) return null;
         const parsed = JSON.parse(value) as StorageValue<PersistedCanvasState>;
         queuedPersistState = parsed.state;
         return parsed;
     },
     setItem: (name, value) => {
+        const storageName = canvasStorageName(name, cloudModeEnabled);
         const nextState = value.state as PersistedCanvasState;
         if (queuedPersistState && queuedPersistState.projects === nextState.projects) return;
         queuedPersistState = nextState;
         if (saveTimer) clearTimeout(saveTimer);
         saveTimer = setTimeout(() => {
             saveTimer = null;
-            void localForageStorage.setItem(name, JSON.stringify(value));
+            void localForageStorage.setItem(storageName, JSON.stringify(value));
         }, 400);
     },
-    removeItem: (name) => localForageStorage.removeItem(name),
+    removeItem: (name) => localForageStorage.removeItem(canvasStorageName(name, cloudModeEnabled)),
 };
 
 export const useCanvasStore = create<CanvasStore>()(

@@ -83,6 +83,14 @@ export class MemoryPlatformRepository implements PlatformRepository {
       throw new DomainError("PROJECT_EXISTS", 409, "项目已存在");
     this.projects.set(project.id, project);
   }
+  async deleteProject(userId: string, projectId: string) {
+    const project = this.projects.get(projectId);
+    if (!project) throw new DomainError("PROJECT_NOT_FOUND", 404, "项目不存在");
+    this.requireRole(userId, project.workspaceId, "editor");
+    this.projects.delete(projectId);
+    for (const key of this.mutations.keys())
+      if (key.startsWith(`${projectId}:`)) this.mutations.delete(key);
+  }
   async getProject(userId: string, projectId: string) {
     const project = this.projects.get(projectId);
     if (

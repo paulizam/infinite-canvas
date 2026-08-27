@@ -4,6 +4,7 @@ import type { ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 
 import { useCloudSessionStore } from "@/stores/use-cloud-session-store";
+import { useCloudCanvasSyncStore } from "@/stores/use-cloud-canvas-sync-store";
 
 type LoginFields = { email: string; password: string };
 type RegisterFields = LoginFields & { name: string };
@@ -11,6 +12,7 @@ type RegisterFields = LoginFields & { name: string };
 export default function AccountPage() {
     const { t } = useTranslation();
     const session = useCloudSessionStore();
+    const sync = useCloudCanvasSyncStore();
     const busy = session.status === "loading";
 
     if (session.status === "local") {
@@ -34,6 +36,9 @@ export default function AccountPage() {
         return (
             <PageShell>
                 <Card className="max-w-xl" title={session.user.name} extra={<Cloud className="size-5" />}>
+                    {sync.state === "conflict" || sync.state === "error" ? (
+                        <Alert className="mb-4" type={sync.state === "conflict" ? "warning" : "error"} showIcon message={t(sync.state === "conflict" ? "account.syncConflict" : "account.syncError")} description={sync.message} />
+                    ) : null}
                     <Typography.Paragraph type="secondary">{session.user.email}</Typography.Paragraph>
                     <Typography.Text>{t("account.workspace")}</Typography.Text>
                     <Select className="mt-2 w-full" value={session.activeWorkspaceId} options={session.workspaces.map((workspace) => ({ value: workspace.id, label: `${workspace.name} · ${workspace.role}` }))} onChange={session.setActiveWorkspace} />
@@ -105,7 +110,10 @@ export default function AccountPage() {
                             ),
                         },
                     ]}
-                />
+                    />
+                    <Typography.Paragraph className="mt-2" type="secondary">
+                        {t(`account.sync.${sync.state}`)}
+                    </Typography.Paragraph>
             </Card>
         </PageShell>
     );

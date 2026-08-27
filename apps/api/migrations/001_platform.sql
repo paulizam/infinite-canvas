@@ -15,7 +15,7 @@ CREATE TABLE IF NOT EXISTS workspace_members (
   PRIMARY KEY (workspace_id, user_id)
 );
 CREATE TABLE IF NOT EXISTS canvas_projects (
-  id uuid PRIMARY KEY, workspace_id uuid NOT NULL REFERENCES workspaces(id) ON DELETE CASCADE,
+  id text PRIMARY KEY, workspace_id uuid NOT NULL REFERENCES workspaces(id) ON DELETE CASCADE,
   owner_id uuid NOT NULL REFERENCES users(id), document jsonb NOT NULL, revision integer NOT NULL DEFAULT 0,
   created_at timestamptz NOT NULL, updated_at timestamptz NOT NULL
 );

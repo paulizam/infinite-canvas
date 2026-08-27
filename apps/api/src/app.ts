@@ -130,15 +130,13 @@ export function createApp(services: AppServices) {
     }),
   );
   app.post("/api/v1/workspaces/:workspaceId/projects", async (c) => {
-    const input = z
-      .object({ title: z.string().min(1) })
-      .parse(await c.req.json());
+    const input = createProjectSchema.parse(await c.req.json());
     return c.json(
       {
         data: await services.projects.create(
           c.get("user").id,
           c.req.param("workspaceId"),
-          input.title,
+          input,
         ),
         requestId: requestId(c),
       },
@@ -152,6 +150,10 @@ export function createApp(services: AppServices) {
     );
     if (!project) throw new DomainError("PROJECT_NOT_FOUND", 404, "项目不存在");
     return c.json({ data: project, requestId: requestId(c) });
+  });
+  app.delete("/api/v1/projects/:projectId", async (c) => {
+    await services.projects.delete(c.get("user").id, c.req.param("projectId"));
+    return c.json({ data: { ok: true }, requestId: requestId(c) });
   });
   app.post("/api/v1/projects/:projectId/mutations", async (c) => {
     const input = mutationSchema.parse(await c.req.json());
@@ -256,6 +258,28 @@ const mutationSchema = z.object({
   clientId: z.string().min(1).max(128),
   createdAt: z.iso.datetime(),
   operations: z.array(canvasOperationSchema).min(1).max(1_000),
+});
+const canvasDocumentSchema = z
+  .object({
+    id: idSchema,
+    schemaVersion: z.literal(4),
+    revision: z.number().int().nonnegative(),
+    title: z.string().trim().min(1).max(10_000),
+    createdAt: z.iso.datetime(),
+    updatedAt: z.iso.datetime(),
+    nodes: z.array(nodeSchema).max(10_000),
+    connections: z.array(connectionSchema).max(20_000),
+    chatSessions: z.array(z.unknown()).max(10_000),
+    activeChatId: z.string().max(128).nullable(),
+    backgroundMode: z.enum(["lines", "dots", "blank"]),
+    showImageInfo: z.boolean(),
+    viewport: viewportSchema,
+  })
+  .strict();
+const createProjectSchema = z.object({
+  title: z.string().trim().min(1).max(10_000),
+  projectId: idSchema.optional(),
+  document: canvasDocumentSchema.optional(),
 });
 function writeSession(
   c: Parameters<typeof setCookie>[0],
