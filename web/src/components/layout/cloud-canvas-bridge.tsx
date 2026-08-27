@@ -23,6 +23,11 @@ export function CloudCanvasBridge() {
             state.replaceProjects(result.localCopy ? [result.localCopy, ...projects] : projects);
             return result;
         });
+        useCloudCanvasSyncStore.getState().registerSnapshotAcceptor((project) => {
+            engine.acceptSnapshot(project);
+            const state = useCanvasStore.getState();
+            state.replaceProjects(state.projects.map((item) => (item.id === project.id ? project : item)));
+        });
         const collaboration = new Map<string, CloudCollaborationClient>();
         let unsubscribe: (() => void) | undefined;
         const replaceFromRemote = (projects: import("@/stores/canvas/use-canvas-store").CanvasProject[]) => {
@@ -43,9 +48,7 @@ export function CloudCanvasBridge() {
                 const client = new CloudCollaborationClient(collaborationWebSocketUrl((import.meta.env.VITE_API_BASE as string | undefined) || "", projectId, clientId), {
                     snapshot: (document, presence) => {
                         const project = document as unknown as import("@/stores/canvas/use-canvas-store").CanvasProject;
-                        engine.acceptSnapshot(project);
-                        const state = useCanvasStore.getState();
-                        state.replaceProjects(state.projects.map((item) => (item.id === projectId ? project : item)));
+                        useCloudCanvasSyncStore.getState().acceptSnapshot(project);
                         useCollaborationStore.getState().setPresence(projectId, presence);
                     },
                     mutation: (event) => {
@@ -81,6 +84,7 @@ export function CloudCanvasBridge() {
         window.addEventListener("online", reconnect);
         return () => {
             useCloudCanvasSyncStore.getState().registerResolver(null);
+            useCloudCanvasSyncStore.getState().registerSnapshotAcceptor(null);
             window.removeEventListener("online", reconnect);
             unsubscribe?.();
             for (const [projectId, client] of collaboration) {

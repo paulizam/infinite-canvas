@@ -59,6 +59,7 @@ export type AppServices = {
       project: import("./domain.js").ProjectRecord,
       mutation: import("@infinite-canvas/contracts").CanvasMutation,
     ) => void;
+    publishSnapshot: (project: import("./domain.js").ProjectRecord) => void;
   };
 };
 
@@ -468,6 +469,67 @@ export function createApp(services: AppServices) {
     if (!project) throw new DomainError("PROJECT_NOT_FOUND", 404, "项目不存在");
     return c.json({ data: project, requestId: requestId(c) });
   });
+  app.get("/api/v1/projects/:projectId/checkpoints", async (c) =>
+    c.json({
+      data: await services.projects.listCheckpoints(
+        c.get("user").id,
+        c.req.param("projectId"),
+      ),
+      requestId: requestId(c),
+    }),
+  );
+  app.post("/api/v1/projects/:projectId/checkpoints", async (c) => {
+    const input = checkpointCreateSchema.parse(await c.req.json());
+    return c.json(
+      {
+        data: await services.projects.createCheckpoint(
+          c.get("user").id,
+          c.req.param("projectId"),
+          input,
+        ),
+        requestId: requestId(c),
+      },
+      201,
+    );
+  });
+  app.get("/api/v1/projects/:projectId/checkpoints/:checkpointId", async (c) =>
+    c.json({
+      data: await services.projects.getCheckpoint(
+        c.get("user").id,
+        c.req.param("projectId"),
+        c.req.param("checkpointId"),
+      ),
+      requestId: requestId(c),
+    }),
+  );
+  app.delete(
+    "/api/v1/projects/:projectId/checkpoints/:checkpointId",
+    async (c) => {
+      await services.projects.deleteCheckpoint(
+        c.get("user").id,
+        c.req.param("projectId"),
+        c.req.param("checkpointId"),
+      );
+      return c.json({ data: { ok: true }, requestId: requestId(c) });
+    },
+  );
+  app.post(
+    "/api/v1/projects/:projectId/checkpoints/:checkpointId/restore",
+    async (c) => {
+      const input = checkpointRestoreSchema.parse(await c.req.json());
+      const project = await services.projects.restoreCheckpoint(
+        c.get("user").id,
+        c.req.param("projectId"),
+        c.req.param("checkpointId"),
+        input.expectedRevision,
+      );
+      services.collaboration?.publishSnapshot(project);
+      return c.json({
+        data: project,
+        requestId: requestId(c),
+      });
+    },
+  );
   if (services.workflows) {
     app.post("/api/v1/projects/:projectId/workflows/publish", async (c) => {
       const input = publishWorkflowSchema.parse(await c.req.json());
@@ -1477,6 +1539,15 @@ const createProjectSchema = z.object({
   projectId: idSchema.optional(),
   document: canvasDocumentSchema.optional(),
 });
+const checkpointCreateSchema = z
+  .object({
+    name: z.string().trim().min(1).max(120),
+    description: z.string().trim().max(1_000).optional(),
+  })
+  .strict();
+const checkpointRestoreSchema = z
+  .object({ expectedRevision: z.number().int().nonnegative() })
+  .strict();
 const createGenerationJobSchema = z.object({
   capability: z.enum(["text", "image", "video", "audio", "agent"]),
   logicalModelId: z.string().trim().min(1).max(160),

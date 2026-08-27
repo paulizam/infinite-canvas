@@ -24,14 +24,22 @@ BlobStore / Model Gateway / Worker protocol
 
 ## 核心决策
 
-| 决策 | 选择 | 原因 |
-|---|---|---|
-| Tenant 隔离 | Workspace membership + resource lineage 双校验 | 仅校验资源 ID 或用户身份都不足以阻断 IDOR |
-| 长任务 | durable row + `SKIP LOCKED` lease + heartbeat | 支持多 Worker、崩溃接管与页面关闭恢复 |
-| 幂等 | caller key/ID + database unique constraint | 并发重放也只能产生一个权威结果 |
-| Timeline | 单调 sequence、append-only trigger | 审计和 SSE resume 不允许历史被改写 |
-| 凭据 | AES-256-GCM 或高熵 Token SHA-256 hash | 明文只在必要边界短暂存在 |
-| 错误可见性 | opaque resource lookup 返回 404 | 不泄露其他 Workspace 资源存在性 |
+| 决策               | 选择                                                      | 原因                                      |
+| ------------------ | --------------------------------------------------------- | ----------------------------------------- |
+| Tenant 隔离        | Workspace membership + resource lineage 双校验            | 仅校验资源 ID 或用户身份都不足以阻断 IDOR |
+| 长任务             | durable row + `SKIP LOCKED` lease + heartbeat             | 支持多 Worker、崩溃接管与页面关闭恢复     |
+| 幂等               | caller key/ID + database unique constraint                | 并发重放也只能产生一个权威结果            |
+| Timeline           | 单调 sequence、append-only trigger                        | 审计和 SSE resume 不允许历史被改写        |
+| 凭据               | AES-256-GCM 或高熵 Token SHA-256 hash                     | 明文只在必要边界短暂存在                  |
+| 错误可见性         | opaque resource lookup 返回 404                           | 不泄露其他 Workspace 资源存在性           |
+| Project checkpoint | row-lock 下复制 immutable snapshot；restore 新增 revision | 保留历史证据且拒绝并发静默覆盖            |
+
+## Project Checkpoint
+
+- `canvas_project_checkpoints` 保存创建时的完整 canonical document 与 `sourceRevision`，记录不可被 restore 更新。
+- list/get 至少要求 Workspace viewer；create/delete/restore 在 Project lock 内要求 editor。
+- restore 必须匹配 `expectedRevision`，生成 `current + 1` revision、刷新 Asset references，并广播 canonical snapshot。
+- checkpoint 与 Project 同租户且随 Project 级联删除；跨 Project checkpoint ID 返回 404。
 
 ## Agent Run
 

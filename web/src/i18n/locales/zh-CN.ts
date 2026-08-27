@@ -611,6 +611,7 @@ export default {
         group: { media: "按媒体浏览", node: "按节点浏览", version: "按版本浏览" },
     },
     collaboration: { connecting: "正在连接协作服务", connected: "实时协作已连接", disconnected: "协作连接已断开", error: "协作连接异常", active: "正在操作", online: "在线", noMembers: "暂无在线成员", members: "{{count}} 位在线成员", viewerReadOnly: "审阅者只读", resolveConflict: "处理冲突", conflictTitle: "画布同步冲突", conflictDescription: "本地版本 r{{local}} 与云端版本 r{{remote}} 修改了相同内容，请选择处理方式。", retryRebase: "重新尝试安全合并", keepLocalCopy: "保留本地副本并恢复云端", acceptRemote: "放弃本地修改并接受云端", conflictResolved: "同步冲突已处理", conflictFailed: "同步冲突处理失败" },
+    checkpoint: { history: "版本", title: "项目版本 Checkpoint", create: "保存当前版本", namePlaceholder: "Checkpoint 名称", descriptionPlaceholder: "说明（可选）", empty: "暂无 Checkpoint", noDescription: "无说明", preview: "{{title}} · {{nodes}} 节点 · {{connections}} 连线", restore: "恢复", restoreConfirm: "将此 Checkpoint 恢复为新的项目 revision？", deleteConfirm: "永久删除此 Checkpoint？", created: "Checkpoint 已保存", restored: "已恢复为新的 revision", deleted: "Checkpoint 已删除", loadFailed: "无法加载 Checkpoint", createFailed: "无法创建 Checkpoint", restoreFailed: "无法恢复 Checkpoint", deleteFailed: "无法删除 Checkpoint" },
     locale: {
         zhCN: "简体中文",
         enUS: "English",

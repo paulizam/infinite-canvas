@@ -32,6 +32,17 @@ export type ProjectRecord = {
   updatedAt: string;
 };
 export type MutationResult = { project: ProjectRecord; replayed: boolean };
+export type ProjectCheckpointRecord = {
+  id: string;
+  projectId: string;
+  workspaceId: string;
+  name: string;
+  description: string;
+  sourceRevision: number;
+  snapshot: CanvasDocument;
+  createdBy: string;
+  createdAt: string;
+};
 export type MediaKind = "image" | "video" | "audio";
 export type AssetRecord = {
   id: string;
@@ -78,6 +89,35 @@ export interface PlatformRepository {
     projectId: string,
     mutation: CanvasMutation,
   ): Promise<MutationResult>;
+  listProjectCheckpoints(
+    userId: string,
+    projectId: string,
+  ): Promise<ProjectCheckpointRecord[]>;
+  getProjectCheckpoint(
+    userId: string,
+    projectId: string,
+    checkpointId: string,
+  ): Promise<ProjectCheckpointRecord | null>;
+  createProjectCheckpoint(
+    userId: string,
+    projectId: string,
+    input: Pick<
+      ProjectCheckpointRecord,
+      "id" | "name" | "description" | "createdBy" | "createdAt"
+    >,
+  ): Promise<ProjectCheckpointRecord>;
+  deleteProjectCheckpoint(
+    userId: string,
+    projectId: string,
+    checkpointId: string,
+  ): Promise<void>;
+  restoreProjectCheckpoint(
+    userId: string,
+    projectId: string,
+    checkpointId: string,
+    expectedRevision: number,
+    restoredAt: string,
+  ): Promise<ProjectRecord>;
   findAssetByHash(
     userId: string,
     workspaceId: string,

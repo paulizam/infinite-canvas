@@ -6,6 +6,7 @@ import {
   type MutationResult,
   type PlatformRepository,
   type ProjectRecord,
+  type ProjectCheckpointRecord,
   type SessionRecord,
   type UserRecord,
   type WorkspaceRecord,
@@ -22,6 +23,7 @@ export class MemoryPlatformRepository implements PlatformRepository {
   private memberships = new Map<string, MembershipRecord>();
   private projects = new Map<string, ProjectRecord>();
   private mutations = new Map<string, MutationResult>();
+  private checkpoints = new Map<string, ProjectCheckpointRecord>();
   private assets = new Map<string, AssetRecord>();
 
   async createUserWithWorkspace(input: {
@@ -93,6 +95,8 @@ export class MemoryPlatformRepository implements PlatformRepository {
     this.projects.delete(projectId);
     for (const key of this.mutations.keys())
       if (key.startsWith(`${projectId}:`)) this.mutations.delete(key);
+    for (const [key, checkpoint] of this.checkpoints)
+      if (checkpoint.projectId === projectId) this.checkpoints.delete(key);
   }
   async getProject(userId: string, projectId: string) {
     const project = this.projects.get(projectId);
@@ -125,6 +129,84 @@ export class MemoryPlatformRepository implements PlatformRepository {
     this.projects.set(projectId, next);
     this.mutations.set(key, result);
     return result;
+  }
+  async listProjectCheckpoints(userId: string, projectId: string) {
+    const project = await this.getProject(userId, projectId);
+    if (!project) throw new DomainError("PROJECT_NOT_FOUND", 404, "项目不存在");
+    return [...this.checkpoints.values()]
+      .filter((checkpoint) => checkpoint.projectId === projectId)
+      .sort((a, b) => b.createdAt.localeCompare(a.createdAt))
+      .map(cloneCheckpoint);
+  }
+  async getProjectCheckpoint(
+    userId: string,
+    projectId: string,
+    checkpointId: string,
+  ) {
+    if (!(await this.getProject(userId, projectId))) return null;
+    const checkpoint = this.checkpoints.get(checkpointId);
+    return checkpoint?.projectId === projectId
+      ? cloneCheckpoint(checkpoint)
+      : null;
+  }
+  async createProjectCheckpoint(
+    userId: string,
+    projectId: string,
+    input: Pick<
+      ProjectCheckpointRecord,
+      "id" | "name" | "description" | "createdBy" | "createdAt"
+    >,
+  ) {
+    const project = this.projects.get(projectId);
+    if (!project) throw new DomainError("PROJECT_NOT_FOUND", 404, "项目不存在");
+    await this.requireWorkspaceRole(userId, project.workspaceId, "editor");
+    const checkpoint: ProjectCheckpointRecord = {
+      ...input,
+      projectId,
+      workspaceId: project.workspaceId,
+      sourceRevision: project.document.revision,
+      snapshot: cloneDocument(project.document),
+    };
+    this.checkpoints.set(checkpoint.id, checkpoint);
+    return cloneCheckpoint(checkpoint);
+  }
+  async deleteProjectCheckpoint(
+    userId: string,
+    projectId: string,
+    checkpointId: string,
+  ) {
+    const project = this.projects.get(projectId);
+    if (!project) throw new DomainError("PROJECT_NOT_FOUND", 404, "项目不存在");
+    await this.requireWorkspaceRole(userId, project.workspaceId, "editor");
+    const checkpoint = this.checkpoints.get(checkpointId);
+    if (!checkpoint || checkpoint.projectId !== projectId)
+      throw new DomainError("CHECKPOINT_NOT_FOUND", 404, "Checkpoint 不存在");
+    this.checkpoints.delete(checkpointId);
+  }
+  async restoreProjectCheckpoint(
+    userId: string,
+    projectId: string,
+    checkpointId: string,
+    expectedRevision: number,
+    restoredAt: string,
+  ) {
+    const project = this.projects.get(projectId);
+    if (!project) throw new DomainError("PROJECT_NOT_FOUND", 404, "项目不存在");
+    await this.requireWorkspaceRole(userId, project.workspaceId, "editor");
+    if (project.document.revision !== expectedRevision)
+      throw new DomainError("REVISION_CONFLICT", 409, "项目版本冲突");
+    const checkpoint = this.checkpoints.get(checkpointId);
+    if (!checkpoint || checkpoint.projectId !== projectId)
+      throw new DomainError("CHECKPOINT_NOT_FOUND", 404, "Checkpoint 不存在");
+    const document = {
+      ...cloneDocument(checkpoint.snapshot),
+      id: projectId,
+      revision: expectedRevision + 1,
+      updatedAt: restoredAt,
+    };
+    const restored = { ...project, document, updatedAt: restoredAt };
+    this.projects.set(projectId, restored);
+    return restored;
   }
   async findAssetByHash(userId: string, workspaceId: string, sha256: string) {
     await this.requireWorkspaceRole(userId, workspaceId, "viewer");
@@ -192,4 +274,13 @@ export class MemoryPlatformRepository implements PlatformRepository {
     if (rank[member.role] < rank[minimum])
       throw new DomainError("FORBIDDEN", 403, "权限不足");
   }
+}
+
+function cloneDocument<T>(value: T): T {
+  return JSON.parse(JSON.stringify(value)) as T;
+}
+function cloneCheckpoint(
+  value: ProjectCheckpointRecord,
+): ProjectCheckpointRecord {
+  return { ...value, snapshot: cloneDocument(value.snapshot) };
 }

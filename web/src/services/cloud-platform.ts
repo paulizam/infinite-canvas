@@ -11,6 +11,17 @@ export type CloudProject = {
     createdAt: string;
     updatedAt: string;
 };
+export type CloudProjectCheckpoint = {
+    id: string;
+    projectId: string;
+    workspaceId: string;
+    name: string;
+    description: string;
+    sourceRevision: number;
+    snapshot: CanvasDocument;
+    createdBy: string;
+    createdAt: string;
+};
 export type CloudAsset = {
     id: string;
     workspaceId: string;
@@ -221,6 +232,29 @@ export class CloudPlatformClient {
         return this.request<{ project: CloudProject; replayed: boolean }>(`/api/v1/projects/${encodeURIComponent(projectId)}/mutations`, {
             method: "POST",
             body: JSON.stringify(mutation),
+        });
+    }
+
+    listProjectCheckpoints(projectId: string) {
+        return this.request<CloudProjectCheckpoint[]>(`/api/v1/projects/${encodeURIComponent(projectId)}/checkpoints`);
+    }
+
+    createProjectCheckpoint(projectId: string, input: { name: string; description?: string }) {
+        return this.request<CloudProjectCheckpoint>(`/api/v1/projects/${encodeURIComponent(projectId)}/checkpoints`, { method: "POST", body: JSON.stringify(input) });
+    }
+
+    getProjectCheckpoint(projectId: string, checkpointId: string) {
+        return this.request<CloudProjectCheckpoint>(`/api/v1/projects/${encodeURIComponent(projectId)}/checkpoints/${encodeURIComponent(checkpointId)}`);
+    }
+
+    deleteProjectCheckpoint(projectId: string, checkpointId: string) {
+        return this.request<{ ok: true }>(`/api/v1/projects/${encodeURIComponent(projectId)}/checkpoints/${encodeURIComponent(checkpointId)}`, { method: "DELETE" });
+    }
+
+    restoreProjectCheckpoint(projectId: string, checkpointId: string, expectedRevision: number) {
+        return this.request<CloudProject>(`/api/v1/projects/${encodeURIComponent(projectId)}/checkpoints/${encodeURIComponent(checkpointId)}/restore`, {
+            method: "POST",
+            body: JSON.stringify({ expectedRevision }),
         });
     }
 

@@ -504,4 +504,150 @@ describe("workspace asset API", () => {
       ).status,
     ).toBe(200);
   });
+
+  it("creates immutable checkpoints and restores them as a new revision", async () => {
+    const { body, cookie } = await register("checkpoint@example.com");
+    const created = await app.request(
+      `/api/v1/workspaces/${body.data.workspace.id}/projects`,
+      {
+        method: "POST",
+        headers: { cookie, "content-type": "application/json" },
+        body: JSON.stringify({ title: "初始画布" }),
+      },
+    );
+    const project = ((await created.json()) as { data: { id: string } }).data;
+    const checkpointResponse = await app.request(
+      `/api/v1/projects/${project.id}/checkpoints`,
+      {
+        method: "POST",
+        headers: { cookie, "content-type": "application/json" },
+        body: JSON.stringify({ name: "第一稿", description: "不可变基线" }),
+      },
+    );
+    expect(checkpointResponse.status).toBe(201);
+    const checkpoint = (
+      (await checkpointResponse.json()) as {
+        data: {
+          id: string;
+          sourceRevision: number;
+          snapshot: { title: string };
+        };
+      }
+    ).data;
+    expect(checkpoint).toMatchObject({
+      sourceRevision: 0,
+      snapshot: { title: "初始画布" },
+    });
+    const viewer = await register(
+      "checkpoint-viewer@example.com",
+      "版本审阅者",
+    );
+    await repository.createWorkspace(
+      {
+        id: body.data.workspace.id,
+        name: "共享版本空间",
+        createdAt: new Date().toISOString(),
+      },
+      {
+        workspaceId: body.data.workspace.id,
+        userId: viewer.body.data.user.id,
+        role: "viewer",
+      },
+    );
+    expect(
+      (
+        await app.request(`/api/v1/projects/${project.id}/checkpoints`, {
+          headers: { cookie: viewer.cookie },
+        })
+      ).status,
+    ).toBe(200);
+    expect(
+      (
+        await app.request(
+          `/api/v1/projects/${project.id}/checkpoints/${checkpoint.id}`,
+          { headers: { cookie: viewer.cookie } },
+        )
+      ).status,
+    ).toBe(200);
+    expect(
+      (
+        await app.request(`/api/v1/projects/${project.id}/checkpoints`, {
+          method: "POST",
+          headers: {
+            cookie: viewer.cookie,
+            "content-type": "application/json",
+          },
+          body: JSON.stringify({ name: "越权版本" }),
+        })
+      ).status,
+    ).toBe(403);
+
+    await app.request(`/api/v1/projects/${project.id}/mutations`, {
+      method: "POST",
+      headers: { cookie, "content-type": "application/json" },
+      body: JSON.stringify({
+        mutationId: "after-checkpoint",
+        projectId: project.id,
+        baseRevision: 0,
+        clientId: "checkpoint-test",
+        createdAt: new Date().toISOString(),
+        operations: [{ type: "document.patch", patch: { title: "第二稿" } }],
+      }),
+    });
+    const restoredResponse = await app.request(
+      `/api/v1/projects/${project.id}/checkpoints/${checkpoint.id}/restore`,
+      {
+        method: "POST",
+        headers: { cookie, "content-type": "application/json" },
+        body: JSON.stringify({ expectedRevision: 1 }),
+      },
+    );
+    const restored = (
+      (await restoredResponse.json()) as {
+        data: { document: { revision: number; title: string } };
+      }
+    ).data;
+    expect(restored.document).toMatchObject({ revision: 2, title: "初始画布" });
+    expect(
+      (
+        await app.request(
+          `/api/v1/projects/${project.id}/checkpoints/${checkpoint.id}/restore`,
+          {
+            method: "POST",
+            headers: { cookie, "content-type": "application/json" },
+            body: JSON.stringify({ expectedRevision: 1 }),
+          },
+        )
+      ).status,
+    ).toBe(409);
+    expect(
+      (
+        await app.request(
+          `/api/v1/projects/${project.id}/checkpoints/${checkpoint.id}/restore`,
+          {
+            method: "POST",
+            headers: {
+              cookie: viewer.cookie,
+              "content-type": "application/json",
+            },
+            body: JSON.stringify({ expectedRevision: 2 }),
+          },
+        )
+      ).status,
+    ).toBe(403);
+    const unchanged = await app.request(
+      `/api/v1/projects/${project.id}/checkpoints/${checkpoint.id}`,
+      { headers: { cookie } },
+    );
+    expect(
+      (
+        (await unchanged.json()) as {
+          data: { sourceRevision: number; snapshot: { title: string } };
+        }
+      ).data,
+    ).toMatchObject({
+      sourceRevision: 0,
+      snapshot: { title: "初始画布" },
+    });
+  });
 });

@@ -147,4 +147,19 @@ describe("CloudPlatformClient", () => {
         expect(fetcher).toHaveBeenNthCalledWith(5, "/api/v1/agent-runs/run%2Fa", expect.any(Object));
         expect(fetcher).toHaveBeenNthCalledWith(8, "/api/v1/agent-approvals/approval%2Fa/decision", expect.objectContaining({ body: JSON.stringify({ decision: "approved" }) }));
     });
+
+    it("uses encoded checkpoint lifecycle endpoints and sends the expected revision", async () => {
+        const fetcher = vi.fn(async () => Response.json({ data: [], requestId: "checkpoint" }));
+        const client = new CloudPlatformClient("", fetcher);
+        await client.listProjectCheckpoints("project/a");
+        await client.createProjectCheckpoint("project/a", { name: "Draft", description: "baseline" });
+        await client.getProjectCheckpoint("project/a", "checkpoint/a");
+        await client.restoreProjectCheckpoint("project/a", "checkpoint/a", 7);
+        await client.deleteProjectCheckpoint("project/a", "checkpoint/a");
+        expect(fetcher).toHaveBeenNthCalledWith(1, "/api/v1/projects/project%2Fa/checkpoints", expect.any(Object));
+        expect(fetcher).toHaveBeenNthCalledWith(2, "/api/v1/projects/project%2Fa/checkpoints", expect.objectContaining({ method: "POST", body: JSON.stringify({ name: "Draft", description: "baseline" }) }));
+        expect(fetcher).toHaveBeenNthCalledWith(3, "/api/v1/projects/project%2Fa/checkpoints/checkpoint%2Fa", expect.any(Object));
+        expect(fetcher).toHaveBeenNthCalledWith(4, "/api/v1/projects/project%2Fa/checkpoints/checkpoint%2Fa/restore", expect.objectContaining({ method: "POST", body: JSON.stringify({ expectedRevision: 7 }) }));
+        expect(fetcher).toHaveBeenNthCalledWith(5, "/api/v1/projects/project%2Fa/checkpoints/checkpoint%2Fa", expect.objectContaining({ method: "DELETE" }));
+    });
 });

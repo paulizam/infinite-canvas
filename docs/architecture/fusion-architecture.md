@@ -165,6 +165,8 @@ Canvas 写能力按 Workspace role fail-closed：Local mode 与 `owner/admin/edi
 
 离线队列同时记录 `mutation/create/delete` discriminated commands。新建以稳定 Project ID 识别未知提交结果；删除重放遇到 `PROJECT_NOT_FOUND` 视为终态成功。unknown-outcome command 的 payload 禁止被后续编辑改写，后续内容保留在 Workspace Canvas cache，前一 command 确认后再派生新 mutation。队列 read-modify-write 使用 Web Locks 跨标签串行化，不支持 Web Locks 时降级为当前标签 Promise chain；服务端 revision 与 mutationId 幂等仍是跨标签最终一致性边界。
 
+Project checkpoint 是聚合的 immutable read model：创建时在锁定 Project 的同一事务内复制 canonical `CanvasDocument`，记录 `sourceRevision/name/description/createdBy/createdAt`。viewer 可读取和预览，只有 editor+ 可创建、删除或恢复。恢复必须携带 `expectedRevision`，在 Project row lock 内把 checkpoint snapshot 写成 `currentRevision + 1` 的新 canonical revision，并同步 Asset references 与 WebSocket canonical snapshot；禁止覆写 checkpoint、倒退 revision 或静默覆盖并发修改。Project 删除时 checkpoint 级联删除。
+
 ## 6. 领域模块
 
 ### 6.1 Identity & Workspace
@@ -174,6 +176,8 @@ Canvas 写能力按 Workspace role fail-closed：Local mode 与 `owner/admin/edi
 ### 6.2 Canvas
 
 核心聚合：`Project -> CanvasDocument -> Node/Connection/AssistantSession`。保存采用 snapshot + patch log，`mutationId` 幂等，`baseRevision` 乐观并发。local repository 与 cloud repository 实现同一接口。
+
+版本面由 `ProjectCheckpoint` 提供命名快照与审计元数据，但不成为第二个可写 Project；restore 是 Project 上的显式 revision transition。
 
 ### 6.3 Workflow
 

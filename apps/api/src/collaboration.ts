@@ -66,6 +66,17 @@ export class CollaborationHub {
     });
   }
 
+  publishSnapshot(project: ProjectRecord) {
+    const room = this.rooms.get(project.id);
+    this.broadcast(project.id, {
+      type: "collaboration.snapshot",
+      projectId: project.id,
+      revision: project.document.revision,
+      document: project.document,
+      presence: [...(room || [])].map((peer) => peer.presence),
+    });
+  }
+
   connectAuthorized(
     socket: WebSocket,
     user: PublicUser,

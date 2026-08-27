@@ -72,6 +72,7 @@ import { CanvasRefreshShell } from "@/components/canvas/canvas-refresh-shell";
 import { CanvasTopBar } from "@/components/canvas/canvas-top-bar";
 import { CanvasCollaborationPresenceLayer, CanvasCollaborationStatus } from "@/components/canvas/canvas-collaboration-presence";
 import { CanvasSyncConflictControl } from "@/components/canvas/canvas-sync-conflict-control";
+import { CanvasCheckpointControl } from "@/components/canvas/canvas-checkpoint-control";
 import { CanvasWorkflowPublisher } from "@/components/canvas/canvas-workflow-publisher";
 import { ConnectionCreateMenu, NodeCreateMenu, type PendingConnectionCreate } from "@/components/canvas/canvas-create-menus";
 import {
@@ -234,6 +235,7 @@ function InfiniteCanvasPage() {
     const [clearConfirmOpen, setClearConfirmOpen] = useState(false);
     const [assetPickerOpen, setAssetPickerOpen] = useState(false);
     const [projectLoaded, setProjectLoaded] = useState(false);
+    const [restoreEpoch, setRestoreEpoch] = useState(0);
     const [toolbarNodeId, setToolbarNodeId] = useState<string | null>(null);
     const [nodeImageSettingsOpen, setNodeImageSettingsOpen] = useState(false);
     const [dialogNodeId, setDialogNodeId] = useState<string | null>(null);
@@ -385,7 +387,7 @@ function InfiniteCanvasPage() {
             setProjectLoaded(true);
         };
         void restore();
-    }, [hydrated, navigate, openProject, projectId]);
+    }, [hydrated, navigate, openProject, projectId, restoreEpoch]);
 
     useEffect(() => {
         if (!projectLoaded || !["new", "recent", "choose"].includes(searchParams.get("mode") || "")) return;
@@ -2998,7 +3000,7 @@ function InfiniteCanvasPage() {
                     agentOpen={agentPanelOpen}
                     compactAgentStatus={{ connected: localAgentConnected, enabled: localAgentEnabled, activity: localAgentActivity }}
                     onToggleAgent={toggleAgentPanel}
-                    collaborationControl={<><CanvasSyncConflictControl projectId={projectId} /><CanvasCollaborationStatus projectId={projectId} /></>}
+                    collaborationControl={<><CanvasSyncConflictControl projectId={projectId} />{currentProject ? <CanvasCheckpointControl projectId={projectId} revision={currentProject.revision} readOnly={readOnly} onRestored={() => setRestoreEpoch((value) => value + 1)} /> : null}<CanvasCollaborationStatus projectId={projectId} /></>}
                     workflowControl={!readOnly && currentProject ? <CanvasWorkflowPublisher projectId={projectId} projectRevision={currentProject.revision} projectName={currentProject.title} workspaceId={cloudWorkspaceId} onFocusNode={focusNode} /> : null}
                 />
 

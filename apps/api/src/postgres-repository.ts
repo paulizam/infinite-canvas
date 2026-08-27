@@ -7,6 +7,7 @@ import {
   type MutationResult,
   type PlatformRepository,
   type ProjectRecord,
+  type ProjectCheckpointRecord,
   type SessionRecord,
   type UserRecord,
   type WorkspaceRecord,
@@ -253,6 +254,164 @@ export class PostgresPlatformRepository implements PlatformRepository {
       c.release();
     }
   }
+  async listProjectCheckpoints(userId: string, projectId: string) {
+    const result = await this.pool.query(
+      `SELECT c.* FROM canvas_project_checkpoints c
+       JOIN workspace_members m ON m.workspace_id=c.workspace_id
+       WHERE c.project_id=$1 AND m.user_id=$2 ORDER BY c.created_at DESC`,
+      [projectId, userId],
+    );
+    if (!result.rows.length && !(await this.getProject(userId, projectId)))
+      throw new DomainError("PROJECT_NOT_FOUND", 404, "项目不存在");
+    return result.rows.map(mapCheckpoint);
+  }
+  async getProjectCheckpoint(
+    userId: string,
+    projectId: string,
+    checkpointId: string,
+  ) {
+    const result = await this.pool.query(
+      `SELECT c.* FROM canvas_project_checkpoints c
+       JOIN workspace_members m ON m.workspace_id=c.workspace_id
+       WHERE c.id=$1 AND c.project_id=$2 AND m.user_id=$3`,
+      [checkpointId, projectId, userId],
+    );
+    return result.rows[0] ? mapCheckpoint(result.rows[0]) : null;
+  }
+  async createProjectCheckpoint(
+    userId: string,
+    projectId: string,
+    input: Pick<
+      ProjectCheckpointRecord,
+      "id" | "name" | "description" | "createdBy" | "createdAt"
+    >,
+  ) {
+    const client = await this.pool.connect();
+    try {
+      await client.query("BEGIN");
+      const result = await client.query(
+        "SELECT * FROM canvas_projects WHERE id=$1 FOR UPDATE",
+        [projectId],
+      );
+      if (!result.rows[0])
+        throw new DomainError("PROJECT_NOT_FOUND", 404, "项目不存在");
+      await this.requireWorkspaceRoleWithClient(
+        client,
+        userId,
+        result.rows[0].workspace_id,
+        "editor",
+      );
+      const project = mapProject(result.rows[0]);
+      const inserted = await client.query(
+        `INSERT INTO canvas_project_checkpoints(id,project_id,workspace_id,name,description,source_revision,snapshot,created_by,created_at)
+         VALUES($1,$2,$3,$4,$5,$6,$7::jsonb,$8,$9) RETURNING *`,
+        [
+          input.id,
+          projectId,
+          project.workspaceId,
+          input.name,
+          input.description,
+          project.document.revision,
+          JSON.stringify(project.document),
+          input.createdBy,
+          input.createdAt,
+        ],
+      );
+      await client.query("COMMIT");
+      return mapCheckpoint(inserted.rows[0]);
+    } catch (error) {
+      await client.query("ROLLBACK");
+      throw error;
+    } finally {
+      client.release();
+    }
+  }
+  async deleteProjectCheckpoint(
+    userId: string,
+    projectId: string,
+    checkpointId: string,
+  ) {
+    const client = await this.pool.connect();
+    try {
+      await client.query("BEGIN");
+      const project = await client.query(
+        "SELECT workspace_id FROM canvas_projects WHERE id=$1 FOR UPDATE",
+        [projectId],
+      );
+      if (!project.rows[0])
+        throw new DomainError("PROJECT_NOT_FOUND", 404, "项目不存在");
+      await this.requireWorkspaceRoleWithClient(
+        client,
+        userId,
+        project.rows[0].workspace_id,
+        "editor",
+      );
+      const removed = await client.query(
+        "DELETE FROM canvas_project_checkpoints WHERE id=$1 AND project_id=$2 RETURNING id",
+        [checkpointId, projectId],
+      );
+      if (!removed.rows[0])
+        throw new DomainError("CHECKPOINT_NOT_FOUND", 404, "Checkpoint 不存在");
+      await client.query("COMMIT");
+    } catch (error) {
+      await client.query("ROLLBACK");
+      throw error;
+    } finally {
+      client.release();
+    }
+  }
+  async restoreProjectCheckpoint(
+    userId: string,
+    projectId: string,
+    checkpointId: string,
+    expectedRevision: number,
+    restoredAt: string,
+  ) {
+    const client = await this.pool.connect();
+    try {
+      await client.query("BEGIN");
+      const result = await client.query(
+        "SELECT * FROM canvas_projects WHERE id=$1 FOR UPDATE",
+        [projectId],
+      );
+      if (!result.rows[0])
+        throw new DomainError("PROJECT_NOT_FOUND", 404, "项目不存在");
+      await this.requireWorkspaceRoleWithClient(
+        client,
+        userId,
+        result.rows[0].workspace_id,
+        "editor",
+      );
+      const project = mapProject(result.rows[0]);
+      if (project.document.revision !== expectedRevision)
+        throw new DomainError("REVISION_CONFLICT", 409, "项目版本冲突");
+      const checkpointResult = await client.query(
+        "SELECT * FROM canvas_project_checkpoints WHERE id=$1 AND project_id=$2",
+        [checkpointId, projectId],
+      );
+      if (!checkpointResult.rows[0])
+        throw new DomainError("CHECKPOINT_NOT_FOUND", 404, "Checkpoint 不存在");
+      const checkpoint = mapCheckpoint(checkpointResult.rows[0]);
+      const document = {
+        ...checkpoint.snapshot,
+        id: projectId,
+        revision: expectedRevision + 1,
+        updatedAt: restoredAt,
+      };
+      await client.query(
+        "UPDATE canvas_projects SET document=$2::jsonb,revision=$3,updated_at=$4 WHERE id=$1",
+        [projectId, JSON.stringify(document), document.revision, restoredAt],
+      );
+      await syncAssetReferences(client, projectId, document);
+      await client.query("COMMIT");
+      return { ...project, document, updatedAt: restoredAt };
+    } catch (error) {
+      await client.query("ROLLBACK");
+      throw error;
+    } finally {
+      client.release();
+    }
+  }
   async findAssetByHash(userId: string, workspaceId: string, sha256: string) {
     await this.requireWorkspaceRoleWithClient(
       this.pool,
@@ -394,6 +553,19 @@ function mapAsset(r: Record<string, unknown>): AssetRecord {
     mimeType: String(r.mime_type),
     kind: r.kind as AssetRecord["kind"],
     originalName: String(r.original_name),
+    createdAt: iso(r.created_at),
+  };
+}
+function mapCheckpoint(r: Record<string, unknown>): ProjectCheckpointRecord {
+  return {
+    id: String(r.id),
+    projectId: String(r.project_id),
+    workspaceId: String(r.workspace_id),
+    name: String(r.name),
+    description: String(r.description || ""),
+    sourceRevision: Number(r.source_revision),
+    snapshot: r.snapshot as ProjectCheckpointRecord["snapshot"],
+    createdBy: String(r.created_by),
     createdAt: iso(r.created_at),
   };
 }

@@ -157,6 +157,53 @@ export class ProjectService {
       throw new DomainError("PROJECT_MISMATCH", 400, "项目标识不匹配");
     return this.repository.applyProjectMutation(userId, projectId, mutation);
   }
+  listCheckpoints(userId: string, projectId: string) {
+    return this.repository.listProjectCheckpoints(userId, projectId);
+  }
+  async getCheckpoint(userId: string, projectId: string, checkpointId: string) {
+    const checkpoint = await this.repository.getProjectCheckpoint(
+      userId,
+      projectId,
+      checkpointId,
+    );
+    if (!checkpoint)
+      throw new DomainError("CHECKPOINT_NOT_FOUND", 404, "Checkpoint 不存在");
+    return checkpoint;
+  }
+  createCheckpoint(
+    userId: string,
+    projectId: string,
+    input: { name: string; description?: string },
+  ) {
+    return this.repository.createProjectCheckpoint(userId, projectId, {
+      id: randomUUID(),
+      name: input.name.trim(),
+      description: input.description?.trim() || "",
+      createdBy: userId,
+      createdAt: new Date().toISOString(),
+    });
+  }
+  deleteCheckpoint(userId: string, projectId: string, checkpointId: string) {
+    return this.repository.deleteProjectCheckpoint(
+      userId,
+      projectId,
+      checkpointId,
+    );
+  }
+  restoreCheckpoint(
+    userId: string,
+    projectId: string,
+    checkpointId: string,
+    expectedRevision: number,
+  ) {
+    return this.repository.restoreProjectCheckpoint(
+      userId,
+      projectId,
+      checkpointId,
+      expectedRevision,
+      new Date().toISOString(),
+    );
+  }
 }
 
 function normalizeEmail(value: string) {
