@@ -1,5 +1,5 @@
 import type { CanvasDocument, CanvasMutation, CanvasOperation } from "@infinite-canvas/contracts";
-import { browserCanvasOperationQueue, type CanvasOperationQueue, type QueuedCanvasMutation } from "@/services/cloud-canvas-operation-queue";
+import { browserCanvasOperationQueue, type CanvasOperationQueue, type QueuedCanvasCommand, type QueuedCanvasCreate, type QueuedCanvasDelete, type QueuedCanvasMutation } from "@/services/cloud-canvas-operation-queue";
 import type { CanvasProject } from "@/stores/canvas/use-canvas-store";
 import { CloudApiError, type CloudPlatformClient, type CloudProject } from "@/services/cloud-platform";
 
@@ -40,9 +40,11 @@ export class CloudCanvasSyncEngine {
             const remaining = await this.queue.list(workspaceId);
             const projects = mergePendingProjects(
                 records.map((record) => asProject(record.document)),
+                pending,
                 remaining,
                 this.conflicts,
                 this.synced,
+                new Map(cachedProjects.map((project) => [project.id, project])),
             );
             this.latest = new Map(projects.map((project) => [project.id, project]));
             this.onEvent({ state: this.conflicts.size ? "conflict" : "ready" });
@@ -50,6 +52,7 @@ export class CloudCanvasSyncEngine {
         } catch (error) {
             if (this.stopped) return [];
             for (const entry of pending) {
+                if (entry.kind !== "mutation") continue;
                 this.revisions.set(entry.projectId, entry.baseRevision);
                 this.synced.set(entry.projectId, entry.baseDocument);
             }
@@ -71,11 +74,12 @@ export class CloudCanvasSyncEngine {
         for (const projectId of this.revisions.keys()) if (!nextIds.has(projectId)) this.enqueue(projectId, () => this.removeRemote(projectId));
     }
     async flush(projectId?: string) {
-        for (const id of projectId ? [projectId] : [...this.latest.keys()]) {
+        const ids = projectId ? [projectId] : [...new Set([...this.latest.keys(), ...this.revisions.keys()])];
+        for (const id of ids) {
             const timer = this.timers.get(id);
             if (timer) clearTimeout(timer);
             this.timers.delete(id);
-            await this.enqueue(id, () => this.persistLatest(id));
+            await this.enqueue(id, () => (this.latest.has(id) ? this.persistLatest(id) : this.removeRemote(id)));
         }
     }
     noteRemoteRevision(projectId: string, revision: number) {
@@ -92,7 +96,7 @@ export class CloudCanvasSyncEngine {
         if (!conflict) throw new Error("CANVAS_CONFLICT_NOT_FOUND");
         const remote = asProject((await this.client.getProject(projectId)).document);
         if (resolution === "retry_rebase") {
-            const entry = (await this.queue.list(this.workspaceId)).find((item) => item.mutationId === conflict.mutationId);
+            const entry = (await this.queue.list(this.workspaceId)).find((item): item is QueuedCanvasMutation => item.kind === "mutation" && item.mutationId === conflict.mutationId);
             if (!entry) throw new Error("CANVAS_CONFLICT_QUEUE_MISSING");
             if (!canRebase(entry.baseDocument, remote, entry.operations)) {
                 const nextConflict = { ...conflict, remote };
@@ -159,10 +163,15 @@ export class CloudCanvasSyncEngine {
         if (!project) return;
         const base = this.synced.get(projectId);
         if (!base) return this.createRemote(project);
+        const existing = (await this.queue.list(this.workspaceId)).find((entry) => entry.projectId === projectId);
+        if (existing) return;
         const operations = diffCanvasOperations(base, project);
         if (!operations.length) return;
+        const mutationId = crypto.randomUUID();
         const entry: QueuedCanvasMutation = {
-            mutationId: crypto.randomUUID(),
+            kind: "mutation",
+            commandId: mutationId,
+            mutationId,
             workspaceId: this.workspaceId,
             projectId,
             baseRevision: this.revisions.get(projectId) ?? base.revision,
@@ -179,7 +188,7 @@ export class CloudCanvasSyncEngine {
         try {
             const result = await this.client.mutateProject(entry.projectId, toMutation(entry));
             if (this.stopped) return;
-            await this.queue.remove(this.workspaceId, entry.mutationId);
+            await this.queue.remove(this.workspaceId, entry.commandId);
             const remote = asProject(result.project.document);
             this.revisions.set(entry.projectId, remote.revision);
             this.synced.set(entry.projectId, { ...entry.localDocument, revision: remote.revision, updatedAt: remote.updatedAt });
@@ -205,7 +214,7 @@ export class CloudCanvasSyncEngine {
             await this.queue.put(rebased);
             const result = await this.client.mutateProject(entry.projectId, toMutation(rebased));
             if (this.stopped) return;
-            await this.queue.remove(this.workspaceId, entry.mutationId);
+            await this.queue.remove(this.workspaceId, entry.commandId);
             const resultDocument = asProject(result.project.document);
             this.revisions.set(entry.projectId, resultDocument.revision);
             this.synced.set(entry.projectId, { ...entry.localDocument, revision: resultDocument.revision, updatedAt: resultDocument.updatedAt });
@@ -219,33 +228,79 @@ export class CloudCanvasSyncEngine {
             } else this.onEvent({ projectId: entry.projectId, state: "offline", message: errorText(error) });
         }
     }
-    private async replay(entries: QueuedCanvasMutation[]) {
+    private async replay(entries: QueuedCanvasCommand[]) {
         for (const entry of entries) {
             if (this.stopped) return;
-            this.latest.set(entry.projectId, entry.localDocument);
-            await this.send(entry);
+            if (entry.kind === "mutation") {
+                this.latest.set(entry.projectId, entry.localDocument);
+                await this.send(entry);
+            } else if (entry.kind === "create") {
+                this.latest.set(entry.projectId, entry.project);
+                await this.sendCreate(entry);
+            } else await this.sendDelete(entry);
         }
     }
     private async createRemote(project: CanvasProject) {
-        this.onEvent({ projectId: project.id, state: "syncing" });
+        const existing = (await this.queue.list(this.workspaceId)).find((entry) => entry.projectId === project.id);
+        if (existing) return;
+        const entry: QueuedCanvasCreate = { kind: "create", commandId: crypto.randomUUID(), workspaceId: this.workspaceId, projectId: project.id, project, createdAt: new Date().toISOString() };
+        await this.queue.put(entry);
+        await this.sendCreate(entry);
+    }
+    private async sendCreate(entry: QueuedCanvasCreate) {
+        this.onEvent({ projectId: entry.projectId, state: "syncing" });
         try {
-            const created = await this.client.createProject(this.workspaceId, project.title, project.id, toDocument(project));
+            const created = await this.client.createProject(this.workspaceId, entry.project.title, entry.project.id, toDocument(entry.project));
             if (this.stopped) return;
+            await this.queue.remove(this.workspaceId, entry.commandId);
             this.seed(created);
-            this.onEvent({ projectId: project.id, state: "synced" });
+            this.onEvent({ projectId: entry.projectId, state: "synced" });
         } catch (error) {
-            this.onEvent({ projectId: project.id, state: "offline", message: errorText(error) });
+            if (hasCode(error, "PROJECT_EXISTS")) {
+                try {
+                    const existing = await this.client.getProject(entry.projectId);
+                    const remote = asProject(existing.document);
+                    if (fingerprint(remote) === fingerprint(entry.project)) {
+                        await this.queue.remove(this.workspaceId, entry.commandId);
+                        this.seed(existing);
+                        this.onEvent({ projectId: entry.projectId, state: "synced" });
+                        return;
+                    }
+                } catch {
+                    /* Preserve the command until the server is reachable. */
+                }
+            }
+            this.onEvent({ projectId: entry.projectId, state: "offline", message: errorText(error) });
         }
     }
     private async removeRemote(projectId: string) {
         if (this.stopped || !this.revisions.has(projectId)) return;
+        const existing = (await this.queue.list(this.workspaceId)).find((entry) => entry.projectId === projectId);
+        if (existing) return;
+        const baseDocument = this.synced.get(projectId);
+        if (!baseDocument) return;
+        const entry: QueuedCanvasDelete = { kind: "delete", commandId: crypto.randomUUID(), workspaceId: this.workspaceId, projectId, baseDocument, createdAt: new Date().toISOString() };
+        await this.queue.put(entry);
+        await this.sendDelete(entry);
+    }
+    private async sendDelete(entry: QueuedCanvasDelete) {
         try {
-            await this.client.deleteProject(projectId);
-            this.revisions.delete(projectId);
-            this.synced.delete(projectId);
-            this.onEvent({ projectId, state: "synced" });
+            await this.client.deleteProject(entry.projectId);
+            await this.queue.remove(this.workspaceId, entry.commandId);
+            this.revisions.delete(entry.projectId);
+            this.synced.delete(entry.projectId);
+            this.latest.delete(entry.projectId);
+            this.onEvent({ projectId: entry.projectId, state: "synced" });
         } catch (error) {
-            this.onEvent({ projectId, state: "offline", message: errorText(error) });
+            if (hasCode(error, "PROJECT_NOT_FOUND")) {
+                await this.queue.remove(this.workspaceId, entry.commandId);
+                this.revisions.delete(entry.projectId);
+                this.synced.delete(entry.projectId);
+                this.latest.delete(entry.projectId);
+                this.onEvent({ projectId: entry.projectId, state: "synced" });
+                return;
+            }
+            this.onEvent({ projectId: entry.projectId, state: "offline", message: errorText(error) });
         }
     }
 }
@@ -293,9 +348,16 @@ export function canRebase(base: CanvasProject, remote: CanvasProject, operations
 function toMutation(entry: QueuedCanvasMutation): CanvasMutation {
     return { mutationId: entry.mutationId, projectId: entry.projectId, baseRevision: entry.baseRevision, clientId: getCloudClientId(), createdAt: entry.createdAt, operations: entry.operations };
 }
-function mergePendingProjects(remote: CanvasProject[], pending: QueuedCanvasMutation[], conflicts: Map<string, CloudSyncConflict>, synced: Map<string, CanvasProject>) {
+function mergePendingProjects(remote: CanvasProject[], original: QueuedCanvasCommand[], pending: QueuedCanvasCommand[], conflicts: Map<string, CloudSyncConflict>, synced: Map<string, CanvasProject>, cached: Map<string, CanvasProject>) {
     const merged = new Map(remote.map((project) => [project.id, synced.get(project.id) || project]));
-    for (const entry of pending) merged.set(entry.projectId, entry.localDocument);
+    for (const entry of original) {
+        if (entry.kind === "delete") merged.delete(entry.projectId);
+        else merged.set(entry.projectId, cached.get(entry.projectId) || (entry.kind === "mutation" ? entry.localDocument : entry.project));
+    }
+    for (const entry of pending) {
+        if (entry.kind === "delete") merged.delete(entry.projectId);
+        else if (!cached.has(entry.projectId)) merged.set(entry.projectId, entry.kind === "mutation" ? entry.localDocument : entry.project);
+    }
     return [...merged.values()];
 }
 function asProject(document: CanvasDocument) {
@@ -313,6 +375,9 @@ function same(left: unknown, right: unknown) {
 }
 function isConflict(error: unknown) {
     return error instanceof CloudApiError && error.code === "REVISION_CONFLICT";
+}
+function hasCode(error: unknown, code: string) {
+    return error instanceof CloudApiError && error.code === code;
 }
 function errorText(error: unknown) {
     return error instanceof Error ? error.message : String(error);

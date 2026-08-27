@@ -163,6 +163,8 @@ Canvas 写能力按 Workspace role fail-closed：Local mode 与 `owner/admin/edi
 
 人工冲突裁决提供三种显式结果：`accept_remote` 删除 pending mutation 并恢复远端；`keep_local_copy` 恢复远端原 Project，同时把本地内容赋予新 ID、revision 0 后作为独立 Project 同步；`retry_rebase` 重新读取最新远端并再次执行安全合并检查。任何路径都不得无提示覆盖本地内容，仍相交的 retry 必须继续保持 conflict。
 
+离线队列同时记录 `mutation/create/delete` discriminated commands。新建以稳定 Project ID 识别未知提交结果；删除重放遇到 `PROJECT_NOT_FOUND` 视为终态成功。unknown-outcome command 的 payload 禁止被后续编辑改写，后续内容保留在 Workspace Canvas cache，前一 command 确认后再派生新 mutation。队列 read-modify-write 使用 Web Locks 跨标签串行化，不支持 Web Locks 时降级为当前标签 Promise chain；服务端 revision 与 mutationId 幂等仍是跨标签最终一致性边界。
+
 ## 6. 领域模块
 
 ### 6.1 Identity & Workspace
