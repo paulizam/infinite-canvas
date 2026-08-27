@@ -4,6 +4,7 @@ import { deleteCookie, getCookie, setCookie } from "hono/cookie";
 import { streamSSE } from "hono/streaming";
 import { z } from "zod";
 import { parseCustomProtocolConfig } from "@infinite-canvas/model-gateway";
+import type { AgentRemoteToolCall } from "@infinite-canvas/contracts";
 import type { PublicUser } from "./domain.js";
 import { DomainError } from "./domain.js";
 import type { AssetService } from "./asset-service.js";
@@ -1164,6 +1165,26 @@ export function createApp(services: AppServices) {
         requestId: requestId(c),
       });
     });
+    app.post("/internal/v1/agent/runs/:runId/context", async (c) => {
+      const input = agentWorkerIdentitySchema.parse(await c.req.json());
+      return c.json({
+        data: await services.agentRuns!.toolContext(
+          input.workerId,
+          c.req.param("runId"),
+        ),
+        requestId: requestId(c),
+      });
+    });
+    app.post("/internal/v1/agent/runs/:runId/tools", async (c) => {
+      const input = agentWorkerToolSchema.parse(await c.req.json());
+      const mutation = await services.agentRuns!.executeTool(
+        input.workerId,
+        c.req.param("runId"),
+        input.call as AgentRemoteToolCall,
+      );
+      services.collaboration?.publishSnapshot(mutation.project);
+      return c.json({ data: mutation, requestId: requestId(c) });
+    });
   }
   if (services.workflowTriggers) {
     app.post("/internal/v1/workflow/triggers/schedules/claim", async (c) => {
@@ -1818,6 +1839,7 @@ const agentWorkerOperationSchema = z.discriminatedUnion("type", [
       type: z.literal("result.add"),
       result: z
         .object({
+          id: z.uuid().optional(),
           kind: z.enum([
             "text",
             "image",
@@ -1863,6 +1885,101 @@ const agentWorkerTransitionSchema = z
     (value) => Buffer.byteLength(JSON.stringify(value)) <= 1024 * 1024,
     "Agent transition exceeds 1 MiB",
   );
+const agentWorkerIdentitySchema = z
+  .object({ workerId: z.string().trim().min(1).max(160) })
+  .strict();
+const agentToolRecordSchema = z.record(z.string().max(160), z.unknown());
+const agentToolPositionSchema = z
+  .object({ x: z.number().finite(), y: z.number().finite() })
+  .strict();
+const agentCanvasToolOperationSchema = z.discriminatedUnion("type", [
+  z
+    .object({
+      type: z.literal("add_node"),
+      nodeType: z.string().trim().min(1).max(64).optional(),
+      id: z.string().trim().min(1).max(160).optional(),
+      title: z.string().max(200).optional(),
+      x: z.number().finite().optional(),
+      y: z.number().finite().optional(),
+      width: z.number().positive().max(100_000).optional(),
+      height: z.number().positive().max(100_000).optional(),
+      position: agentToolPositionSchema.optional(),
+      metadata: agentToolRecordSchema.optional(),
+    })
+    .strict(),
+  z
+    .object({
+      type: z.literal("update_node"),
+      id: z.string().trim().min(1).max(160),
+      patch: agentToolRecordSchema.optional(),
+      metadata: agentToolRecordSchema.optional(),
+    })
+    .strict(),
+  z
+    .object({
+      type: z.literal("delete_node"),
+      id: z.string().trim().min(1).max(160).optional(),
+      ids: z.array(z.string().trim().min(1).max(160)).max(200).optional(),
+    })
+    .strict()
+    .refine((value) => Boolean(value.id || value.ids?.length)),
+  z
+    .object({
+      type: z.literal("delete_connections"),
+      id: z.string().trim().min(1).max(160).optional(),
+      ids: z.array(z.string().trim().min(1).max(160)).max(200).optional(),
+      all: z.boolean().optional(),
+    })
+    .strict()
+    .refine((value) => Boolean(value.all || value.id || value.ids?.length)),
+  z
+    .object({
+      type: z.literal("connect_nodes"),
+      id: z.string().trim().min(1).max(160).optional(),
+      fromNodeId: z.string().trim().min(1).max(160),
+      toNodeId: z.string().trim().min(1).max(160),
+    })
+    .strict(),
+  z
+    .object({
+      type: z.literal("set_viewport"),
+      viewport: agentToolPositionSchema
+        .extend({ k: z.number().positive().max(1000) })
+        .strict(),
+    })
+    .strict(),
+  z
+    .object({
+      type: z.literal("select_nodes"),
+      ids: z.array(z.string().trim().min(1).max(160)).max(200),
+    })
+    .strict(),
+  z
+    .object({
+      type: z.literal("run_generation"),
+      nodeId: z.string().trim().min(1).max(160),
+      mode: z.enum(["text", "image", "video", "audio"]).optional(),
+      prompt: z.string().max(100_000).optional(),
+    })
+    .strict(),
+]);
+const agentWorkerToolSchema = z
+  .object({
+    workerId: z.string().trim().min(1).max(160),
+    call: z
+      .object({
+        id: z.string().trim().min(1).max(160),
+        name: z.literal("canvas_apply_ops"),
+        input: z
+          .object({
+            ops: z.array(agentCanvasToolOperationSchema).min(1).max(200),
+          })
+          .strict(),
+        expectedRevision: z.number().int().min(0),
+      })
+      .strict(),
+  })
+  .strict();
 const workflowGenerationCapabilitySchema = z.enum([
   "text",
   "image",

@@ -55,6 +55,7 @@ queued → claimed → running → waiting_approval → queued
 - Result Asset 必须属于同一 Workspace；输入与 transition 均有硬大小限制。
 - 用户可见 planning summary 可以持久化，`reasoning`、`chain-of-thought`、`rationale` 被 Service 拒绝。
 - Event 使用 `Last-Event-ID`/sequence 恢复 SSE，不把内部推理混入会话历史。
+- Worker 可在有效 lease 内读取绑定 Project/Workspace Asset 的最小上下文；远端 `canvas_apply_ops` 使用与 Local Agent 相同的 JSON tool contract，经 API 转换为 canonical operations。执行必须匹配 revision，mutation ID 由 run/tool-call 派生且可重放，delete 仍须持久 Approval；成功后广播 canonical snapshot。
 
 ## 安全边界
 

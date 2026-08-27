@@ -16,6 +16,7 @@ export type AgentWorkerOperation =
   | {
       type: "result.add";
       result: {
+        id?: string;
         kind:
           | "text"
           | "image"

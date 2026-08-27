@@ -1,4 +1,11 @@
 import { randomUUID } from "node:crypto";
+import type {
+  AgentCanvasToolOperation,
+  AgentRemoteToolCall,
+  AgentToolContext,
+  CanvasNode,
+  CanvasOperation,
+} from "@infinite-canvas/contracts";
 import { DomainError, type PlatformRepository } from "./domain.js";
 import type {
   AgentRunApproval,
@@ -27,6 +34,7 @@ export type AgentWorkerOperation =
   | {
       type: "result.add";
       result: {
+        id?: string;
         kind: AgentRunResult["kind"];
         payload: Record<string, unknown>;
         assetId?: string;
@@ -201,6 +209,142 @@ export class AgentRunService {
       limit,
     });
   }
+  async toolContext(
+    workerId: string,
+    runId: string,
+  ): Promise<AgentToolContext> {
+    const detail = await this.leased(workerId, runId);
+    const session = await this.repository.getSession(
+      detail.run.createdBy,
+      detail.run.sessionId,
+      "viewer",
+    );
+    if (!session)
+      throw new DomainError(
+        "AGENT_SESSION_NOT_FOUND",
+        404,
+        "Agent Session 不存在",
+      );
+    const project = session.projectId
+      ? await this.platform.getProject(detail.run.createdBy, session.projectId)
+      : null;
+    if (
+      session.projectId &&
+      (!project || project.workspaceId !== detail.run.workspaceId)
+    )
+      throw new DomainError("PROJECT_NOT_FOUND", 404, "绑定项目不存在");
+    const assets = await this.platform.listAssets(
+      detail.run.createdBy,
+      detail.run.workspaceId,
+    );
+    return {
+      contractVersion: 1,
+      project: project
+        ? {
+            id: project.id,
+            revision: project.document.revision,
+            document: project.document,
+          }
+        : null,
+      selection: [],
+      assets: assets.map((asset) => ({
+        id: asset.id,
+        kind: asset.kind,
+        mimeType: asset.mimeType,
+        bytes: asset.bytes,
+        originalName: asset.originalName,
+      })),
+    };
+  }
+  async executeTool(
+    workerId: string,
+    runId: string,
+    call: AgentRemoteToolCall,
+  ) {
+    const detail = await this.leased(workerId, runId);
+    const session = await this.repository.getSession(
+      detail.run.createdBy,
+      detail.run.sessionId,
+      "editor",
+    );
+    if (!session?.projectId)
+      throw new DomainError(
+        "AGENT_PROJECT_REQUIRED",
+        409,
+        "Agent Run 未绑定 Canvas 项目",
+      );
+    const project = await this.platform.getProject(
+      detail.run.createdBy,
+      session.projectId,
+    );
+    if (!project || project.workspaceId !== detail.run.workspaceId)
+      throw new DomainError("PROJECT_NOT_FOUND", 404, "绑定项目不存在");
+    const previous = detail.results.find(
+      (value) =>
+        value.kind === "canvas_operation" &&
+        value.payload.toolCallId === call.id,
+    );
+    if (previous) {
+      if (
+        JSON.stringify(previous.payload.ops) !== JSON.stringify(call.input.ops)
+      )
+        throw new DomainError(
+          "AGENT_TOOL_IDEMPOTENCY_CONFLICT",
+          409,
+          "Agent Tool Call 幂等键冲突",
+        );
+      return { project, replayed: true };
+    }
+    if (call.expectedRevision !== project.document.revision)
+      throw new DomainError(
+        "REVISION_CONFLICT",
+        409,
+        "Canvas revision 已变化，请重新读取后执行",
+      );
+    if (
+      call.input.ops.some(isDeleteToolOperation) &&
+      !detail.approvals.some(
+        (value) => value.action === "delete" && value.status === "approved",
+      )
+    ) {
+      throw new DomainError(
+        "AGENT_APPROVAL_REQUIRED",
+        409,
+        "删除操作需要 delete approval",
+      );
+    }
+    const operations = normalizeAgentOperations(
+      call.input.ops,
+      project.document.nodes,
+      project.document.connections.map((value) => value.id),
+    );
+    const mutationId = `agent:${runId}:${call.id}`;
+    const mutation = await this.platform.applyProjectMutation(
+      detail.run.createdBy,
+      project.id,
+      {
+        mutationId,
+        projectId: project.id,
+        baseRevision: call.expectedRevision,
+        operations,
+        clientId: `remote-agent:${runId}`,
+        createdAt: new Date().toISOString(),
+      },
+    );
+    await this.transition(workerId, runId, {
+      type: "result.add",
+      result: {
+        kind: "canvas_operation",
+        payload: {
+          toolCallId: call.id,
+          mutationId,
+          ops: call.input.ops,
+          revision: mutation.project.document.revision,
+        },
+      },
+    });
+    return mutation;
+  }
   heartbeat(workerId: string, runIds: string[], leaseMs: number) {
     const now = new Date();
     return this.repository.heartbeat(
@@ -233,6 +377,20 @@ export class AgentRunService {
     }
     applyOperation(detail, operation, now);
     return this.repository.saveWorker({ workerId, ...detail, now });
+  }
+  private async leased(workerId: string, runId: string) {
+    const detail = await this.repository.getLeased(
+      workerId,
+      runId,
+      new Date().toISOString(),
+    );
+    if (!detail)
+      throw new DomainError(
+        "AGENT_RUN_LEASE_LOST",
+        409,
+        "Agent Run 租约已失效",
+      );
+    return detail;
   }
 }
 
@@ -294,6 +452,23 @@ function applyOperation(
       break;
     }
     case "result.add": {
+      const existing = operation.result.id
+        ? detail.results.find((value) => value.id === operation.result.id)
+        : null;
+      if (existing) {
+        if (
+          existing.kind !== operation.result.kind ||
+          JSON.stringify(existing.payload) !==
+            JSON.stringify(operation.result.payload) ||
+          existing.assetId !== (operation.result.assetId || null)
+        )
+          throw new DomainError(
+            "AGENT_RESULT_IDEMPOTENCY_CONFLICT",
+            409,
+            "Agent Result 幂等键冲突",
+          );
+        break;
+      }
       const approval = requiredApproval(operation.result);
       if (
         approval &&
@@ -307,10 +482,13 @@ function applyOperation(
           `操作需要 ${approval} approval`,
         );
       detail.results.push({
-        id: randomUUID(),
+        id: operation.result.id || randomUUID(),
         runId: detail.run.id,
         kind: operation.result.kind,
-        payload: operation.result.payload,
+        payload: sanitizeVisible(operation.result.payload) as Record<
+          string,
+          unknown
+        >,
         assetId: operation.result.assetId || null,
         createdAt: now,
       });
@@ -329,7 +507,7 @@ function applyOperation(
         runId: detail.run.id,
         action: operation.action,
         status: "pending" as const,
-        request: operation.request,
+        request: sanitizeVisible(operation.request) as Record<string, unknown>,
         requestedAt: now,
         decidedBy: null,
         decidedAt: null,
@@ -401,4 +579,165 @@ function requiredApproval(
   )
     return "external_access";
   return null;
+}
+
+function isDeleteToolOperation(value: AgentCanvasToolOperation) {
+  return value.type === "delete_node" || value.type === "delete_connections";
+}
+
+function normalizeAgentOperations(
+  values: AgentCanvasToolOperation[],
+  nodes: CanvasNode[],
+  connectionIds: string[],
+): CanvasOperation[] {
+  if (!values.length || values.length > 200)
+    throw new DomainError(
+      "AGENT_TOOL_INPUT_INVALID",
+      422,
+      "Canvas operations 数量无效",
+    );
+  const byId = new Map(nodes.map((node) => [node.id, node]));
+  const result: CanvasOperation[] = [];
+  for (const value of values) {
+    switch (value.type) {
+      case "add_node": {
+        const id = value.id || randomUUID();
+        if (byId.has(id))
+          throw new DomainError(
+            "AGENT_TOOL_INPUT_INVALID",
+            422,
+            "新增节点 ID 已存在",
+          );
+        const position = value.position || {
+          x: finite(value.x, 0),
+          y: finite(value.y, 0),
+        };
+        const node: CanvasNode = {
+          id,
+          type: text(value.nodeType, "text", 64),
+          title: text(value.title, "Untitled", 200),
+          position,
+          width: positive(value.width, 320),
+          height: positive(value.height, 220),
+          metadata: safeRecord(value.metadata),
+        };
+        byId.set(id, node);
+        result.push({ type: "node.upsert", node });
+        break;
+      }
+      case "update_node": {
+        const current = byId.get(value.id);
+        if (!current)
+          throw new DomainError(
+            "AGENT_TOOL_INPUT_INVALID",
+            422,
+            "更新节点不存在",
+          );
+        const patch = safeRecord(value.patch);
+        const node: CanvasNode = {
+          ...current,
+          ...(typeof patch.title === "string"
+            ? { title: text(patch.title, current.title, 200) }
+            : {}),
+          ...(patch.position && typeof patch.position === "object"
+            ? { position: position(patch.position, current.position) }
+            : {}),
+          ...(typeof patch.width === "number"
+            ? { width: positive(patch.width, current.width) }
+            : {}),
+          ...(typeof patch.height === "number"
+            ? { height: positive(patch.height, current.height) }
+            : {}),
+          metadata: {
+            ...(current.metadata || {}),
+            ...safeRecord(value.metadata),
+          },
+        };
+        byId.set(node.id, node);
+        result.push({ type: "node.upsert", node });
+        break;
+      }
+      case "delete_node": {
+        const nodeIds = [
+          ...new Set([...(value.ids || []), ...(value.id ? [value.id] : [])]),
+        ];
+        if (!nodeIds.length)
+          throw new DomainError(
+            "AGENT_TOOL_INPUT_INVALID",
+            422,
+            "删除节点为空",
+          );
+        result.push({ type: "node.remove", nodeIds });
+        break;
+      }
+      case "delete_connections": {
+        const ids = value.all
+          ? connectionIds
+          : [
+              ...new Set([
+                ...(value.ids || []),
+                ...(value.id ? [value.id] : []),
+              ]),
+            ];
+        if (!ids.length)
+          throw new DomainError(
+            "AGENT_TOOL_INPUT_INVALID",
+            422,
+            "删除连线为空",
+          );
+        result.push({ type: "connection.remove", connectionIds: ids });
+        break;
+      }
+      case "connect_nodes":
+        result.push({
+          type: "connection.upsert",
+          connection: {
+            id: value.id || randomUUID(),
+            fromNodeId: value.fromNodeId,
+            toNodeId: value.toNodeId,
+          },
+        });
+        break;
+      case "set_viewport":
+        result.push({
+          type: "viewport.set",
+          viewport: {
+            x: finite(value.viewport.x, 0),
+            y: finite(value.viewport.y, 0),
+            k: positive(value.viewport.k, 1),
+          },
+        });
+        break;
+      case "select_nodes":
+      case "run_generation":
+        throw new DomainError(
+          "AGENT_TOOL_UNSUPPORTED",
+          422,
+          `${value.type} 不能由远端持久 Worker 执行`,
+        );
+    }
+  }
+  return result;
+}
+
+function safeRecord(value: unknown): Record<string, unknown> {
+  return value && typeof value === "object" && !Array.isArray(value)
+    ? structuredClone(value as Record<string, unknown>)
+    : {};
+}
+function finite(value: unknown, fallback: number) {
+  return typeof value === "number" && Number.isFinite(value) ? value : fallback;
+}
+function positive(value: unknown, fallback: number) {
+  const number = finite(value, fallback);
+  return number > 0 && number <= 100_000 ? number : fallback;
+}
+function text(value: unknown, fallback: string, max: number) {
+  return typeof value === "string" && value.trim()
+    ? value.trim().slice(0, max)
+    : fallback;
+}
+function position(value: unknown, fallback: { x: number; y: number }) {
+  const record = safeRecord(value);
+  return { x: finite(record.x, fallback.x), y: finite(record.y, fallback.y) };
 }

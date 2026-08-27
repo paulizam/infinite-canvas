@@ -33,8 +33,13 @@ provider-specific adapters use the same normalized gateway contract.
 
 The same process also claims durable Workflow Executions, Schedule Triggers, and Cloud Agent
 Runs. The stock Agent handler executes text-only Runs through the configured logical text model,
-persists visible output deltas/results, and deliberately discards Provider reasoning. Runs with
-Asset attachments or executable Skills require an injected remote `AgentRunHandler`. If a lease
+persists visible output deltas/results, and deliberately discards Provider reasoning. Set
+`REMOTE_AGENT_URL` and a 32+ character `REMOTE_AGENT_TOKEN` to enable the authenticated team Agent adapter for
+attachments, executable Skills, mixed-media/drama results, and the versioned core tool contract.
+Only HTTPS endpoints are accepted (HTTP is limited to loopback development), redirects are rejected,
+responses are limited to 2 MiB, and the token is never persisted or logged. Remote Canvas writes run
+through the API lease, RBAC, revision, idempotency, approval, audit, and collaboration broadcast path.
+If a lease
 expires after a Provider attempt started, the stock handler fails closed with
 `AGENT_AMBIGUOUS_RECOVERY`; an explicit user retry is required instead of silently duplicating a
 potentially billable request.

@@ -189,6 +189,8 @@ Project checkpoint 是聚合的 immutable read model：创建时在锁定 Projec
 
 统一文本/媒体创作会话，Agent Run 执行 planning、Skill policy、tool call、generation subtask 和 Canvas operations。内部 planning rationale 不进入面向用户的生成对话历史。
 
+远端团队 Agent 由 Worker adapter 通过带 Bearer Token 的 HTTPS 协议接入，与 Local Canvas Agent 共用版本化 `canvas_get_state` / `canvas_apply_ops` JSON contract。远端只能获得 Run 所属 Workspace 的最小 Canvas/Asset 上下文；写操作回到 API 的 lease、RBAC、revision、idempotency、approval、audit 与 collaboration broadcast 边界执行，不向远端下放数据库或 Workspace credential。
+
 ### 6.5 Model Gateway
 
 采用 VOZEB 的分层：

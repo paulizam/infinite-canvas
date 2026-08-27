@@ -3,6 +3,8 @@ import type {
   GenerationJob,
   GenerationJobPhase,
   ResolvedModelCandidate,
+  AgentRemoteToolCall,
+  AgentToolContext,
 } from "@infinite-canvas/contracts";
 import type {
   WorkflowWorkerOperation,
@@ -112,6 +114,28 @@ export class WorkerApiClient {
     return this.request<AgentWorkerRun>(
       `/internal/v1/agent/runs/${encodeURIComponent(runId)}/transition`,
       { workerId, operation },
+      signal,
+    );
+  }
+  getAgentToolContext(workerId: string, runId: string, signal?: AbortSignal) {
+    return this.request<AgentToolContext>(
+      `/internal/v1/agent/runs/${encodeURIComponent(runId)}/context`,
+      { workerId },
+      signal,
+    );
+  }
+  executeAgentTool(
+    workerId: string,
+    runId: string,
+    call: AgentRemoteToolCall,
+    signal?: AbortSignal,
+  ) {
+    return this.request<{
+      project: { document: { revision: number } };
+      replayed: boolean;
+    }>(
+      `/internal/v1/agent/runs/${encodeURIComponent(runId)}/tools`,
+      { workerId, call },
       signal,
     );
   }

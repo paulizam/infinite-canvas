@@ -22,6 +22,7 @@ poll policy -> Worker runtime -> authenticated WorkerApiClient -> API -> Postgre
 - `runWorkerCycle`：先报告全局 heartbeat，再认领批次，并在 handler 运行期间周期续租。
 - `runWorker`：有任务时快速继续，无任务或 API 故障时有界指数退避，响应 SIGINT/SIGTERM。
 - `JobHandler`：稳定扩展点；后续注入 Model Gateway submit/poll/persist handler。
+- `RemoteTeamAgentHandler`：以 `AGENT_TOOL_CONTRACT_VERSION` 向受信团队 Agent 发送 Run、附件/Skill policy、Canvas/Asset 只读上下文；远端返回的工具调用只能经 Worker lease 内部 API 执行。
 
 ## 关键决策
 
@@ -44,7 +45,10 @@ poll policy -> Worker runtime -> authenticated WorkerApiClient -> API -> Postgre
 - API 使用 constant-time token 比较；状态变更同时校验 `workerId`、lease owner 与 expiry。
 - 请求 URL 由部署配置与固定 internal path 组成，不接受 Job payload 提供的任意 URL。
 - Job input 在进入 provider adapter 前仍必须经过 capability-specific schema 与 SSRF 规则验证。
+- Remote Agent URL 只允许 HTTPS（loopback 开发例外），拒绝 credentials/query/fragment/redirect；Bearer Token 仅来自环境。响应限制 2 MiB、事件/工具/结果数量有界，内部推理字段由 API 再次 fail-closed。
+- `canvas_apply_ops` 与 Local Canvas Agent 使用同名、同 `ops` JSON contract；API 将其归一化为 canonical `CanvasOperation[]`，校验 Workspace、Project、revision、delete approval 和 mutation idempotency 后广播新 snapshot。
 
 ## 变更历史
 
 - 2026-08-27：建立独立 Worker、heartbeat、lease renewal、退避、恢复与容器入口。
+- 2026-08-28：接入远端团队 Agent adapter 与 Local/Remote 共享 Canvas tool contract。

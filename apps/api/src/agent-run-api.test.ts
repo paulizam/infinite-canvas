@@ -53,13 +53,19 @@ async function register(email: string) {
     cookie: response.headers.get("set-cookie")!.split(";")[0]!,
   };
 }
-async function createRun(owner: Awaited<ReturnType<typeof register>>) {
+async function createRun(
+  owner: Awaited<ReturnType<typeof register>>,
+  projectId?: string,
+) {
   const sessionResponse = await app.request(
     `/api/v1/workspaces/${owner.workspaceId}/agent-sessions`,
     {
       method: "POST",
       headers: { cookie: owner.cookie, "content-type": "application/json" },
-      body: JSON.stringify({ title: "Campaign" }),
+      body: JSON.stringify({
+        title: "Campaign",
+        ...(projectId ? { projectId } : {}),
+      }),
     },
   );
   const sessionId = ((await sessionResponse.json()) as { data: { id: string } })
@@ -95,6 +101,154 @@ async function worker(path: string, body: unknown, token = workerToken) {
 }
 
 describe("Agent Run API", () => {
+  it("executes the shared Canvas tool contract inside the worker lease with revision and approval guards", async () => {
+    const owner = await register("agent-tools@example.com");
+    const projectResponse = await app.request(
+      `/api/v1/workspaces/${owner.workspaceId}/projects`,
+      {
+        method: "POST",
+        headers: { cookie: owner.cookie, "content-type": "application/json" },
+        body: JSON.stringify({ title: "Remote Agent Canvas" }),
+      },
+    );
+    const projectId = (
+      (await projectResponse.json()) as { data: { id: string } }
+    ).data.id;
+    const { detail } = await createRun(owner, projectId);
+    const runId = detail.run.id;
+    await worker("/internal/v1/agent/claim", {
+      workerId: "tool-worker",
+      limit: 1,
+      leaseMs: 90_000,
+    });
+    const contextResponse = await worker(
+      `/internal/v1/agent/runs/${runId}/context`,
+      { workerId: "tool-worker" },
+    );
+    expect(contextResponse.status).toBe(200);
+    expect(
+      (
+        (await contextResponse.json()) as {
+          data: {
+            contractVersion: number;
+            project: { id: string; revision: number };
+          };
+        }
+      ).data,
+    ).toMatchObject({
+      contractVersion: 1,
+      project: { id: projectId, revision: 0 },
+    });
+    const addCall = {
+      id: "tool-add-1",
+      name: "canvas_apply_ops",
+      expectedRevision: 0,
+      input: {
+        ops: [
+          {
+            type: "add_node",
+            id: "remote-node",
+            nodeType: "text",
+            title: "Remote result",
+            metadata: { content: "Created by team Agent" },
+          },
+        ],
+      },
+    };
+    const applied = await worker(`/internal/v1/agent/runs/${runId}/tools`, {
+      workerId: "tool-worker",
+      call: addCall,
+    });
+    expect(applied.status).toBe(200);
+    expect(
+      (
+        (await applied.json()) as {
+          data: {
+            project: { document: { revision: number } };
+            replayed: boolean;
+          };
+        }
+      ).data,
+    ).toMatchObject({
+      project: { document: { revision: 1 } },
+      replayed: false,
+    });
+    const replayed = await worker(`/internal/v1/agent/runs/${runId}/tools`, {
+      workerId: "tool-worker",
+      call: addCall,
+    });
+    expect(
+      ((await replayed.json()) as { data: { replayed: boolean } }).data
+        .replayed,
+    ).toBe(true);
+    expect(
+      (
+        await worker(`/internal/v1/agent/runs/${runId}/tools`, {
+          workerId: "tool-worker",
+          call: { ...addCall, id: "stale", expectedRevision: 0 },
+        })
+      ).status,
+    ).toBe(409);
+    const deleteCall = {
+      id: "tool-delete-1",
+      name: "canvas_apply_ops",
+      expectedRevision: 1,
+      input: { ops: [{ type: "delete_node", ids: ["remote-node"] }] },
+    };
+    expect(
+      (
+        await worker(`/internal/v1/agent/runs/${runId}/tools`, {
+          workerId: "tool-worker",
+          call: deleteCall,
+        })
+      ).status,
+    ).toBe(409);
+    const approvalResponse = await worker(
+      `/internal/v1/agent/runs/${runId}/transition`,
+      {
+        workerId: "tool-worker",
+        operation: {
+          type: "approval.request",
+          action: "delete",
+          request: { toolCallId: deleteCall.id },
+        },
+      },
+    );
+    const approvalId = (
+      (await approvalResponse.json()) as {
+        data: { approvals: Array<{ id: string }> };
+      }
+    ).data.approvals[0]!.id;
+    await app.request(`/api/v1/agent-approvals/${approvalId}/decision`, {
+      method: "POST",
+      headers: { cookie: owner.cookie, "content-type": "application/json" },
+      body: JSON.stringify({ decision: "approved" }),
+    });
+    await worker("/internal/v1/agent/claim", {
+      workerId: "tool-worker-2",
+      limit: 1,
+      leaseMs: 90_000,
+    });
+    expect(
+      (
+        await worker(`/internal/v1/agent/runs/${runId}/tools`, {
+          workerId: "tool-worker-2",
+          call: deleteCall,
+        })
+      ).status,
+    ).toBe(200);
+    const project = await app.request(`/api/v1/projects/${projectId}`, {
+      headers: { cookie: owner.cookie },
+    });
+    expect(
+      (
+        (await project.json()) as {
+          data: { document: { nodes: unknown[]; revision: number } };
+        }
+      ).data.document,
+    ).toMatchObject({ nodes: [], revision: 2 });
+  });
+
   it("claims, streams, pauses for approval and resumes to durable results", async () => {
     const owner = await register("agent-run@example.com");
     const { detail } = await createRun(owner);
@@ -137,6 +291,17 @@ describe("Agent Run API", () => {
           workerId: "agent-worker",
           operation: {
             type: "result.add",
+            result: { kind: "text", payload: { rationale: "private" } },
+          },
+        })
+      ).status,
+    ).toBe(422);
+    expect(
+      (
+        await worker(`/internal/v1/agent/runs/${runId}/transition`, {
+          workerId: "agent-worker",
+          operation: {
+            type: "result.add",
             result: {
               kind: "canvas_operation",
               payload: { ops: [{ type: "delete_node", id: "node-1" }] },
@@ -161,17 +326,41 @@ describe("Agent Run API", () => {
         })
       ).status,
     ).toBe(200);
+    const textResult = {
+      type: "result.add",
+      result: {
+        id: "33333333-3333-4333-8333-333333333333",
+        kind: "text",
+        payload: { text: "Launch now" },
+      },
+    };
+    expect(
+      (
+        await worker(`/internal/v1/agent/runs/${runId}/transition`, {
+          workerId: "agent-worker",
+          operation: textResult,
+        })
+      ).status,
+    ).toBe(200);
+    expect(
+      (
+        await worker(`/internal/v1/agent/runs/${runId}/transition`, {
+          workerId: "agent-worker",
+          operation: textResult,
+        })
+      ).status,
+    ).toBe(200);
     expect(
       (
         await worker(`/internal/v1/agent/runs/${runId}/transition`, {
           workerId: "agent-worker",
           operation: {
-            type: "result.add",
-            result: { kind: "text", payload: { text: "Launch now" } },
+            ...textResult,
+            result: { ...textResult.result, payload: { text: "Changed" } },
           },
         })
       ).status,
-    ).toBe(200);
+    ).toBe(409);
     const approvalResponse = await worker(
       `/internal/v1/agent/runs/${runId}/transition`,
       {
