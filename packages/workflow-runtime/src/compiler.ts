@@ -12,6 +12,7 @@ import { validateWorkflow } from "./validator.js";
 
 export type WorkflowCompileRule = {
   canvasNodeType: string;
+  metadataMatch?: Record<string, string | number | boolean | null>;
   schema: WorkflowNodeSchema;
   defaultInputPortId?: string;
   defaultOutputPortId?: string;
@@ -72,6 +73,7 @@ export function compileCanvasWorkflow(
   const sourceMapping: WorkflowSourceMapping = { nodes: {}, edges: {} };
   const compiledNodes = new Map<string, WorkflowDefinition["nodes"][number]>();
   const canvasNodes = new Map<string, CanvasNode>();
+  const selectedRules = new Map<string, WorkflowCompileRule>();
   if (!canvas.nodes.length)
     issues.push(diagnostic("EMPTY_CANVAS", "Canvas contains no nodes"));
 
@@ -85,7 +87,7 @@ export function compileCanvasWorkflow(
       continue;
     }
     canvasNodes.set(canvasNode.id, canvasNode);
-    const rule = ruleMap.get(canvasNode.type);
+    const rule = resolveRule(ruleMap.get(canvasNode.type) || [], canvasNode);
     if (!rule) {
       issues.push(
         diagnostic(
@@ -99,6 +101,7 @@ export function compileCanvasWorkflow(
     }
     const compiled = compileNode(canvasNode, rule, issues);
     compiledNodes.set(compiled.id, compiled);
+    selectedRules.set(compiled.id, rule);
     sourceMapping.nodes[compiled.id] = canvasNode.id;
   }
 
@@ -117,8 +120,8 @@ export function compileCanvasWorkflow(
       );
       continue;
     }
-    const fromRule = ruleMap.get(canvasNodes.get(from.id)!.type)!;
-    const toRule = ruleMap.get(canvasNodes.get(to.id)!.type)!;
+    const fromRule = selectedRules.get(from.id)!;
+    const toRule = selectedRules.get(to.id)!;
     const output = resolvePort(from.outputs, fromRule.defaultOutputPortId);
     const input = resolvePort(to.inputs, toRule.defaultInputPortId);
     if (!output) {
@@ -202,18 +205,38 @@ function compileRuleMap(
   rules: readonly WorkflowCompileRule[],
   issues: WorkflowCompileIssue[],
 ) {
-  const map = new Map<string, WorkflowCompileRule>();
+  const map = new Map<string, WorkflowCompileRule[]>();
+  const signatures = new Set<string>();
   for (const rule of rules) {
-    if (map.has(rule.canvasNodeType))
+    const signature = `${rule.canvasNodeType}:${JSON.stringify(rule.metadataMatch || {})}`;
+    if (signatures.has(signature))
       issues.push(
         diagnostic(
           "DUPLICATE_COMPILE_RULE",
           `Duplicate compile rule: ${rule.canvasNodeType}`,
         ),
       );
-    else map.set(rule.canvasNodeType, rule);
+    else {
+      signatures.add(signature);
+      const entries = map.get(rule.canvasNodeType) || [];
+      entries.push(rule);
+      map.set(rule.canvasNodeType, entries);
+    }
   }
   return map;
+}
+
+function resolveRule(rules: WorkflowCompileRule[], node: CanvasNode) {
+  const metadata = node.metadata || {};
+  return (
+    rules.find(
+      (rule) =>
+        rule.metadataMatch &&
+        Object.entries(rule.metadataMatch).every(
+          ([key, value]) => metadata[key] === value,
+        ),
+    ) || rules.find((rule) => !rule.metadataMatch)
+  );
 }
 
 function compileNode(

@@ -9,6 +9,8 @@ import { PostgresGenerationEventRepository } from "./postgres-generation-event-r
 import { GenerationJobService } from "./generation-job-service.js";
 import { PostgresModelGatewayRepository } from "./postgres-model-gateway-repository.js";
 import { SecretCipher } from "./secret-cipher.js";
+import { PostgresWorkflowRepository } from "./postgres-workflow-repository.js";
+import { WorkflowPublicationService } from "./workflow-service.js";
 import {
   IdentityService,
   ProjectService,
@@ -54,6 +56,10 @@ const app = createApp({
   workerToken,
   workerStaleMs: positiveInteger("WORKER_STALE_MS"),
   modelGateway,
+  workflows: new WorkflowPublicationService(
+    repository,
+    new PostgresWorkflowRepository(databaseUrl),
+  ),
   maintenanceToken,
   collaboration,
   secureCookies: process.env.NODE_ENV === "production",

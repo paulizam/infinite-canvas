@@ -14,6 +14,7 @@ import {
   type GenerationEventRepository,
 } from "./generation-event-repository.js";
 import type { ModelGatewayRepository } from "./model-gateway-repository.js";
+import type { WorkflowPublicationService } from "./workflow-service.js";
 import { ModelDiscoveryService } from "./model-discovery.js";
 import { createModelDiscoveryApi } from "./model-discovery-api.js";
 import {
@@ -36,6 +37,7 @@ export type AppServices = {
   workerToken: string;
   workerStaleMs: number;
   modelGateway: ModelGatewayRepository;
+  workflows?: WorkflowPublicationService;
   maintenanceToken: string;
   secureCookies: boolean;
   modelDiscovery?: ModelDiscoveryService;
@@ -366,6 +368,38 @@ export function createApp(services: AppServices) {
     if (!project) throw new DomainError("PROJECT_NOT_FOUND", 404, "项目不存在");
     return c.json({ data: project, requestId: requestId(c) });
   });
+  if (services.workflows) {
+    app.post("/api/v1/projects/:projectId/workflows/publish", async (c) => {
+      const input = publishWorkflowSchema.parse(await c.req.json());
+      const result = await services.workflows!.publish(
+        c.get("user").id,
+        c.req.param("projectId"),
+        input,
+      );
+      return c.json(
+        { data: result, requestId: requestId(c) },
+        result.publication ? (result.publication.replayed ? 200 : 201) : 422,
+      );
+    });
+    app.get("/api/v1/projects/:projectId/workflow", async (c) =>
+      c.json({
+        data: await services.workflows!.getForProject(
+          c.get("user").id,
+          c.req.param("projectId"),
+        ),
+        requestId: requestId(c),
+      }),
+    );
+    app.get("/api/v1/workflows/:workflowId/versions", async (c) =>
+      c.json({
+        data: await services.workflows!.listVersions(
+          c.get("user").id,
+          c.req.param("workflowId"),
+        ),
+        requestId: requestId(c),
+      }),
+    );
+  }
   app.delete("/api/v1/projects/:projectId", async (c) => {
     await services.projects.delete(c.get("user").id, c.req.param("projectId"));
     return c.json({ data: { ok: true }, requestId: requestId(c) });
@@ -769,6 +803,14 @@ const createGenerationJobSchema = z.object({
   clientRequestId: z.string().trim().min(1).max(160),
   parameters: z.record(z.string(), z.unknown()),
 });
+const publishWorkflowSchema = z
+  .object({
+    publicationId: z.string().trim().min(1).max(160),
+    expectedProjectRevision: z.number().int().nonnegative(),
+    name: z.string().trim().min(1).max(200).optional(),
+    entryNodeIds: z.array(z.string().min(1).max(128)).max(1_000).optional(),
+  })
+  .strict();
 const workerClaimSchema = z.object({
   workerId: z.string().trim().min(1).max(160),
   limit: z.number().int().min(1).max(50).default(20),
