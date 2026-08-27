@@ -12,6 +12,7 @@ export function createWorkflowExecution(input: {
   workflowVersion: number;
   now: string;
   startNodeIds?: string[];
+  initialInputs?: Record<string, unknown>;
   maxAttempts?: number;
 }): WorkflowExecutionState {
   const plan = planWorkflowExecution(input.definition, input.startNodeIds);
@@ -39,6 +40,7 @@ export function createWorkflowExecution(input: {
     status: "queued",
     selectedNodeIds: plan.selectedNodeIds,
     layers: plan.layers,
+    initialInputs: structuredClone(input.initialInputs || {}),
     nodes,
     events: [],
     createdAt: input.now,
@@ -337,6 +339,9 @@ export function cancelWorkflowExecution(
   now: string,
 ) {
   const state = copy(source);
+  if (state.status === "cancelled") return state;
+  if (state.status === "succeeded" || state.status === "failed")
+    throw new Error(`Terminal execution cannot be cancelled: ${state.status}`);
   for (const node of Object.values(state.nodes))
     if (["pending", "ready", "waiting"].includes(node.status)) {
       node.status = "cancelled";
@@ -435,11 +440,13 @@ function emit(
   nodeId?: string,
   data?: Record<string, unknown>,
 ) {
+  const stepKey = typeof data?.stepKey === "string" ? data.stepKey : undefined;
   state.events.push({
     sequence: state.events.length + 1,
     type,
     createdAt,
     ...(nodeId ? { nodeId } : {}),
+    ...(stepKey ? { stepKey } : {}),
     ...(data ? { data } : {}),
   });
 }

@@ -53,6 +53,10 @@ export interface WorkflowRepository {
     userId: string,
     workflowId: string,
   ): Promise<WorkflowVersionRecord[]>;
+  getById(
+    userId: string,
+    workflowId: string,
+  ): Promise<WorkflowPublication | null>;
 }
 
 export class MemoryWorkflowRepository implements WorkflowRepository {
@@ -130,5 +134,12 @@ export class MemoryWorkflowRepository implements WorkflowRepository {
     if (!workflow) return [];
     await this.authorize(_userId, workflow.workspaceId, "viewer");
     return [...(this.versions.get(workflowId) || [])].reverse();
+  }
+  async getById(userId: string, workflowId: string) {
+    const workflow = this.workflows.get(workflowId);
+    if (!workflow) return null;
+    await this.authorize(userId, workflow.workspaceId, "viewer");
+    const version = this.versions.get(workflowId)?.at(-1);
+    return version ? { workflow, version, replayed: false } : null;
   }
 }

@@ -61,6 +61,7 @@ export type WorkflowExecutionState = {
   status: WorkflowExecutionStatus;
   selectedNodeIds: string[];
   layers: string[][];
+  initialInputs: Record<string, unknown>;
   nodes: Record<string, WorkflowNodeExecution>;
   events: WorkflowExecutionEvent[];
   createdAt: string;

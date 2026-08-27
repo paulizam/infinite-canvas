@@ -11,6 +11,8 @@ import { PostgresModelGatewayRepository } from "./postgres-model-gateway-reposit
 import { SecretCipher } from "./secret-cipher.js";
 import { PostgresWorkflowRepository } from "./postgres-workflow-repository.js";
 import { WorkflowPublicationService } from "./workflow-service.js";
+import { WorkflowExecutionService } from "./workflow-execution-service.js";
+import { PostgresWorkflowExecutionRepository } from "./postgres-workflow-execution-repository.js";
 import {
   IdentityService,
   ProjectService,
@@ -31,6 +33,7 @@ const modelGateway = new PostgresModelGatewayRepository(
   databaseUrl,
   new SecretCipher(required("MODEL_SECRET_KEY")),
 );
+const workflowRepository = new PostgresWorkflowRepository(databaseUrl);
 const assets = new AssetService(
   repository,
   createBlobStore(),
@@ -56,9 +59,11 @@ const app = createApp({
   workerToken,
   workerStaleMs: positiveInteger("WORKER_STALE_MS"),
   modelGateway,
-  workflows: new WorkflowPublicationService(
+  workflows: new WorkflowPublicationService(repository, workflowRepository),
+  workflowExecutions: new WorkflowExecutionService(
     repository,
-    new PostgresWorkflowRepository(databaseUrl),
+    workflowRepository,
+    new PostgresWorkflowExecutionRepository(databaseUrl),
   ),
   maintenanceToken,
   collaboration,

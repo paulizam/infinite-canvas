@@ -13,6 +13,8 @@ import {
 } from "./services.js";
 import { MemoryWorkflowRepository } from "./workflow-repository.js";
 import { WorkflowPublicationService } from "./workflow-service.js";
+import { MemoryWorkflowExecutionRepository } from "./workflow-execution-repository.js";
+import { WorkflowExecutionService } from "./workflow-execution-service.js";
 
 let app: ReturnType<typeof createApp>;
 beforeEach(() => {
@@ -30,6 +32,13 @@ beforeEach(() => {
     jobs: new GenerationJobService(platform, jobs),
     jobRepository: jobs,
     workflows: new WorkflowPublicationService(platform, workflowRepository),
+    workflowExecutions: new WorkflowExecutionService(
+      platform,
+      workflowRepository,
+      new MemoryWorkflowExecutionRepository((userId, workspaceId, minimum) =>
+        platform.requireWorkspaceRole(userId, workspaceId, minimum),
+      ),
+    ),
     workerToken: "test-worker-token-32-characters-long",
     workerStaleMs: 120_000,
     modelGateway: new MemoryModelGatewayRepository(),
@@ -202,6 +211,121 @@ describe("Workflow publication API", () => {
         (await versions.json()) as { data: Array<{ version: number }> }
       ).data.map((version) => version.version),
     ).toEqual([2, 1]);
+
+    const executionId = "11111111-1111-4111-8111-111111111111";
+    const execution = await app.request(
+      `/api/v1/workflows/${firstData.workflow.id}/executions`,
+      {
+        method: "POST",
+        headers: { cookie: owner.cookie, "content-type": "application/json" },
+        body: JSON.stringify({
+          executionId,
+          startNodeIds: ["generate"],
+          initialInputs: { generate: { input: "snapshot" } },
+        }),
+      },
+    );
+    expect(execution.status).toBe(201);
+    expect(
+      (
+        (await execution.json()) as {
+          data: {
+            record: {
+              state: {
+                status: string;
+                initialInputs: unknown;
+                nodes: Record<string, { status: string; skipReason?: string }>;
+              };
+            };
+          };
+        }
+      ).data.record.state,
+    ).toMatchObject({
+      status: "queued",
+      initialInputs: { generate: { input: "snapshot" } },
+      nodes: {
+        prompt: { status: "skipped", skipReason: "before_selection" },
+        generate: { status: "ready" },
+      },
+    });
+    expect(
+      (
+        await app.request(
+          `/api/v1/workflows/${firstData.workflow.id}/executions`,
+          {
+            method: "POST",
+            headers: {
+              cookie: owner.cookie,
+              "content-type": "application/json",
+            },
+            body: JSON.stringify({
+              executionId,
+              startNodeIds: ["generate"],
+              initialInputs: { generate: { input: "snapshot" } },
+            }),
+          },
+        )
+      ).status,
+    ).toBe(200);
+    expect(
+      (
+        await app.request(
+          `/api/v1/workflows/${firstData.workflow.id}/executions`,
+          {
+            method: "POST",
+            headers: {
+              cookie: owner.cookie,
+              "content-type": "application/json",
+            },
+            body: JSON.stringify({
+              executionId,
+              startNodeIds: ["generate"],
+              initialInputs: { generate: { input: "different" } },
+            }),
+          },
+        )
+      ).status,
+    ).toBe(409);
+    expect(
+      (
+        await app.request(`/api/v1/workflow-executions/${executionId}`, {
+          headers: { cookie: owner.cookie },
+        })
+      ).status,
+    ).toBe(200);
+    expect(
+      (
+        await app.request(
+          `/api/v1/workflow-executions/${executionId}/nodes/generate/retry`,
+          { method: "POST", headers: { cookie: owner.cookie } },
+        )
+      ).status,
+    ).toBe(409);
+    const cancelled = await app.request(
+      `/api/v1/workflow-executions/${executionId}/cancel`,
+      { method: "POST", headers: { cookie: owner.cookie } },
+    );
+    expect(cancelled.status).toBe(200);
+    expect(
+      ((await cancelled.json()) as { data: { state: { status: string } } }).data
+        .state.status,
+    ).toBe("cancelled");
+    const cancelledReplay = await app.request(
+      `/api/v1/workflow-executions/${executionId}/cancel`,
+      { method: "POST", headers: { cookie: owner.cookie } },
+    );
+    expect(
+      ((await cancelledReplay.json()) as { data: { revision: number } }).data
+        .revision,
+    ).toBe(1);
+    const outsider = await register("workflow-execution-outsider@example.com");
+    expect(
+      (
+        await app.request(`/api/v1/workflow-executions/${executionId}`, {
+          headers: { cookie: outsider.cookie },
+        })
+      ).status,
+    ).toBe(404);
   });
 
   it("returns compile diagnostics without persisting an invalid Canvas", async () => {

@@ -113,6 +113,23 @@ export class PostgresWorkflowRepository implements WorkflowRepository {
     );
     return result.rows.map(mapVersion);
   }
+  async getById(userId: string, workflowId: string) {
+    const result = await this.pool.query(
+      `SELECT w.id,w.workspace_id,w.project_id,w.name,w.current_version,w.created_by,
+       w.created_at AS workflow_created_at,w.updated_at AS workflow_updated_at,v.*
+       FROM workflows w JOIN workspace_members m ON m.workspace_id=w.workspace_id
+       JOIN workflow_versions v ON v.workflow_id=w.id AND v.version=w.current_version
+       WHERE w.id=$1 AND m.user_id=$2`,
+      [workflowId, userId],
+    );
+    return result.rows[0]
+      ? {
+          workflow: mapWorkflow(result.rows[0], "workflow_"),
+          version: mapVersion(result.rows[0]),
+          replayed: false,
+        }
+      : null;
+  }
 }
 function mapWorkflow(row: Record<string, unknown>, timestampPrefix = "") {
   return {

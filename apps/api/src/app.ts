@@ -15,6 +15,7 @@ import {
 } from "./generation-event-repository.js";
 import type { ModelGatewayRepository } from "./model-gateway-repository.js";
 import type { WorkflowPublicationService } from "./workflow-service.js";
+import type { WorkflowExecutionService } from "./workflow-execution-service.js";
 import { ModelDiscoveryService } from "./model-discovery.js";
 import { createModelDiscoveryApi } from "./model-discovery-api.js";
 import {
@@ -38,6 +39,7 @@ export type AppServices = {
   workerStaleMs: number;
   modelGateway: ModelGatewayRepository;
   workflows?: WorkflowPublicationService;
+  workflowExecutions?: WorkflowExecutionService;
   maintenanceToken: string;
   secureCookies: boolean;
   modelDiscovery?: ModelDiscoveryService;
@@ -398,6 +400,50 @@ export function createApp(services: AppServices) {
         ),
         requestId: requestId(c),
       }),
+    );
+  }
+  if (services.workflowExecutions) {
+    app.post("/api/v1/workflows/:workflowId/executions", async (c) => {
+      const input = createWorkflowExecutionSchema.parse(await c.req.json());
+      const result = await services.workflowExecutions!.create(
+        c.get("user").id,
+        c.req.param("workflowId"),
+        input,
+      );
+      return c.json(
+        { data: result, requestId: requestId(c) },
+        result.replayed ? 200 : 201,
+      );
+    });
+    app.get("/api/v1/workflow-executions/:executionId", async (c) =>
+      c.json({
+        data: await services.workflowExecutions!.get(
+          c.get("user").id,
+          c.req.param("executionId"),
+        ),
+        requestId: requestId(c),
+      }),
+    );
+    app.post("/api/v1/workflow-executions/:executionId/cancel", async (c) =>
+      c.json({
+        data: await services.workflowExecutions!.cancel(
+          c.get("user").id,
+          c.req.param("executionId"),
+        ),
+        requestId: requestId(c),
+      }),
+    );
+    app.post(
+      "/api/v1/workflow-executions/:executionId/nodes/:nodeId/retry",
+      async (c) =>
+        c.json({
+          data: await services.workflowExecutions!.retryNode(
+            c.get("user").id,
+            c.req.param("executionId"),
+            c.req.param("nodeId"),
+          ),
+          requestId: requestId(c),
+        }),
     );
   }
   app.delete("/api/v1/projects/:projectId", async (c) => {
@@ -809,6 +855,22 @@ const publishWorkflowSchema = z
     expectedProjectRevision: z.number().int().nonnegative(),
     name: z.string().trim().min(1).max(200).optional(),
     entryNodeIds: z.array(z.string().min(1).max(128)).max(1_000).optional(),
+  })
+  .strict();
+const createWorkflowExecutionSchema = z
+  .object({
+    executionId: z.uuid().optional(),
+    version: z.number().int().positive().optional(),
+    startNodeIds: z.array(z.string().min(1).max(160)).max(256).optional(),
+    initialInputs: z
+      .record(z.string().min(1).max(160), z.unknown())
+      .refine(
+        (value) =>
+          Object.keys(value).length <= 256 &&
+          Buffer.byteLength(JSON.stringify(value)) <= 1024 * 1024,
+        "initialInputs exceeds limits",
+      )
+      .optional(),
   })
   .strict();
 const workerClaimSchema = z.object({
