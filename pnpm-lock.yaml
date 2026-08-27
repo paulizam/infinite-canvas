@@ -35,6 +35,9 @@ importers:
       '@infinite-canvas/contracts':
         specifier: workspace:*
         version: link:../../packages/contracts
+      '@infinite-canvas/model-gateway':
+        specifier: workspace:*
+        version: link:../../packages/model-gateway
       '@node-rs/argon2':
         specifier: ^2.0.2
         version: 2.1.0
@@ -72,6 +75,9 @@ importers:
       '@infinite-canvas/contracts':
         specifier: workspace:*
         version: link:../../packages/contracts
+      '@infinite-canvas/model-gateway':
+        specifier: workspace:*
+        version: link:../../packages/model-gateway
     devDependencies:
       '@types/node':
         specifier: ^22.19.19
@@ -185,6 +191,12 @@ importers:
         version: link:../contracts
 
   packages/contracts: {}
+
+  packages/model-gateway:
+    dependencies:
+      '@infinite-canvas/contracts':
+        specifier: workspace:*
+        version: link:../contracts
 
   plugins/canvas/html:
     devDependencies:

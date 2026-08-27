@@ -1,6 +1,7 @@
 import type { GenerationJob } from "@infinite-canvas/contracts";
 import { WorkerApiClient } from "./client.js";
 import { nextPollDelay } from "./poll-policy.js";
+import { createModelGatewayHandler } from "./gateway-handler.js";
 
 export type JobHandler = (
   job: GenerationJob,
@@ -44,7 +45,7 @@ export async function runWorkerCycle(input: {
   try {
     await Promise.all(
       jobs.map((job) =>
-        (input.handler || handleWithoutGateway)(
+        (input.handler || createModelGatewayHandler())(
           job,
           input.client,
           input.workerId,
@@ -97,32 +98,6 @@ export async function runWorker(input: {
       );
     }
   }
-}
-
-async function handleWithoutGateway(
-  job: GenerationJob,
-  client: WorkerApiClient,
-  workerId: string,
-  signal?: AbortSignal,
-) {
-  if (job.phase === "cancel_requested") {
-    await client.transition(workerId, job.id, "cancelled", {}, signal);
-    return;
-  }
-  const current =
-    job.phase === "claimed"
-      ? await client.transition(workerId, job.id, "submitting", {}, signal)
-      : job;
-  await client.transition(
-    workerId,
-    current.id,
-    "needs_review",
-    {
-      errorCode: "MODEL_GATEWAY_UNAVAILABLE",
-      errorMessage: "Model Gateway 尚未配置，任务已转人工复核",
-    },
-    signal,
-  );
 }
 
 function sleep(ms: number, signal?: AbortSignal) {

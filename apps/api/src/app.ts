@@ -7,6 +7,7 @@ import { DomainError } from "./domain.js";
 import type { AssetService } from "./asset-service.js";
 import type { GenerationJobService } from "./generation-job-service.js";
 import type { GenerationJobRepository } from "./generation-job-repository.js";
+import type { ModelGatewayRepository } from "./model-gateway-repository.js";
 import {
   IdentityService,
   ProjectService,
@@ -25,6 +26,8 @@ export type AppServices = {
   jobRepository: GenerationJobRepository;
   workerToken: string;
   workerStaleMs: number;
+  modelGateway: ModelGatewayRepository;
+  maintenanceToken: string;
   secureCookies: boolean;
   collaboration?: {
     publishMutation: (
@@ -257,6 +260,13 @@ export function createApp(services: AppServices) {
       202,
     ),
   );
+  app.get("/api/v1/models", async (c) => {
+    const catalog = await services.modelGateway.catalog();
+    return c.json({
+      data: catalog.logicalModels.filter((model) => model.enabled),
+      requestId: requestId(c),
+    });
+  });
   app.get("/api/v1/projects/:projectId", async (c) => {
     const project = await services.projects.get(
       c.get("user").id,
@@ -283,8 +293,28 @@ export function createApp(services: AppServices) {
       requestId: requestId(c),
     });
   });
-  app.use("/internal/v1/*", async (c, next) => {
-    requireWorkerToken(c.req.header("authorization"), services.workerToken);
+  app.use("/internal/v1/generation/*", async (c, next) => {
+    requireBearerToken(
+      c.req.header("authorization"),
+      services.workerToken,
+      "Worker",
+    );
+    await next();
+  });
+  app.use("/internal/v1/model-gateway/*", async (c, next) => {
+    requireBearerToken(
+      c.req.header("authorization"),
+      services.workerToken,
+      "Worker",
+    );
+    await next();
+  });
+  app.use("/internal/v1/maintenance/*", async (c, next) => {
+    requireBearerToken(
+      c.req.header("authorization"),
+      services.maintenanceToken,
+      "Maintenance",
+    );
     await next();
   });
   app.post("/internal/v1/generation/claim", async (c) => {
@@ -323,15 +353,81 @@ export function createApp(services: AppServices) {
     });
     return c.json({ data: job, requestId: requestId(c) });
   });
+  app.post("/internal/v1/model-gateway/resolve", async (c) => {
+    const input = resolveModelSchema.parse(await c.req.json());
+    const resolved = await services.modelGateway.resolve(
+      input.capability,
+      input.logicalModelId,
+      input.preferredChannelId,
+    );
+    if (!resolved)
+      throw new DomainError("MODEL_UNAVAILABLE", 404, "没有可用的模型渠道");
+    return c.json({ data: resolved, requestId: requestId(c) });
+  });
+  app.put("/internal/v1/maintenance/model-protocols/:id", async (c) => {
+    const input = protocolSchema.parse(await c.req.json());
+    return c.json({
+      data: await services.modelGateway.saveProtocol({
+        ...input,
+        id: c.req.param("id"),
+      }),
+      requestId: requestId(c),
+    });
+  });
+  app.put("/internal/v1/maintenance/model-channels/:id", async (c) => {
+    const input = channelSchema.parse(await c.req.json());
+    return c.json({
+      data: await services.modelGateway.saveChannel({
+        ...input,
+        id: c.req.param("id"),
+        credentialConfigured: false,
+      }),
+      requestId: requestId(c),
+    });
+  });
+  app.put("/internal/v1/maintenance/upstream-models/:id", async (c) => {
+    const input = upstreamModelSchema.parse(await c.req.json());
+    return c.json({
+      data: await services.modelGateway.saveUpstreamModel({
+        ...input,
+        id: c.req.param("id"),
+      }),
+      requestId: requestId(c),
+    });
+  });
+  app.put("/internal/v1/maintenance/logical-models/:id", async (c) => {
+    const input = logicalModelSchema.parse(await c.req.json());
+    return c.json({
+      data: await services.modelGateway.saveLogicalModel({
+        ...input,
+        id: c.req.param("id"),
+      }),
+      requestId: requestId(c),
+    });
+  });
+  app.put("/internal/v1/maintenance/model-bindings/:id", async (c) => {
+    const input = bindingSchema.parse(await c.req.json());
+    return c.json({
+      data: await services.modelGateway.saveBinding({
+        ...input,
+        id: c.req.param("id"),
+      }),
+      requestId: requestId(c),
+    });
+  });
   return app;
 }
 
-function requireWorkerToken(header: string | undefined, expected: string) {
+function requireBearerToken(
+  header: string | undefined,
+  expected: string,
+  subject: string,
+) {
   const supplied = header?.startsWith("Bearer ") ? header.slice(7) : "";
   const left = Buffer.from(supplied);
   const right = Buffer.from(expected);
   if (left.length !== right.length || !timingSafeEqual(left, right))
-    throw new DomainError("UNAUTHENTICATED", 401, "Worker 凭据无效");
+    throw new DomainError("UNAUTHENTICATED", 401, `${subject} 凭据无效`);
 }
 
 const idSchema = z.string().min(1).max(128);
@@ -489,6 +585,101 @@ const workerTransitionSchema = z.object({
     })
     .strict(),
 });
+const modelCapabilitySchema = z.enum(["text", "image", "video", "audio"]);
+const resolveModelSchema = z.object({
+  capability: modelCapabilitySchema,
+  logicalModelId: z.string().trim().min(1).max(160),
+  preferredChannelId: z.uuid().optional(),
+});
+const protocolSchema = z
+  .object({
+    name: z.string().trim().min(1).max(160),
+    adapter: z.enum(["openai-compatible", "gemini", "custom"]),
+    enabled: z.boolean(),
+    config: z.record(z.string(), z.unknown()).default({}),
+  })
+  .strict();
+const channelSchema = z
+  .object({
+    name: z.string().trim().min(1).max(160),
+    protocolId: z.string().trim().min(1).max(160),
+    baseUrl: z.url().max(2_000),
+    enabled: z.boolean(),
+    config: z.record(z.string(), z.unknown()).default({}),
+    apiKey: z.string().min(1).max(8_000).optional(),
+    clearCredential: z.boolean().optional(),
+  })
+  .strict()
+  .superRefine((value, context) => {
+    const url = new URL(value.baseUrl);
+    if (url.username || url.password || url.search || url.hash)
+      context.addIssue({
+        code: "custom",
+        message: "渠道 URL 不能包含凭据、query 或 fragment",
+        path: ["baseUrl"],
+      });
+    if (
+      url.protocol !== "https:" &&
+      !(url.protocol === "http:" && value.config.allowInsecure === true)
+    )
+      context.addIssue({
+        code: "custom",
+        message: "渠道 URL 默认必须使用 HTTPS",
+        path: ["baseUrl"],
+      });
+  })
+  .refine(
+    (value) => !(value.apiKey && value.clearCredential),
+    "不能同时设置和清除凭据",
+  );
+const upstreamModelSchema = z
+  .object({
+    channelId: z.uuid(),
+    modelId: z.string().trim().min(1).max(500),
+    capability: modelCapabilitySchema,
+    enabled: z.boolean(),
+    healthState: z.enum(["healthy", "degraded", "cooldown", "disabled"]),
+    cooldownUntil: z.iso.datetime().nullable(),
+    config: z.record(z.string(), z.unknown()).default({}),
+  })
+  .strict();
+const logicalModelSchema = z
+  .object({
+    name: z.string().trim().min(1).max(160),
+    capability: modelCapabilitySchema,
+    enabled: z.boolean(),
+    isDefault: z.boolean(),
+  })
+  .strict();
+const capabilityProfileSchema = z
+  .object({
+    supportsReferenceImage: z.boolean().optional(),
+    supportsReferenceVideo: z.boolean().optional(),
+    supportsReferenceAudio: z.boolean().optional(),
+    maxReferenceImages: z.number().int().positive().optional(),
+    aspectRatios: z.array(z.string().max(40)).max(100).optional(),
+    resolutions: z.array(z.string().max(40)).max(100).optional(),
+    durationSeconds: z.array(z.number().positive()).max(100).optional(),
+    minDurationSeconds: z.number().positive().optional(),
+    maxDurationSeconds: z.number().positive().optional(),
+    maxBatchSize: z.number().int().positive().optional(),
+    supportsAsync: z.boolean().optional(),
+    supportsCancel: z.boolean().optional(),
+    supportsWebhook: z.boolean().optional(),
+    timeoutMs: z.number().int().positive().max(3_600_000).optional(),
+    concurrencyLimit: z.number().int().positive().max(10_000).optional(),
+  })
+  .strict();
+const bindingSchema = z
+  .object({
+    logicalModelId: z.string().trim().min(1).max(160),
+    upstreamModelId: z.uuid(),
+    enabled: z.boolean(),
+    priority: z.number().int().nonnegative(),
+    weight: z.number().int().min(1).max(10_000),
+    capabilityProfile: capabilityProfileSchema.default({}),
+  })
+  .strict();
 function writeSession(
   c: Parameters<typeof setCookie>[0],
   token: string,

@@ -10,6 +10,12 @@ deployment must choose its own expiry policy.
 `WORKER_TOKEN` is also required, must contain at least 32 characters, and must only be shared with
 the isolated generation Worker process.
 
+Model Gateway administration requires a separate 32+ character `MAINTENANCE_TOKEN`; it must not
+equal `WORKER_TOKEN`. Provider credentials are encrypted with AES-256-GCM using the 32-byte
+base64 `MODEL_SECRET_KEY`. Keep both values in a secret manager, never expose either to the
+browser, and retain the encryption key while any channel credentials still use it. The Worker can
+resolve enabled logical-model candidates through its internal token but cannot mutate the catalog.
+
 Media uploads require `MAX_UPLOAD_BYTES` and `BLOB_STORAGE_DRIVER`. Use `local` with
 `ASSET_LOCAL_ROOT` for a single-node deployment, or `s3` with the `S3_*` settings for shared
 object storage. File types are derived from magic bytes rather than request headers.
@@ -39,5 +45,7 @@ Development uses `pnpm --filter @infinite-canvas/api dev`. The API listens on po
 - Cross-tenant resource lookups return `404` instead of revealing resource existence.
 - Asset keys are server-generated, content is SHA-256 deduplicated per workspace, and referenced
   assets cannot be deleted. S3 content is served through short-lived signed URLs.
+- Provider endpoints default to HTTPS-only, reject URL credentials/query/fragment components, and
+  channel secrets are decrypted only while resolving a Worker request.
 
 The in-memory repository exists only for contract tests. Production startup always uses PostgreSQL.

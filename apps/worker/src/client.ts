@@ -1,7 +1,10 @@
 import type {
   GenerationJob,
   GenerationJobPhase,
+  ResolvedModelCandidate,
 } from "@infinite-canvas/contracts";
+
+export type WorkerResolvedModel = ResolvedModelCandidate & { apiKey: string };
 
 export class WorkerApiClient {
   private readonly origin: string;
@@ -52,6 +55,17 @@ export class WorkerApiClient {
     return this.request<GenerationJob>(
       `/internal/v1/generation/jobs/${encodeURIComponent(jobId)}/transition`,
       { workerId, phase, patch },
+      signal,
+    );
+  }
+  resolveModel(
+    capability: "text" | "image" | "video" | "audio",
+    logicalModelId: string,
+    signal?: AbortSignal,
+  ) {
+    return this.request<WorkerResolvedModel>(
+      "/internal/v1/model-gateway/resolve",
+      { capability, logicalModelId },
       signal,
     );
   }

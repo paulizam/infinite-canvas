@@ -17,6 +17,7 @@
     "@hono/node-server": "^1.19.9",
     "@infinite-canvas/canvas-core": "workspace:*",
     "@infinite-canvas/contracts": "workspace:*",
+    "@infinite-canvas/model-gateway": "workspace:*",
     "@node-rs/argon2": "^2.0.2",
     "file-type": "^21.3.4",
     "hono": "^4.12.7",

@@ -17,3 +17,9 @@ It heartbeats even while idle, renews ownership through the API, recovers expire
 bounded exponential idle backoff, and exits cleanly on SIGINT/SIGTERM. Until Model Gateway
 channels are configured, claimed generation work is moved to `needs_review` rather than silently
 calling or charging an unknown provider; cancellation requests are completed normally.
+
+For configured jobs, the Worker resolves a logical model through the API, validates request
+parameters against its capability profile, and invokes the selected OpenAI-compatible channel.
+Provider credentials remain API-managed and are never stored in Worker configuration. The current
+runtime supports JSON text/image/video flows; binary audio persistence, SSE text streaming,
+Gemini/custom adapters, provider-side cancellation, and health feedback remain follow-up work.

@@ -5,6 +5,7 @@ import { AssetService } from "./asset-service.js";
 import { MemoryAssetBlobStore } from "./blob-store.js";
 import { MemoryGenerationJobRepository } from "./generation-job-repository.js";
 import { GenerationJobService } from "./generation-job-service.js";
+import { MemoryModelGatewayRepository } from "./model-gateway-repository.js";
 import {
   IdentityService,
   ProjectService,
@@ -28,6 +29,8 @@ beforeEach(() => {
     jobRepository,
     workerToken: "test-worker-token-32-characters-long",
     workerStaleMs: 120_000,
+    modelGateway: new MemoryModelGatewayRepository(),
+    maintenanceToken: "test-maintenance-token-32-characters",
     secureCookies: false,
   });
 });

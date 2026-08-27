@@ -6,6 +6,8 @@ import { AssetService } from "./asset-service.js";
 import { LocalAssetBlobStore, S3AssetBlobStore } from "./blob-store.js";
 import { PostgresGenerationJobRepository } from "./postgres-generation-job-repository.js";
 import { GenerationJobService } from "./generation-job-service.js";
+import { PostgresModelGatewayRepository } from "./postgres-model-gateway-repository.js";
+import { SecretCipher } from "./secret-cipher.js";
 import {
   IdentityService,
   ProjectService,
@@ -18,6 +20,14 @@ const repository = new PostgresPlatformRepository(databaseUrl);
 const identity = new IdentityService(repository, sessionTtlSeconds * 1000);
 const projects = new ProjectService(repository);
 const jobRepository = new PostgresGenerationJobRepository(databaseUrl);
+const workerToken = strongToken("WORKER_TOKEN");
+const maintenanceToken = strongToken("MAINTENANCE_TOKEN");
+if (workerToken === maintenanceToken)
+  throw new Error("WORKER_TOKEN and MAINTENANCE_TOKEN must be distinct");
+const modelGateway = new PostgresModelGatewayRepository(
+  databaseUrl,
+  new SecretCipher(required("MODEL_SECRET_KEY")),
+);
 const assets = new AssetService(
   repository,
   createBlobStore(),
@@ -39,8 +49,10 @@ const app = createApp({
   assets,
   jobs: new GenerationJobService(repository, jobRepository),
   jobRepository,
-  workerToken: strongWorkerToken(),
+  workerToken,
   workerStaleMs: positiveInteger("WORKER_STALE_MS"),
+  modelGateway,
+  maintenanceToken,
   collaboration,
   secureCookies: process.env.NODE_ENV === "production",
 });
@@ -56,10 +68,10 @@ function required(name: string) {
   return value;
 }
 
-function strongWorkerToken() {
-  const token = required("WORKER_TOKEN");
+function strongToken(name: string) {
+  const token = required(name);
   if (token.length < 32)
-    throw new Error("WORKER_TOKEN must contain at least 32 characters");
+    throw new Error(`${name} must contain at least 32 characters`);
   return token;
 }
 

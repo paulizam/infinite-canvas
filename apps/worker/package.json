@@ -11,7 +11,8 @@
     "test": "vitest run"
   },
   "dependencies": {
-    "@infinite-canvas/contracts": "workspace:*"
+    "@infinite-canvas/contracts": "workspace:*",
+    "@infinite-canvas/model-gateway": "workspace:*"
   },
   "devDependencies": {
     "@types/node": "^22.19.19",
