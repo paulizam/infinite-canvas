@@ -48,6 +48,137 @@ const at = (second: number) =>
   `2026-01-01T00:00:${String(second).padStart(2, "0")}.000Z`;
 
 describe("durable workflow execution state", () => {
+  it("propagates inactive conditional ports as deterministic skips and rejoins an active branch", () => {
+    const branch: WorkflowDefinition = {
+      id: "branch",
+      schemaVersion: 1,
+      name: "Branch",
+      nodes: [
+        {
+          id: "source",
+          type: "source",
+          inputs: [],
+          outputs: [{ id: "value", valueType: "string" }],
+          config: {},
+        },
+        {
+          id: "condition",
+          type: "logic.condition",
+          inputs: [{ id: "input", valueType: "string" }],
+          outputs: [
+            { id: "true", valueType: "string" },
+            { id: "false", valueType: "string" },
+          ],
+          config: {},
+        },
+        {
+          id: "yes",
+          type: "yes",
+          inputs: [{ id: "input", valueType: "string" }],
+          outputs: [{ id: "out", valueType: "string" }],
+          config: {},
+        },
+        {
+          id: "no",
+          type: "no",
+          inputs: [{ id: "input", valueType: "string" }],
+          outputs: [{ id: "out", valueType: "string" }],
+          config: {},
+        },
+        {
+          id: "join",
+          type: "join",
+          inputs: [{ id: "items", valueType: "string", multiple: true }],
+          outputs: [],
+          config: {},
+        },
+      ],
+      edges: [
+        {
+          id: "source-condition",
+          fromNodeId: "source",
+          fromPortId: "value",
+          toNodeId: "condition",
+          toPortId: "input",
+        },
+        {
+          id: "condition-yes",
+          fromNodeId: "condition",
+          fromPortId: "true",
+          toNodeId: "yes",
+          toPortId: "input",
+        },
+        {
+          id: "condition-no",
+          fromNodeId: "condition",
+          fromPortId: "false",
+          toNodeId: "no",
+          toPortId: "input",
+        },
+        {
+          id: "yes-join",
+          fromNodeId: "yes",
+          fromPortId: "out",
+          toNodeId: "join",
+          toPortId: "items",
+        },
+        {
+          id: "no-join",
+          fromNodeId: "no",
+          fromPortId: "out",
+          toNodeId: "join",
+          toPortId: "items",
+        },
+      ],
+    };
+    let state = createWorkflowExecution({
+      id: "branch-run",
+      definition: branch,
+      workflowVersion: 1,
+      now: at(0),
+    });
+    state = startWorkflowNode(state, branch, "source", {}, at(1));
+    state = completeWorkflowNode(
+      state,
+      branch,
+      "source",
+      { value: "go" },
+      at(2),
+    );
+    state = startWorkflowNode(
+      state,
+      branch,
+      "condition",
+      { input: "go" },
+      at(3),
+    );
+    state = completeWorkflowNode(
+      state,
+      branch,
+      "condition",
+      { true: "go" },
+      at(4),
+    );
+    expect(state.nodes).toMatchObject({
+      yes: { status: "ready" },
+      no: { status: "skipped", skipReason: "condition_false" },
+      join: { status: "pending" },
+    });
+    state = startWorkflowNode(state, branch, "yes", { input: "go" }, at(5));
+    state = completeWorkflowNode(state, branch, "yes", { out: "yes" }, at(6));
+    expect(state.nodes.join.status).toBe("ready");
+    state = startWorkflowNode(state, branch, "join", { items: ["yes"] }, at(7));
+    state = completeWorkflowNode(state, branch, "join", {}, at(8));
+    expect(state.status).toBe("succeeded");
+    expect(state.events).toContainEqual(
+      expect.objectContaining({
+        type: "node.skipped",
+        nodeId: "no",
+        data: expect.objectContaining({ reason: "condition_false" }),
+      }),
+    );
+  });
+
   it("runs deterministic layers and records snapshots and monotonic timeline", () => {
     let state = createWorkflowExecution({
       id: "run",

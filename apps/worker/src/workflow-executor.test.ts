@@ -13,6 +13,7 @@ import {
 } from "@infinite-canvas/workflow-runtime";
 import { describe, expect, it, vi } from "vitest";
 import {
+  builtinWorkflowAdapters,
   buildWorkflowNodeInputs,
   executeWorkflow,
 } from "./workflow-executor.js";
@@ -158,6 +159,112 @@ function transitioningClient(
 }
 
 describe("workflow executor", () => {
+  it("executes only the active conditional branch and rejoins deterministically", async () => {
+    const branch: WorkflowDefinition = {
+      id: "branch",
+      schemaVersion: 1,
+      name: "Branch",
+      nodes: [
+        {
+          id: "source",
+          type: "canvas.text",
+          inputs: [],
+          outputs: [{ id: "output", valueType: "string" }],
+          config: { value: "yes" },
+        },
+        {
+          id: "condition",
+          type: "logic.condition",
+          inputs: [{ id: "input", valueType: "string" }],
+          outputs: [
+            { id: "true", valueType: "string" },
+            { id: "false", valueType: "string" },
+          ],
+          config: { operator: "equals", compare: "yes" },
+        },
+        {
+          id: "yes",
+          type: "test.yes",
+          inputs: [{ id: "input", valueType: "string" }],
+          outputs: [{ id: "out", valueType: "string" }],
+          config: {},
+        },
+        {
+          id: "no",
+          type: "test.no",
+          inputs: [{ id: "input", valueType: "string" }],
+          outputs: [{ id: "out", valueType: "string" }],
+          config: {},
+        },
+        {
+          id: "join",
+          type: "test.join",
+          inputs: [{ id: "items", valueType: "string", multiple: true }],
+          outputs: [],
+          config: {},
+        },
+      ],
+      edges: [
+        {
+          id: "source-condition",
+          fromNodeId: "source",
+          fromPortId: "output",
+          toNodeId: "condition",
+          toPortId: "input",
+        },
+        {
+          id: "condition-yes",
+          fromNodeId: "condition",
+          fromPortId: "true",
+          toNodeId: "yes",
+          toPortId: "input",
+        },
+        {
+          id: "condition-no",
+          fromNodeId: "condition",
+          fromPortId: "false",
+          toNodeId: "no",
+          toPortId: "input",
+        },
+        {
+          id: "yes-join",
+          fromNodeId: "yes",
+          fromPortId: "out",
+          toNodeId: "join",
+          toPortId: "items",
+        },
+        {
+          id: "no-join",
+          fromNodeId: "no",
+          fromPortId: "out",
+          toNodeId: "join",
+          toPortId: "items",
+        },
+      ],
+    };
+    const record = recordFor(branch);
+    record.state.initialInputs = {};
+    const yes = vi.fn(async ({ inputs }) => ({ out: inputs.input }));
+    const no = vi.fn(async () => ({ out: "wrong" }));
+    const join = vi.fn(async ({ inputs }) => inputs);
+    const api = transitioningClient(record);
+    await executeWorkflow(record, api.client as never, "worker", {
+      ...builtinWorkflowAdapters,
+      "test.yes": yes,
+      "test.no": no,
+      "test.join": join,
+    });
+    expect(yes).toHaveBeenCalledOnce();
+    expect(no).not.toHaveBeenCalled();
+    expect(join).toHaveBeenCalledWith(
+      expect.objectContaining({ inputs: { items: ["yes"] } }),
+    );
+    expect(api.current().state).toMatchObject({
+      status: "succeeded",
+      nodes: { no: { status: "skipped", skipReason: "condition_false" } },
+    });
+  });
+
   it("maps output ports and merges initial multiple inputs", () => {
     const record = recordFor();
     record.state.nodes.a.output = { out: "generated" };
@@ -324,7 +431,7 @@ describe("workflow executor", () => {
       nodes: {
         generate: {
           attempt: 1,
-          output: { assetId: "asset-1" },
+          output: { output: { assetId: "asset-1" } },
           steps: { generation: { status: "succeeded" } },
         },
       },

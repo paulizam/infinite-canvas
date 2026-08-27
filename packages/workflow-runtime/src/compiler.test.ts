@@ -181,6 +181,51 @@ describe("Canvas workflow compiler", () => {
     );
   });
 
+  it("uses explicit Canvas connection ports for conditional forks", () => {
+    const forkRule: WorkflowCompileRule = {
+      canvasNodeType: "fork",
+      schema: schema(
+        "logic.condition",
+        [{ id: "input", valueType: "string" }],
+        [
+          { id: "true", valueType: "string" },
+          { id: "false", valueType: "string" },
+        ],
+      ),
+      defaultInputPortId: "input",
+    };
+    const sinkRule: WorkflowCompileRule = {
+      canvasNodeType: "sink",
+      schema: schema("sink", [{ id: "input", valueType: "string" }], []),
+      defaultInputPortId: "input",
+    };
+    const result = compileCanvasWorkflow(
+      canvas(
+        [
+          node("source", "text", { content: "yes" }),
+          node("fork", "fork"),
+          node("sink", "sink"),
+        ],
+        [
+          { id: "into-fork", fromNodeId: "source", toNodeId: "fork" },
+          {
+            id: "true-edge",
+            fromNodeId: "fork",
+            fromPortId: "true",
+            toNodeId: "sink",
+          },
+        ],
+      ),
+      [sourceRule, forkRule, sinkRule],
+      { workflowId: "conditional" },
+    );
+    expect(result.publishable).toBe(true);
+    expect(result.definition.edges[1]).toMatchObject({
+      fromPortId: "true",
+      toPortId: "input",
+    });
+  });
+
   it("enforces credential and capability availability without exposing values", () => {
     const result = compileCanvasWorkflow(
       canvas([

@@ -52,6 +52,9 @@ export type CanvasNodeMetadata = {
     errorDetails?: string;
     fontSize?: number;
     generationMode?: CanvasGenerationMode;
+    workflowMode?: "condition";
+    conditionOperator?: "truthy" | "equals" | "not_equals" | "gt" | "gte" | "lt" | "lte" | "contains";
+    conditionValue?: unknown;
     generationType?: CanvasImageGenerationType;
     model?: string;
     reasoningEffort?: "auto" | "low" | "medium" | "high" | "xhigh";
@@ -98,6 +101,8 @@ export type CanvasConnection = {
     id: string;
     fromNodeId: string;
     toNodeId: string;
+    fromPortId?: string;
+    toPortId?: string;
 };
 
 export type CanvasAssistantReference = {

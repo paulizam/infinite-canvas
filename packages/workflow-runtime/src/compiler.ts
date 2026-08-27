@@ -122,8 +122,14 @@ export function compileCanvasWorkflow(
     }
     const fromRule = selectedRules.get(from.id)!;
     const toRule = selectedRules.get(to.id)!;
-    const output = resolvePort(from.outputs, fromRule.defaultOutputPortId);
-    const input = resolvePort(to.inputs, toRule.defaultInputPortId);
+    const output = resolvePort(
+      from.outputs,
+      connection.fromPortId || fromRule.defaultOutputPortId,
+    );
+    const input = resolvePort(
+      to.inputs,
+      connection.toPortId || toRule.defaultInputPortId,
+    );
     if (!output) {
       issues.push(
         diagnostic(

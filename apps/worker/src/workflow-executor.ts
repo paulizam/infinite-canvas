@@ -249,10 +249,9 @@ export function buildWorkflowNodeInputs(
     (item) => item.toNodeId === nodeId,
   )) {
     const source = record.state.nodes[edge.fromNodeId]?.output;
-    const value =
-      isRecord(source) && Object.hasOwn(source, edge.fromPortId)
-        ? source[edge.fromPortId]
-        : source;
+    if (isRecord(source) && !Object.hasOwn(source, edge.fromPortId)) continue;
+    if (source === undefined) continue;
+    const value = isRecord(source) ? source[edge.fromPortId] : source;
     const port = node.inputs.find((item) => item.id === edge.toPortId);
     if (port?.multiple)
       inputs[edge.toPortId] = [
@@ -279,6 +278,16 @@ export const builtinWorkflowAdapters: WorkflowNodeAdapters = {
   "canvas.audio": async ({ node, inputs }) => ({
     output: configValue(node.config, "asset") ?? inputs.input,
   }),
+  "logic.condition": async ({ node, inputs }) => {
+    const value = inputs.input;
+    return conditionMatches(
+      value,
+      configValue(node.config, "operator"),
+      configValue(node.config, "compare"),
+    )
+      ? { true: value }
+      : { false: value };
+  },
   "ai.generate.text": generationAdapter("text"),
   "ai.generate.image": generationAdapter("image"),
   "ai.generate.video": generationAdapter("video"),
@@ -352,7 +361,11 @@ function generationAdapter(
       billing: job.billing,
     };
     if (job.phase === "succeeded")
-      return new WorkflowAdapterComplete(job.result, "generation", stepOutput);
+      return new WorkflowAdapterComplete(
+        { output: job.result },
+        "generation",
+        stepOutput,
+      );
     if (["failed", "cancelled", "needs_review"].includes(job.phase))
       return new WorkflowAdapterFailure(
         {
@@ -368,6 +381,41 @@ function generationAdapter(
       { jobId: job.id, capability, attempt },
     );
   };
+}
+
+function conditionMatches(value: unknown, operator: unknown, compare: unknown) {
+  switch (operator) {
+    case "equals":
+      return JSON.stringify(value) === JSON.stringify(compare);
+    case "not_equals":
+      return JSON.stringify(value) !== JSON.stringify(compare);
+    case "gt":
+    case "gte":
+    case "lt":
+    case "lte": {
+      if (typeof value !== "number" || typeof compare !== "number")
+        return false;
+      if (operator === "gt") return value > compare;
+      if (operator === "gte") return value >= compare;
+      if (operator === "lt") return value < compare;
+      return value <= compare;
+    }
+    case "contains":
+      return typeof value === "string" && typeof compare === "string"
+        ? value.includes(compare)
+        : Array.isArray(value) &&
+            value.some(
+              (item) => JSON.stringify(item) === JSON.stringify(compare),
+            );
+    case "truthy":
+    case undefined:
+      return Boolean(value);
+    default:
+      throw new WorkflowAdapterError(
+        "WORKFLOW_CONDITION_INVALID",
+        `Unsupported condition operator: ${String(operator)}`,
+      );
+  }
 }
 
 async function ensureWorkflowStep(

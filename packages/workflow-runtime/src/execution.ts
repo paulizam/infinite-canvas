@@ -406,21 +406,47 @@ function refresh(
     return;
   }
   const selected = new Set(state.selectedNodeIds);
-  for (const nodeId of state.selectedNodeIds) {
-    const node = state.nodes[nodeId]!;
-    if (node.status !== "pending") continue;
-    const predecessors = definition.edges
-      .filter(
+  let changed: boolean;
+  do {
+    changed = false;
+    for (const nodeId of state.selectedNodeIds) {
+      const node = state.nodes[nodeId]!;
+      if (node.status !== "pending") continue;
+      const incoming = definition.edges.filter(
         (edge) => edge.toNodeId === nodeId && selected.has(edge.fromNodeId),
+      );
+      const predecessors = incoming.map(
+        (edge) => state.nodes[edge.fromNodeId]!,
+      );
+      if (
+        !predecessors.every((item) =>
+          ["succeeded", "skipped", "failed"].includes(item.status),
+        )
       )
-      .map((edge) => state.nodes[edge.fromNodeId]!);
-    if (
-      predecessors.every(
-        (item) => item.status === "succeeded" || item.status === "skipped",
+        continue;
+      if (
+        !incoming.length ||
+        incoming.some((edge) => edgeCarriesValue(state, definition, edge))
       )
-    )
-      node.status = "ready";
-  }
+        node.status = "ready";
+      else {
+        const upstreamFailed = predecessors.some(
+          (item) =>
+            item.status === "failed" || item.skipReason === "upstream_skipped",
+        );
+        node.status = "skipped";
+        node.skipReason = upstreamFailed
+          ? "upstream_skipped"
+          : "condition_false";
+        node.completedAt = now;
+        emit(state, "node.skipped", now, nodeId, {
+          reason: node.skipReason,
+          blockedBy: incoming.map((edge) => edge.fromNodeId),
+        });
+      }
+      changed = true;
+    }
+  } while (changed);
   const nodes = state.selectedNodeIds.map((id) => state.nodes[id]!);
   if (state.status === "cancel_requested") {
     if (!nodes.some((node) => node.status === "running"))
@@ -440,6 +466,25 @@ function refresh(
     state.status = "waiting";
   else state.status = "queued";
   state.updatedAt = now;
+}
+
+function edgeCarriesValue(
+  state: WorkflowExecutionState,
+  definition: WorkflowDefinition,
+  edge: WorkflowDefinition["edges"][number],
+) {
+  const source = state.nodes[edge.fromNodeId];
+  if (source?.status !== "succeeded" || source.output === undefined)
+    return false;
+  if (isRecord(source.output))
+    return Object.hasOwn(source.output, edge.fromPortId);
+  const sourceDefinition = definition.nodes.find(
+    (node) => node.id === edge.fromNodeId,
+  );
+  return (
+    sourceDefinition?.outputs.length === 1 &&
+    sourceDefinition.outputs[0]?.id === edge.fromPortId
+  );
 }
 
 function finish(
@@ -472,6 +517,9 @@ function requireNode(state: WorkflowExecutionState, nodeId: string) {
   const node = state.nodes[nodeId];
   if (!node) throw new Error(`Unknown node: ${nodeId}`);
   return node;
+}
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return Boolean(value) && typeof value === "object" && !Array.isArray(value);
 }
 function requireStep(
   state: WorkflowExecutionState,

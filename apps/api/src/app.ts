@@ -893,6 +893,8 @@ const connectionSchema = z.object({
   id: idSchema,
   fromNodeId: idSchema,
   toNodeId: idSchema,
+  fromPortId: idSchema.optional(),
+  toPortId: idSchema.optional(),
 });
 const canvasOperationSchema = z.discriminatedUnion("type", [
   z.object({ type: z.literal("node.upsert"), node: nodeSchema }),

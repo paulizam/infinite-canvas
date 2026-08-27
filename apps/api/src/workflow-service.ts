@@ -135,11 +135,27 @@ const generation = (
     voice: "audioVoice",
   },
 });
+const condition: WorkflowCompileRule = {
+  canvasNodeType: "config",
+  metadataMatch: { workflowMode: "condition" },
+  schema: {
+    type: "logic.condition",
+    schemaVersion: 1,
+    inputs: [port("input", "string|image|video|audio", true)],
+    outputs: [
+      port("true", "string|image|video|audio"),
+      port("false", "string|image|video|audio"),
+    ],
+  },
+  defaultInputPortId: "input",
+  configBindings: { operator: "conditionOperator", compare: "conditionValue" },
+};
 export const BUILTIN_WORKFLOW_RULES: readonly WorkflowCompileRule[] = [
   passthrough("text", "string"),
   passthrough("image", "image"),
   passthrough("video", "video"),
   passthrough("audio", "audio"),
+  condition,
   generation("text"),
   generation("video"),
   generation("audio"),

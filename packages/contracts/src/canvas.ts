@@ -17,6 +17,8 @@ export type CanvasConnection = {
   id: string;
   fromNodeId: string;
   toNodeId: string;
+  fromPortId?: string;
+  toPortId?: string;
 };
 export type CanvasDocument = {
   id: string;
