@@ -4,6 +4,7 @@ import {
   cancelWorkflowExecution,
   completeWorkflowStep,
   completeWorkflowNode,
+  completeWorkflowCancellation,
   createWorkflowExecution,
   failWorkflowNode,
   failWorkflowStep,
@@ -150,6 +151,10 @@ describe("durable workflow execution state", () => {
       status: "cancel_requested",
       nodes: { b: { status: "cancelled" } },
     });
+    const requested = cancelWorkflowExecution(running, definition, at(2));
+    expect(
+      completeWorkflowCancellation(requested, definition, at(3)).status,
+    ).toBe("cancelled");
   });
 
   it("replays completed durable steps and resumes sleeping sub-steps without incrementing the node attempt", () => {

@@ -107,6 +107,7 @@ export class MemoryWorkflowExecutionRepository implements WorkflowExecutionRepos
     const saved = {
       ...structuredClone(record),
       revision: expectedRevision + 1,
+      nextRunAt: record.state.updatedAt,
     };
     this.records.set(record.state.id, saved);
     return structuredClone(saved);

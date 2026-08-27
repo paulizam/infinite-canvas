@@ -89,13 +89,14 @@ export class PostgresWorkflowExecutionRepository implements WorkflowExecutionRep
         );
       const next = { ...record, revision: expectedRevision + 1 };
       await client.query(
-        `UPDATE workflow_executions SET status=$2,revision=$3,updated_at=$4,completed_at=$5 WHERE id=$1`,
+        `UPDATE workflow_executions SET status=$2,revision=$3,updated_at=$4,completed_at=$5,next_run_at=$6 WHERE id=$1`,
         [
           record.state.id,
           record.state.status,
           next.revision,
           record.state.updatedAt,
           record.state.completedAt || null,
+          record.state.updatedAt,
         ],
       );
       await writeChildren(client, next);

@@ -2,6 +2,7 @@ import { randomUUID } from "node:crypto";
 import {
   cancelWorkflowExecution,
   createWorkflowExecution,
+  resumeWorkflowExecution,
   retryWorkflowNode,
 } from "@infinite-canvas/workflow-runtime";
 import { DomainError, type PlatformRepository } from "./domain.js";
@@ -153,6 +154,32 @@ export class WorkflowExecutionService {
         "NODE_NOT_RETRYABLE",
         409,
         error instanceof Error ? error.message : "节点不可重试",
+      );
+    }
+  }
+  async signal(userId: string, executionId: string, eventKey: string) {
+    const record = await this.editable(userId, executionId);
+    try {
+      const now = new Date().toISOString();
+      const state = resumeWorkflowExecution(
+        record.state,
+        record.definition,
+        now,
+        eventKey,
+      );
+      if (state.events.length === record.state.events.length)
+        throw new Error("No node is waiting for this event");
+      return await this.executions.save(
+        userId,
+        { ...record, state },
+        record.revision,
+      );
+    } catch (error) {
+      if (error instanceof DomainError) throw error;
+      throw new DomainError(
+        "EVENT_NOT_WAITING",
+        409,
+        error instanceof Error ? error.message : "没有节点等待该事件",
       );
     }
   }

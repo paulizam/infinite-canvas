@@ -357,6 +357,24 @@ export function cancelWorkflowExecution(
   return state;
 }
 
+export function completeWorkflowCancellation(
+  source: WorkflowExecutionState,
+  definition: WorkflowDefinition,
+  now: string,
+) {
+  const state = copy(source);
+  if (state.status === "cancelled") return state;
+  if (state.status !== "cancel_requested")
+    throw new Error("Execution cancellation was not requested");
+  for (const node of Object.values(state.nodes))
+    if (["pending", "ready", "running", "waiting"].includes(node.status)) {
+      node.status = "cancelled";
+      node.completedAt = now;
+    }
+  refresh(state, definition, now);
+  return state;
+}
+
 export function retryWorkflowNode(
   source: WorkflowExecutionState,
   definition: WorkflowDefinition,
