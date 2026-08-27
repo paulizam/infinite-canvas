@@ -138,6 +138,10 @@ default_tools_approval_mode = "approve"
 
 侧边栏上传或粘贴的图片会先发到本机 Canvas Agent，再由 Canvas Agent 临时写入本机文件并作为 app-server `localImage` 输入传给 Codex；前端会提示附件体积，单次请求体限制为 30MB。
 
+### GitHub Skill 安装
+
+技能页支持从 GitHub `tree` 或指向 `SKILL.md` 的 `blob` URL 安装。Canvas Agent 会先生成固定到 commit SHA 的安全预览，展示来源文件、大小、SHA-256、声明权限与静态推断证据；只有用户确认全部权限后才会原子写入工作空间 `.agents/skills`。安装器拒绝重定向、路径穿越、符号链接、submodule、超限文件和同名覆盖，也不会执行仓库中的脚本。成功安装会保存 `.infinite-canvas-provenance.json` 供来源审计。私有仓库可从当前进程的 `GITHUB_TOKEN` 或 `GH_TOKEN` 读取授权，token 不写入工作空间。
+
 ## Claude Code
 
 Claude Code Adapter 基于官方 `@anthropic-ai/claude-agent-sdk` 的 typed async iterator；当前网页侧边栏仍只开放 Codex，后续入口可复用同一 Agent 事件协议。SDK 加载 user/project/local settings，并将流式事件、终态与脱敏 stderr 转发到侧边栏。

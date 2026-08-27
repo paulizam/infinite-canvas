@@ -13,6 +13,7 @@ import { DEFAULT_PORT, ensureSiteWorkspace, loadConfig, saveConfig, updateSiteWo
 import { logger } from "../utils/logger.js";
 import { checkVersions } from "../version-check.js";
 import { SkillStore, SkillStoreError } from "../skills/store.js";
+import { SkillInstaller } from "../skills/installer.js";
 
 /** 启动仅监听本机的 Canvas Agent HTTP 服务。 */
 export function startHttpServer() {
@@ -24,6 +25,7 @@ export function startHttpServer() {
     const initialWorkspace = ensureSiteWorkspace(config);
     const session = new CanvasSession(initialWorkspace.activeThreadId || "");
     const skillStore = new SkillStore(initialWorkspace.workspacePath);
+    const skillInstaller = new SkillInstaller(skillStore);
     /** 将 Agent 事件广播到所属线程或全部网页。 */
     const emit = (type: string, payload: unknown) => {
         const value = payload && typeof payload === "object" && !Array.isArray(payload) ? payload as Record<string, unknown> : { value: payload };
@@ -212,6 +214,14 @@ export function startHttpServer() {
             skillDraftRunning = false;
             session.setCodexState(previousCodexState, { preserveReplay: true });
         }
+    }));
+    app.post("/agent/codex/skills/install/preview", codexMutation(async (req, res) => {
+        res.json({ ok: true, data: await skillInstaller.preview(req.body?.sourceUrl) });
+    }));
+    app.post("/agent/codex/skills/install", codexMutation(async (req, res) => {
+        const data = await skillInstaller.install(req.body);
+        session.emitAll("skills_changed", { forceReload: true });
+        res.status(201).json({ ok: true, data });
     }));
     app.get("/agent/codex/skills/:name", route(async (req, res) => {
         res.json({ ok: true, data: await skillStore.get(routeParam(req.params.name)) });

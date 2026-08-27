@@ -6,7 +6,10 @@ type AgentConfigResponse = { ok?: boolean; protocolVersion?: number; url?: strin
 const AGENT_MESSAGE_ASSET_PATTERN = /^agent-asset:([a-f0-9]{64})\/([a-f0-9]{64}\.(?:gif|jpe?g|png|webp))$/;
 
 export class AgentApiError<T = unknown> extends Error {
-    constructor(readonly status: number, readonly response: T & { code?: string; error?: string; msg?: string }) {
+    constructor(
+        readonly status: number,
+        readonly response: T & { code?: string; error?: string; msg?: string },
+    ) {
         super(response.error || response.msg || i18n.t("agent.state.requestFailed"));
         this.name = "AgentApiError";
     }
@@ -40,6 +43,15 @@ export type AgentSkillDraftInput = { source: "conversation" | "canvas"; threadId
 export type AgentSkillsResponse = { ok?: boolean; data?: AgentSkillSummary[]; errors?: unknown[] };
 export type AgentSkillResponse = { ok?: boolean; data?: AgentSkillDetail };
 export type AgentSkillDraftResponse = { ok?: boolean; data?: AgentSkillDraft };
+export type AgentSkillInstallPreview = {
+    previewId: string;
+    source: { url: string; provider: "github"; owner: string; repo: string; ref: string; path: string; commitSha: string };
+    skill: { name: string; description: string };
+    files: Array<{ path: string; bytes: number; sha256: string }>;
+    permissions: { declared: string[]; inferred: string[]; evidence: string[] };
+    digest: string;
+    expiresAt: string;
+};
 
 export async function postState(endpoint: string, token: string, clientId: string, snapshot: CanvasAgentSnapshot | null) {
     try {
@@ -101,6 +113,14 @@ export function createCodexSkill(endpoint: string, token: string, input: AgentSk
 
 export function createCodexSkillDraft(endpoint: string, token: string, input: AgentSkillDraftInput) {
     return fetchAgentJson<AgentSkillDraftResponse>(endpoint, token, "/agent/codex/skills/draft", jsonPost(input));
+}
+
+export function previewCodexSkillInstall(endpoint: string, token: string, sourceUrl: string) {
+    return fetchAgentJson<{ ok?: boolean; data?: AgentSkillInstallPreview }>(endpoint, token, "/agent/codex/skills/install/preview", jsonPost({ sourceUrl }));
+}
+
+export function installCodexSkill(endpoint: string, token: string, preview: AgentSkillInstallPreview, confirmedPermissions: string[]) {
+    return fetchAgentJson<AgentSkillResponse>(endpoint, token, "/agent/codex/skills/install", jsonPost({ previewId: preview.previewId, digest: preview.digest, confirmedPermissions }));
 }
 
 export function updateCodexSkill(endpoint: string, token: string, name: string, input: AgentSkillInput) {

@@ -44,6 +44,8 @@ export type UpdateManagedSkillInput = {
     expectedRevision: string;
 };
 
+export type InstallManagedSkillFile = { path: string; content: Buffer };
+
 type SkillDocument = {
     raw: string;
     frontmatter: Record<string, unknown>;
@@ -113,6 +115,36 @@ export class SkillStore {
                 return await this.readDetail(name, skillFile, openAiFile);
             } catch (error) {
                 await fs.rm(skillDir, { recursive: true, force: true }).catch(() => undefined);
+                throw error;
+            }
+        });
+    }
+
+    /** 将已经过远程来源校验的完整 Skill 文件树原子安装到工作空间。 */
+    install(nameValue: string, files: InstallManagedSkillFile[]) {
+        return this.mutate(async () => {
+            const name = skillName(nameValue);
+            if (!files.length) throw new SkillStoreError("Skill 安装文件为空", 400);
+            await this.ensureRoot();
+            const skillDir = path.join(this.skillsPath, name);
+            if (await lstatOptional(skillDir)) throw new SkillStoreError("同名 Skill 已存在", 409);
+            const temporary = path.join(this.skillsPath, `.${name}.${process.pid}.${crypto.randomUUID()}.installing`);
+            try {
+                await fs.mkdir(temporary, { recursive: false });
+                for (const file of files) {
+                    const relative = safeInstallPath(file.path);
+                    const destination = path.join(temporary, ...relative.split("/"));
+                    await fs.mkdir(path.dirname(destination), { recursive: true });
+                    await fs.writeFile(destination, file.content, { flag: "wx" });
+                }
+                const skillFile = path.join(temporary, "SKILL.md");
+                const openAiFile = path.join(temporary, "agents", "openai.yaml");
+                await this.readDetail(name, skillFile, openAiFile);
+                await fs.rename(temporary, skillDir);
+                return await this.readDetail(name, path.join(skillDir, "SKILL.md"), path.join(skillDir, "agents", "openai.yaml"));
+            } catch (error) {
+                await fs.rm(temporary, { recursive: true, force: true }).catch(() => undefined);
+                if (nodeErrorCode(error) === "EEXIST" || nodeErrorCode(error) === "ENOTEMPTY") throw new SkillStoreError("同名 Skill 已存在", 409);
                 throw error;
             }
         });
@@ -263,6 +295,13 @@ export class SkillStore {
 
 function validName(value: string | undefined): value is string {
     return Boolean(value && value.length <= MAX_NAME_LENGTH && NAME_PATTERN.test(value));
+}
+
+function safeInstallPath(value: string) {
+    if (!value || value.includes("\0") || value.includes("\\") || path.posix.isAbsolute(value) || /^[A-Za-z]:/.test(value)) throw new SkillStoreError("Skill 安装文件路径无效", 400);
+    const normalized = path.posix.normalize(value);
+    if (normalized === "." || normalized === ".." || normalized.startsWith("../") || normalized !== value || value.split("/").some((segment) => !segment || segment === "." || segment === "..")) throw new SkillStoreError("Skill 安装文件路径无效", 400);
+    return normalized;
 }
 
 function skillName(value: unknown) {

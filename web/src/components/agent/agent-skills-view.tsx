@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { App, Button, Collapse, Dropdown, Form, Input, Modal, Select, Switch, Tooltip } from "antd";
 import type { MenuProps } from "antd";
-import { Check, ChevronDown, CircleAlert, FilePenLine, LoaderCircle, LockKeyhole, MessageSquareText, Plus, RefreshCw, Search, Sparkles, Trash2, Workflow } from "lucide-react";
+import { Check, ChevronDown, CircleAlert, Download, FilePenLine, LoaderCircle, LockKeyhole, MessageSquareText, Plus, RefreshCw, Search, Sparkles, Trash2, Workflow } from "lucide-react";
 import { useTranslation } from "react-i18next";
 
 import { canvasThemes } from "@/lib/canvas-theme";
@@ -9,6 +9,7 @@ import { createCodexSkill, createCodexSkillDraft, deleteCodexSkill, fetchCodexSk
 import { useAgentSkillStore } from "@/stores/use-agent-skill-store";
 import { useAgentStore, type AgentChatItem } from "@/stores/use-agent-store";
 import { useThemeStore } from "@/stores/use-theme-store";
+import { SkillInstallModal } from "./skill-install-modal";
 
 type ScopeFilter = "all" | AgentSkillScope;
 type SkillDraftSource = "conversation" | "canvas";
@@ -50,6 +51,7 @@ export function AgentSkillsView({ clientId }: { clientId: string }) {
     const [createMenuOpen, setCreateMenuOpen] = useState(false);
     const [busySkill, setBusySkill] = useState("");
     const [errorsOpen, setErrorsOpen] = useState(false);
+    const [installOpen, setInstallOpen] = useState(false);
     const confirmRef = useRef<{ destroy: () => void } | null>(null);
     const [form] = Form.useForm<SkillFormValues>();
     const endpoint = url.trim().replace(/\/$/, "");
@@ -82,6 +84,7 @@ export function AgentSkillsView({ clientId }: { clientId: string }) {
         setCreateMenuOpen(false);
         setBusySkill("");
         setErrorsOpen(false);
+        setInstallOpen(false);
         form.resetFields();
     }, [connected, form]);
     const useSkill = (skill: AgentSkillSummary) => {
@@ -249,6 +252,11 @@ export function AgentSkillsView({ clientId }: { clientId: string }) {
             },
             { type: "divider" as const },
             {
+                key: "install",
+                icon: <Download className="size-4" />,
+                label: <div className="py-0.5"><div className="text-sm">{t("agent.skillManager.installGithub")}</div><div className="mt-0.5 text-xs" style={{ color: theme.node.muted }}>{t("agent.skillManager.installGithubDescription")}</div></div>,
+            },
+            {
                 key: "manual",
                 icon: <FilePenLine className="size-4" />,
                 label: (
@@ -260,7 +268,8 @@ export function AgentSkillsView({ clientId }: { clientId: string }) {
             },
         ],
         onClick: ({ key }) => {
-            if (key === "manual") {
+            if (key === "install") setInstallOpen(true);
+            else if (key === "manual") {
                 setDraft(null);
                 setEditor({ mode: "create" });
             }
@@ -360,6 +369,8 @@ export function AgentSkillsView({ clientId }: { clientId: string }) {
                     {errors.map((error, index) => <div key={`${index}:${error}`} className="break-all py-1" style={{ color: theme.node.muted }}>{error}</div>)}
                 </div>
             </Modal>
+
+            <SkillInstallModal open={installOpen} endpoint={endpoint} token={token} onClose={() => setInstallOpen(false)} onInstalled={() => refresh()} />
 
             <Modal
                 title={editor?.mode === "edit" ? t("agent.skillManager.editNamed", { name: editor.detail.interface?.displayName || editor.detail.name }) : t("agent.skillManager.createSkill")}

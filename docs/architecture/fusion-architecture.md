@@ -291,6 +291,8 @@ sequenceDiagram
 
 本地 Agent 只获得当前 tab 签发的短期 session capability。Tool 先生成结构化 operation proposal；涉及删除、批量生成、外部网络或付费任务时要求 approval；应用后写 operation audit。
 
+Skill 远程安装采用强制两阶段协议：`preview` 仅接受无凭据、无 query/fragment 的 GitHub HTTPS tree/blob URL，通过 GitHub API 将 ref 固定到 commit SHA，并列出所有文件的大小与 SHA-256、声明权限和静态推断证据；`install` 必须回传同一 digest 并逐项确认权限。preview 有十分钟 TTL 且只能消费一次，拒绝 redirect、路径穿越、symlink、submodule、超限文件和无效 `SKILL.md`。安装不执行远程脚本，完整文件树经临时目录和 atomic rename 写入 `.agents/skills`，同时保存来源、commit、digest 与权限 provenance；同名 Skill fail-closed，不覆盖本地版本。
+
 ## 9. API 与事件规范
 
 - REST 前缀：`/api/v1`；资源名复数；cursor pagination。
