@@ -18,6 +18,11 @@ export function CloudCanvasBridge() {
         const engine = new CloudCanvasSyncEngine(cloudPlatform, useCloudCanvasSyncStore.getState().update);
         const collaboration = new Map<string, CloudCollaborationClient>();
         let unsubscribe: (() => void) | undefined;
+        const replaceFromRemote = (projects: import("@/stores/canvas/use-canvas-store").CanvasProject[]) => {
+            if (!projects.length) return;
+            useCanvasStore.getState().replaceProjects(projects);
+            ensureCollaboration(projects.map((project) => project.id));
+        };
         const ensureCollaboration = (projectIds: string[]) => {
             for (const [projectId, client] of collaboration) {
                 if (projectIds.includes(projectId)) continue;
@@ -50,10 +55,9 @@ export function CloudCanvasBridge() {
             }
         };
         void engine
-            .start(workspaceId)
+            .start(workspaceId, useCanvasStore.getState().projects)
             .then((projects) => {
-                useCanvasStore.getState().replaceProjects(projects);
-                ensureCollaboration(projects.map((project) => project.id));
+                replaceFromRemote(projects);
                 unsubscribe = useCanvasStore.subscribe((state, previous) => {
                     if (state.projects !== previous.projects) {
                         engine.observe(state.projects);
@@ -62,7 +66,14 @@ export function CloudCanvasBridge() {
                 });
             })
             .catch((error) => useCloudCanvasSyncStore.getState().update({ state: "error", message: error instanceof Error ? error.message : String(error) }));
+        const reconnect = () =>
+            void engine
+                .reconnect()
+                .then(replaceFromRemote)
+                .catch((error) => useCloudCanvasSyncStore.getState().update({ state: "error", message: error instanceof Error ? error.message : String(error) }));
+        window.addEventListener("online", reconnect);
         return () => {
+            window.removeEventListener("online", reconnect);
             unsubscribe?.();
             for (const [projectId, client] of collaboration) {
                 client.stop();

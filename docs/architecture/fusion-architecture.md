@@ -159,6 +159,8 @@ Creative Studio 的实现遵守以下 projection contract：`CanvasProject` 始�
 
 Canvas 写能力按 Workspace role fail-closed：Local mode 与 `owner/admin/editor` 可写，Server mode 的 `viewer` 只能读取、选择、复制、缩放、平移和播放媒体。viewer 的节点/连线 state setter、写快捷键、Workflow 发布、上传/生成 UI、Agent operations 与 Plugin write/AI capability 均在浏览器能力边界阻断；API 仍须在锁定 Project 的同一事务内校验至少 `editor`，整批 operations 未授权时不得应用任一 patch 或增加 revision。
 
+离线 Canvas 修改采用 IndexedDB write-ahead operation queue：每条记录保存 stable `mutationId`、base revision、base/local document 与 granular operations，请求前必须先落盘。重连先按原 mutationId 重放以确认结果不明的已提交事务；收到 revision conflict 后，以 base/local/remote 对 touched node、connection 和 document field 做三方检查，仅不相交修改允许更新 baseRevision 后自动 rebase，相交修改保留本地与远端证据进入人工裁决。队列按 Workspace 隔离，浏览器 `online` 事件触发恢复，禁止用启动前的 stale remote snapshot 覆盖仍在队列中的本地版本。
+
 ## 6. 领域模块
 
 ### 6.1 Identity & Workspace
