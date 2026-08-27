@@ -4,6 +4,10 @@ import type {
   GenerationJobPhase,
   ResolvedModelCandidate,
 } from "@infinite-canvas/contracts";
+import type {
+  WorkflowWorkerOperation,
+  WorkflowWorkerRecord,
+} from "./workflow-types.js";
 
 export type WorkerResolvedModel = ResolvedModelCandidate & { apiKey: string };
 
@@ -43,6 +47,42 @@ export class WorkerApiClient {
     return this.request<{ renewed: number }>(
       "/internal/v1/generation/heartbeat",
       { workerId, jobIds },
+      signal,
+    );
+  }
+  claimWorkflows(
+    workerId: string,
+    limit: number,
+    leaseMs: number,
+    signal?: AbortSignal,
+  ) {
+    return this.request<WorkflowWorkerRecord[]>(
+      "/internal/v1/workflow/claim",
+      { workerId, limit, leaseMs },
+      signal,
+    );
+  }
+  heartbeatWorkflows(
+    workerId: string,
+    executionIds: string[],
+    signal?: AbortSignal,
+  ) {
+    return this.request<{ renewed: number }>(
+      "/internal/v1/workflow/heartbeat",
+      { workerId, executionIds },
+      signal,
+    );
+  }
+  transitionWorkflow(
+    workerId: string,
+    executionId: string,
+    revision: number,
+    operation: WorkflowWorkerOperation,
+    signal?: AbortSignal,
+  ) {
+    return this.request<WorkflowWorkerRecord>(
+      `/internal/v1/workflow/executions/${encodeURIComponent(executionId)}/transition`,
+      { workerId, revision, operation },
       signal,
     );
   }

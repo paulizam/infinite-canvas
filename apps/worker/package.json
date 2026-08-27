@@ -12,7 +12,8 @@
   },
   "dependencies": {
     "@infinite-canvas/contracts": "workspace:*",
-    "@infinite-canvas/model-gateway": "workspace:*"
+    "@infinite-canvas/model-gateway": "workspace:*",
+    "@infinite-canvas/workflow-runtime": "workspace:*"
   },
   "devDependencies": {
     "@types/node": "^22.19.19",

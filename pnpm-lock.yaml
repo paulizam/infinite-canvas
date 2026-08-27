@@ -81,6 +81,9 @@ importers:
       '@infinite-canvas/model-gateway':
         specifier: workspace:*
         version: link:../../packages/model-gateway
+      '@infinite-canvas/workflow-runtime':
+        specifier: workspace:*
+        version: link:../../packages/workflow-runtime
     devDependencies:
       '@types/node':
         specifier: ^22.19.19

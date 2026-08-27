@@ -2,6 +2,8 @@ import type { GenerationJob } from "@infinite-canvas/contracts";
 import { WorkerApiClient } from "./client.js";
 import { nextPollDelay } from "./poll-policy.js";
 import { createModelGatewayHandler } from "./gateway-handler.js";
+import { runWorkflowCycle, type WorkflowHandler } from "./workflow-runtime.js";
+import type { WorkflowNodeAdapters } from "./workflow-executor.js";
 
 export type JobHandler = (
   job: GenerationJob,
@@ -16,6 +18,8 @@ export async function runWorkerCycle(input: {
   limit: number;
   leaseMs: number;
   handler?: JobHandler;
+  workflowHandler?: WorkflowHandler;
+  workflowAdapters?: WorkflowNodeAdapters;
   signal?: AbortSignal;
 }) {
   await input.client.heartbeat(input.workerId, [], input.signal);
@@ -66,19 +70,33 @@ export async function runWorker(input: {
   leaseMs?: number;
   baseDelayMs?: number;
   handler?: JobHandler;
+  workflowHandler?: WorkflowHandler;
+  workflowAdapters?: WorkflowNodeAdapters;
   signal?: AbortSignal;
 }) {
   let idleBatches = 0;
   while (!input.signal?.aborted) {
     try {
-      const claimed = await runWorkerCycle({
-        client: input.client,
-        workerId: input.workerId,
-        limit: input.limit || 10,
-        leaseMs: input.leaseMs || 90_000,
-        handler: input.handler,
-        signal: input.signal,
-      });
+      const [generationClaimed, workflowClaimed] = await Promise.all([
+        runWorkerCycle({
+          client: input.client,
+          workerId: input.workerId,
+          limit: input.limit || 10,
+          leaseMs: input.leaseMs || 90_000,
+          handler: input.handler,
+          signal: input.signal,
+        }),
+        runWorkflowCycle({
+          client: input.client,
+          workerId: input.workerId,
+          limit: input.limit || 10,
+          leaseMs: input.leaseMs || 90_000,
+          handler: input.workflowHandler,
+          adapters: input.workflowAdapters,
+          signal: input.signal,
+        }),
+      ]);
+      const claimed = generationClaimed + workflowClaimed;
       const policy = nextPollDelay({
         claimed,
         idleBatches,
