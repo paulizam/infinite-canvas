@@ -227,6 +227,8 @@ queued -> claimed -> submitting -> submitted -> polling
 
 商品价格使用整数最小货币单位，促销按服务端时间窗计算。免费额度以 `(product,user)` 唯一授权并与钱包、ledger 原子入账。优惠券/CDK/邀请码仅在创建响应暴露一次明文，持久层只保存带独立部署密钥的 HMAC-SHA256；兑换与邀请关系以数据库唯一约束、行锁和幂等键抵御并发重复领取，自邀与一人多邀请关系被领域规则拒绝。
 
+支付渠道通过 `PaymentAdapter` 隔离。订单固化下单时价格与积分并按 payload hash 幂等，支付成功事件、钱包入账、ledger 与订单终态同事务；webhook 对原始 body 做 HMAC、常量时间比较、时间窗和 provider event ID 去重。退款采用 durable intent + provider 调用 + 本地补偿状态，渠道已退款但积分不足时进入 `needs_review`，绝不生成负钱包。对账保存逐笔匹配证据，财务报告分别统计毛收入、退款、售出积分与模型实际成本。
+
 ### 6.9 Drama Production
 
 独立 domain module：剧本版本、分析任务、角色/场景/道具、分镜、镜头媒体、配音、字幕、时间线、合成版本。它引用通用 Asset/Generation Job/Model Gateway，不侵入 Canvas core。

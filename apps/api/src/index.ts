@@ -35,6 +35,8 @@ import { CommunitySocialService } from "./community-social-service.js";
 import { PostgresCommunitySocialRepository } from "./postgres-community-social-repository.js";
 import { CommerceService } from "./commerce-service.js";
 import { PostgresCommerceRepository } from "./postgres-commerce-repository.js";
+import { HttpPaymentAdapter, PaymentService } from "./payment-service.js";
+import { PostgresPaymentRepository } from "./postgres-payment-repository.js";
 import {
   IdentityService,
   ProjectService,
@@ -164,6 +166,16 @@ const app = createApp({
       inviter: positiveInteger("INVITE_INVITER_REWARD_UNITS"),
       invitee: positiveInteger("INVITE_INVITEE_REWARD_UNITS"),
     },
+  ),
+  payments: new PaymentService(
+    new PostgresPaymentRepository(databaseUrl),
+    new HttpPaymentAdapter(
+      required("PAYMENT_PROVIDER"),
+      required("PAYMENT_API_BASE_URL"),
+      required("PAYMENT_API_TOKEN"),
+    ),
+    required("PAYMENT_WEBHOOK_SECRET"),
+    positiveInteger("PAYMENT_WEBHOOK_TOLERANCE_SECONDS"),
   ),
   maintenanceToken,
   collaboration,

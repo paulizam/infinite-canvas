@@ -30,6 +30,7 @@ import type { DramaInteropService } from "./drama-interop-service.js";
 import type { CommunityService } from "./community-service.js";
 import type { CommunitySocialService } from "./community-social-service.js";
 import type { CommerceService } from "./commerce-service.js";
+import type { PaymentService } from "./payment-service.js";
 import { ModelDiscoveryService } from "./model-discovery.js";
 import { createModelDiscoveryApi } from "./model-discovery-api.js";
 import {
@@ -66,6 +67,7 @@ export type AppServices = {
   community?: CommunityService;
   communitySocial?: CommunitySocialService;
   commerce?: CommerceService;
+  payments?: PaymentService;
   maintenanceToken: string;
   secureCookies: boolean;
   modelDiscovery?: ModelDiscoveryService;
@@ -169,6 +171,17 @@ export function createApp(services: AppServices) {
     app.get("/api/public/v1/billing/products", async (c) =>
       c.json({
         data: await services.commerce!.products(true),
+        requestId: requestId(c),
+      }),
+    );
+  if (services.payments)
+    app.post("/api/public/v1/billing/webhooks/payment", async (c) =>
+      c.json({
+        data: await services.payments!.webhook(
+          await c.req.text(),
+          c.req.header("x-payment-timestamp") || "",
+          c.req.header("x-payment-signature") || "",
+        ),
         requestId: requestId(c),
       }),
     );
@@ -961,6 +974,37 @@ export function createApp(services: AppServices) {
         data: await services.commerce!.claimFreeProduct(
           c.get("user").id,
           c.req.param("productId"),
+        ),
+        requestId: requestId(c),
+      }),
+    );
+  }
+  if (services.payments) {
+    app.post("/api/v1/billing/orders", async (c) =>
+      c.json(
+        {
+          data: await services.payments!.createOrder(
+            c.get("user").id,
+            billingOrderSchema.parse(await c.req.json()),
+          ),
+          requestId: requestId(c),
+        },
+        201,
+      ),
+    );
+    app.get("/api/v1/billing/orders/:orderId", async (c) => {
+      const order = await services.payments!.getOrder(
+        c.get("user").id,
+        c.req.param("orderId"),
+      );
+      if (!order) throw new DomainError("ORDER_NOT_FOUND", 404, "订单不存在");
+      return c.json({ data: order, requestId: requestId(c) });
+    });
+    app.post("/api/v1/billing/refunds", async (c) =>
+      c.json({
+        data: await services.payments!.refund(
+          c.get("user").id,
+          billingRefundSchema.parse(await c.req.json()),
         ),
         requestId: requestId(c),
       }),
@@ -2083,6 +2127,30 @@ export function createApp(services: AppServices) {
       }),
     );
   }
+  if (services.payments) {
+    app.post("/internal/v1/maintenance/billing/orders/expire", async (c) =>
+      c.json({
+        data: { expired: await services.payments!.expire() },
+        requestId: requestId(c),
+      }),
+    );
+    app.post("/internal/v1/maintenance/billing/reconciliation", async (c) => {
+      const x = billingReconciliationSchema.parse(await c.req.json());
+      return c.json({
+        data: await services.payments!.reconcile(x.date, x.lines),
+        requestId: requestId(c),
+      });
+    });
+    app.get("/internal/v1/maintenance/billing/report", async (c) =>
+      c.json({
+        data: await services.payments!.report(
+          z.iso.datetime().parse(c.req.query("from")),
+          z.iso.datetime().parse(c.req.query("to")),
+        ),
+        requestId: requestId(c),
+      }),
+    );
+  }
   return app;
 }
 
@@ -2837,6 +2905,34 @@ const billingRedeemSchema = z
   .object({
     code: z.string().trim().min(8).max(200),
     idempotencyKey: z.string().trim().min(8).max(200),
+  })
+  .strict();
+const billingOrderSchema = z
+  .object({
+    productId: z.uuid(),
+    idempotencyKey: z.string().trim().min(8).max(200),
+  })
+  .strict();
+const billingRefundSchema = z
+  .object({
+    orderId: z.uuid(),
+    idempotencyKey: z.string().trim().min(8).max(200),
+    reason: z.string().trim().min(1).max(500),
+  })
+  .strict();
+const billingReconciliationSchema = z
+  .object({
+    date: z.iso.date(),
+    lines: z
+      .array(
+        z
+          .object({
+            providerTransactionId: z.string().trim().min(1).max(200),
+            amountMinor: z.number().int().safe().positive(),
+          })
+          .strict(),
+      )
+      .max(10000),
   })
   .strict();
 const billingProductSchema = z
