@@ -3,6 +3,7 @@
 // CI(publish-plugins.yml)把 dist/ 强推到 plugins-dist 分支,前端经 jsDelivr 远程拉取。
 // 本地自测:`npm install && npm run build`,再把 VITE_PLUGIN_REGISTRY_URL 指向本地 dist。
 import { build } from "esbuild";
+import { createHash } from "node:crypto";
 import { mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -21,6 +22,8 @@ const OFFICIAL = [
     { id: "panorama", dir: "panorama", name: "3D 全景节点", description: "查看 360° 等距柱状全景图,可从上游图片节点取图", icon: "🧭" },
     { id: "sticky-note", dir: "sticky-note", name: "便利贴节点", description: "可自选颜色、双击编辑、拖动即可移动的便利贴", icon: "📌" },
 ];
+
+const PERMISSIONS = ["canvas:read", "canvas:write"];
 
 // 读取插件 package.json 的 version 作为清单版本的唯一来源
 async function readPluginVersion(dir) {
@@ -51,9 +54,14 @@ for (const plugin of OFFICIAL) {
     console.log(`built ${plugin.id}.js`);
 }
 
+async function bundleIntegrity(id) {
+    const source = await readFile(join(outDir, `${id}.js`));
+    return `sha256-${createHash("sha256").update(source).digest("base64")}`;
+}
+
 const manifest = {
     // 清单结构版本;entry 为相对本清单的 bundle 文件名,由前端解析成绝对 URL
-    version: 1,
+    version: 2,
     plugins: await Promise.all(
         OFFICIAL.map(async (plugin) => ({
             id: plugin.id,
@@ -62,6 +70,8 @@ const manifest = {
             description: plugin.description,
             icon: plugin.icon,
             entry: `${plugin.id}.js`,
+            integrity: await bundleIntegrity(plugin.id),
+            permissions: PERMISSIONS,
         })),
     ),
 };

@@ -1,4 +1,5 @@
 import { PLUGIN_REGISTRY_URL } from "@/constant/env";
+import type { PluginPermission } from "@infinite-canvas/contracts";
 
 // An official registry item whose entry has been resolved to an absolute URL.
 export type OfficialPluginEntry = {
@@ -8,19 +9,24 @@ export type OfficialPluginEntry = {
     description?: string;
     icon?: string;
     url: string;
+    integrity: string;
+    permissions: PluginPermission[];
 };
 
-type RawEntry = { id?: string; name?: string; version?: string; description?: string; icon?: string; entry?: string; url?: string };
-type RawManifest = { plugins?: RawEntry[] };
+type RawEntry = { id?: string; name?: string; version?: string; description?: string; icon?: string; entry?: string; url?: string; integrity?: string; permissions?: PluginPermission[] };
+type RawManifest = { version?: number; plugins?: RawEntry[] };
 
 // Fetch the official registry and resolve relative entries against its URL for the existing URL installation flow.
 export async function fetchOfficialPlugins(registryUrl: string = PLUGIN_REGISTRY_URL): Promise<OfficialPluginEntry[]> {
     const response = await fetch(registryUrl, { headers: { accept: "application/json" } });
     if (!response.ok) throw new Error(i18n.t("canvas.pluginErrors.registryFailed", { status: response.status }));
-    const data = (await response.json()) as RawManifest;
-    const list = Array.isArray(data?.plugins) ? data.plugins : [];
+    return parseOfficialPluginManifest((await response.json()) as RawManifest, registryUrl);
+}
+
+export function parseOfficialPluginManifest(data: RawManifest, registryUrl: string): OfficialPluginEntry[] {
+    const list = data?.version === 2 && Array.isArray(data.plugins) ? data.plugins : [];
     return list
-        .filter((item): item is RawEntry & { id: string } => Boolean(item && item.id && (item.entry || item.url)))
+        .filter((item): item is RawEntry & { id: string; integrity: string; permissions: PluginPermission[] } => Boolean(item && item.id && (item.entry || item.url) && item.integrity?.startsWith("sha256-") && Array.isArray(item.permissions)))
         .map((item) => ({
             id: item.id,
             name: item.name || item.id,
@@ -28,6 +34,8 @@ export async function fetchOfficialPlugins(registryUrl: string = PLUGIN_REGISTRY
             description: item.description,
             icon: item.icon,
             url: item.url ? item.url : new URL(item.entry as string, registryUrl).toString(),
+            integrity: item.integrity,
+            permissions: item.permissions,
         }));
 }
 

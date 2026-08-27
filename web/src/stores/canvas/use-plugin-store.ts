@@ -2,6 +2,7 @@ import { create } from "zustand";
 import { createJSONStorage, persist } from "zustand/middleware";
 
 import { localForageStorage } from "@/lib/localforage-storage";
+import type { PluginPermission } from "@infinite-canvas/contracts";
 
 export type InstalledPlugin = {
     id: string;
@@ -13,6 +14,10 @@ export type InstalledPlugin = {
     enabled: boolean;
     local?: boolean; // Local plugin discovered in web/public/plugins; disabled by default and refetched from its URL when enabled.
     official?: boolean; // Installed from the official registry and grouped accordingly in the manager.
+    sandboxed?: boolean;
+    trustedOfficial?: boolean;
+    integrity?: string;
+    permissions?: PluginPermission[];
     installedAt: string;
 };
 
