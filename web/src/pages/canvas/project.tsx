@@ -71,6 +71,7 @@ import { CanvasPluginManagerModal } from "@/components/canvas/canvas-plugin-mana
 import { CanvasRefreshShell } from "@/components/canvas/canvas-refresh-shell";
 import { CanvasTopBar } from "@/components/canvas/canvas-top-bar";
 import { CanvasCollaborationPresenceLayer, CanvasCollaborationStatus } from "@/components/canvas/canvas-collaboration-presence";
+import { CanvasSyncConflictControl } from "@/components/canvas/canvas-sync-conflict-control";
 import { CanvasWorkflowPublisher } from "@/components/canvas/canvas-workflow-publisher";
 import { ConnectionCreateMenu, NodeCreateMenu, type PendingConnectionCreate } from "@/components/canvas/canvas-create-menus";
 import {
@@ -2997,7 +2998,7 @@ function InfiniteCanvasPage() {
                     agentOpen={agentPanelOpen}
                     compactAgentStatus={{ connected: localAgentConnected, enabled: localAgentEnabled, activity: localAgentActivity }}
                     onToggleAgent={toggleAgentPanel}
-                    collaborationControl={<CanvasCollaborationStatus projectId={projectId} />}
+                    collaborationControl={<><CanvasSyncConflictControl projectId={projectId} /><CanvasCollaborationStatus projectId={projectId} /></>}
                     workflowControl={!readOnly && currentProject ? <CanvasWorkflowPublisher projectId={projectId} projectRevision={currentProject.revision} projectName={currentProject.title} workspaceId={cloudWorkspaceId} onFocusNode={focusNode} /> : null}
                 />
 

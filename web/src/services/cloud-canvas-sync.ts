@@ -4,6 +4,8 @@ import type { CanvasProject } from "@/stores/canvas/use-canvas-store";
 import { CloudApiError, type CloudPlatformClient, type CloudProject } from "@/services/cloud-platform";
 
 export type CloudSyncConflict = { projectId: string; mutationId: string; local: CanvasProject; remote: CanvasProject };
+export type CloudConflictResolution = "accept_remote" | "keep_local_copy" | "retry_rebase";
+export type CloudConflictResolutionResult = { remote: CanvasProject; localCopy?: CanvasProject };
 export type CloudSyncEvent = { projectId?: string; state: "loading" | "ready" | "syncing" | "synced" | "offline" | "conflict" | "error"; message?: string; conflict?: CloudSyncConflict };
 type SyncClient = Pick<CloudPlatformClient, "listProjects" | "getProject" | "createProject" | "mutateProject" | "deleteProject">;
 
@@ -84,6 +86,37 @@ export class CloudCanvasSyncEngine {
         this.revisions.set(project.id, project.revision);
         this.synced.set(project.id, project);
         this.conflicts.delete(project.id);
+    }
+    async resolveConflict(projectId: string, resolution: CloudConflictResolution): Promise<CloudConflictResolutionResult> {
+        const conflict = this.conflicts.get(projectId);
+        if (!conflict) throw new Error("CANVAS_CONFLICT_NOT_FOUND");
+        const remote = asProject((await this.client.getProject(projectId)).document);
+        if (resolution === "retry_rebase") {
+            const entry = (await this.queue.list(this.workspaceId)).find((item) => item.mutationId === conflict.mutationId);
+            if (!entry) throw new Error("CANVAS_CONFLICT_QUEUE_MISSING");
+            if (!canRebase(entry.baseDocument, remote, entry.operations)) {
+                const nextConflict = { ...conflict, remote };
+                this.conflicts.set(projectId, nextConflict);
+                this.onEvent({ projectId, state: "conflict", message: "CANVAS_REBASE_CONFLICT", conflict: nextConflict });
+                return { remote };
+            }
+            this.conflicts.delete(projectId);
+            await this.send({ ...entry, baseRevision: remote.revision, baseDocument: remote });
+            return { remote: this.synced.get(projectId) || remote };
+        }
+        await this.queue.remove(this.workspaceId, conflict.mutationId);
+        this.conflicts.delete(projectId);
+        this.revisions.set(projectId, remote.revision);
+        this.synced.set(projectId, remote);
+        this.latest.set(projectId, remote);
+        let localCopy: CanvasProject | undefined;
+        if (resolution === "keep_local_copy") {
+            const now = new Date().toISOString();
+            localCopy = { ...conflict.local, id: crypto.randomUUID(), revision: 0, title: `${conflict.local.title} (Local copy)`, createdAt: now, updatedAt: now };
+            this.latest.set(localCopy.id, localCopy);
+        }
+        this.onEvent({ projectId, state: "ready" });
+        return { remote, localCopy };
     }
     stop() {
         this.stopped = true;

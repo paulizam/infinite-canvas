@@ -610,7 +610,7 @@ export default {
         source: { all: "全部来源", canvas: "当前画布", workspace_asset: "工作区素材", generation_job: "生成任务" },
         group: { media: "按媒体浏览", node: "按节点浏览", version: "按版本浏览" },
     },
-    collaboration: { connecting: "正在连接协作服务", connected: "实时协作已连接", disconnected: "协作连接已断开", error: "协作连接异常", active: "正在操作", online: "在线", noMembers: "暂无在线成员", members: "{{count}} 位在线成员", viewerReadOnly: "审阅者只读" },
+    collaboration: { connecting: "正在连接协作服务", connected: "实时协作已连接", disconnected: "协作连接已断开", error: "协作连接异常", active: "正在操作", online: "在线", noMembers: "暂无在线成员", members: "{{count}} 位在线成员", viewerReadOnly: "审阅者只读", resolveConflict: "处理冲突", conflictTitle: "画布同步冲突", conflictDescription: "本地版本 r{{local}} 与云端版本 r{{remote}} 修改了相同内容，请选择处理方式。", retryRebase: "重新尝试安全合并", keepLocalCopy: "保留本地副本并恢复云端", acceptRemote: "放弃本地修改并接受云端", conflictResolved: "同步冲突已处理", conflictFailed: "同步冲突处理失败" },
     locale: {
         zhCN: "简体中文",
         enUS: "English",

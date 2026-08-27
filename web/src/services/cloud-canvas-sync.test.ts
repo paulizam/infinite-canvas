@@ -96,4 +96,25 @@ describe("CloudCanvasSyncEngine", () => {
         expect(canRebase(base, unrelatedRemote, operations)).toBe(true);
         expect(canRebase(base, { ...base, title: "Remote title" }, operations)).toBe(false);
     });
+
+    it("preserves local content as a new project when a user resolves a conflict", async () => {
+        const queue = new MemoryQueue();
+        const base = project();
+        const remote = { ...base, revision: 3, title: "Remote title" };
+        const client = fakeClient([cloud(base)]);
+        client.mutateProject.mockRejectedValue(new CloudApiError(409, "REVISION_CONFLICT", "conflict"));
+        client.getProject.mockResolvedValue(cloud(remote));
+        const events: CloudSyncEvent[] = [];
+        const engine = new CloudCanvasSyncEngine(client, (event) => events.push(event), 0, queue);
+        await engine.start("w1");
+        engine.observe([{ ...base, title: "Local title" }]);
+        await engine.flush("p1");
+        expect(events.at(-1)?.state).toBe("conflict");
+        const result = await engine.resolveConflict("p1", "keep_local_copy");
+        expect(result.remote.title).toBe("Remote title");
+        expect(result.localCopy).toMatchObject({ title: "Local title (Local copy)", revision: 0 });
+        expect(result.localCopy?.id).not.toBe("p1");
+        expect(queue.entries).toEqual([]);
+        expect(events.at(-1)?.state).toBe("ready");
+    });
 });

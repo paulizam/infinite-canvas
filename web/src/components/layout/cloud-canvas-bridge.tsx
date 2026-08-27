@@ -16,6 +16,13 @@ export function CloudCanvasBridge() {
     useEffect(() => {
         if (status !== "authenticated" || !workspaceId || !hydrated) return;
         const engine = new CloudCanvasSyncEngine(cloudPlatform, useCloudCanvasSyncStore.getState().update);
+        useCloudCanvasSyncStore.getState().registerResolver(async (projectId, resolution) => {
+            const result = await engine.resolveConflict(projectId, resolution);
+            const state = useCanvasStore.getState();
+            const projects = state.projects.map((project) => (project.id === projectId ? result.remote : project));
+            state.replaceProjects(result.localCopy ? [result.localCopy, ...projects] : projects);
+            return result;
+        });
         const collaboration = new Map<string, CloudCollaborationClient>();
         let unsubscribe: (() => void) | undefined;
         const replaceFromRemote = (projects: import("@/stores/canvas/use-canvas-store").CanvasProject[]) => {
@@ -73,6 +80,7 @@ export function CloudCanvasBridge() {
                 .catch((error) => useCloudCanvasSyncStore.getState().update({ state: "error", message: error instanceof Error ? error.message : String(error) }));
         window.addEventListener("online", reconnect);
         return () => {
+            useCloudCanvasSyncStore.getState().registerResolver(null);
             window.removeEventListener("online", reconnect);
             unsubscribe?.();
             for (const [projectId, client] of collaboration) {

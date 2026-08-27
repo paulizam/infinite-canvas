@@ -610,7 +610,7 @@ export default {
         source: { all: "All sources", canvas: "Current canvas", workspace_asset: "Workspace assets", generation_job: "Generation jobs" },
         group: { media: "Browse by media", node: "Browse by node", version: "Browse by revision" },
     },
-    collaboration: { connecting: "Connecting collaboration", connected: "Live collaboration connected", disconnected: "Collaboration disconnected", error: "Collaboration connection error", active: "Active", online: "Online", noMembers: "No members online", members: "{{count}} members online", viewerReadOnly: "Viewer · read only" },
+    collaboration: { connecting: "Connecting collaboration", connected: "Live collaboration connected", disconnected: "Collaboration disconnected", error: "Collaboration connection error", active: "Active", online: "Online", noMembers: "No members online", members: "{{count}} members online", viewerReadOnly: "Viewer · read only", resolveConflict: "Resolve conflict", conflictTitle: "Canvas sync conflict", conflictDescription: "Local revision r{{local}} and remote revision r{{remote}} changed the same content. Choose how to proceed.", retryRebase: "Retry safe merge", keepLocalCopy: "Keep local copy and restore remote", acceptRemote: "Discard local changes and accept remote", conflictResolved: "Sync conflict resolved", conflictFailed: "Could not resolve sync conflict" },
     locale: {
         zhCN: "简体中文",
         enUS: "English",

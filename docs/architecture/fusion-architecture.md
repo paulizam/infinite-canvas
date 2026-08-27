@@ -161,6 +161,8 @@ Canvas 写能力按 Workspace role fail-closed：Local mode 与 `owner/admin/edi
 
 离线 Canvas 修改采用 IndexedDB write-ahead operation queue：每条记录保存 stable `mutationId`、base revision、base/local document 与 granular operations，请求前必须先落盘。重连先按原 mutationId 重放以确认结果不明的已提交事务；收到 revision conflict 后，以 base/local/remote 对 touched node、connection 和 document field 做三方检查，仅不相交修改允许更新 baseRevision 后自动 rebase，相交修改保留本地与远端证据进入人工裁决。队列按 Workspace 隔离，浏览器 `online` 事件触发恢复，禁止用启动前的 stale remote snapshot 覆盖仍在队列中的本地版本。
 
+人工冲突裁决提供三种显式结果：`accept_remote` 删除 pending mutation 并恢复远端；`keep_local_copy` 恢复远端原 Project，同时把本地内容赋予新 ID、revision 0 后作为独立 Project 同步；`retry_rebase` 重新读取最新远端并再次执行安全合并检查。任何路径都不得无提示覆盖本地内容，仍相交的 retry 必须继续保持 conflict。
+
 ## 6. 领域模块
 
 ### 6.1 Identity & Workspace
