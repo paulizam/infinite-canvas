@@ -2,6 +2,7 @@
 
 ## Unreleased
 
++ [新增] Web 新增类型化 Cloud Platform client，统一携带 HttpOnly Session cookie，并保留服务端错误码与 requestId 供登录、Workspace 和云画布界面使用。
 + [新增] 新增 Hono/PostgreSQL Cloud API，提供 Argon2 身份认证、Session、Workspace RBAC、云画布快照及带 revision/mutationId 的幂等变更事务。
 + [新增] 官方插件 Registry 升级为带 SHA-256 SRI 与权限清单的 v2 格式，第三方插件通过隔离 Worker 加载 declarative nodes，Docker 构建同步迁移到 pnpm workspace。
 + [修复] 插件加载器停止在主页面执行任意远程或历史缓存源码，仅允许部署者控制的同源 `/plugins/*.js` 构建产物。
