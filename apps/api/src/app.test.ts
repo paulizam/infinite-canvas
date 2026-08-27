@@ -13,8 +13,9 @@ import {
 } from "./services.js";
 
 let app: ReturnType<typeof createApp>;
+let repository: MemoryPlatformRepository;
 beforeEach(() => {
-  const repository = new MemoryPlatformRepository();
+  repository = new MemoryPlatformRepository();
   const jobRepository = new MemoryGenerationJobRepository();
   app = createApp({
     identity: new IdentityService(repository, 60_000),
@@ -176,6 +177,71 @@ describe("cloud workspace API", () => {
         )
       ).status,
     ).toBe(403);
+  });
+  it("allows viewers to read but rejects their entire mutation batch before any patch applies", async () => {
+    const owner = await register();
+    const created = await app.request(
+      `/api/v1/workspaces/${owner.body.data.workspace.id}/projects`,
+      {
+        method: "POST",
+        headers: { cookie: owner.cookie, "content-type": "application/json" },
+        body: JSON.stringify({ title: "只读画布" }),
+      },
+    );
+    const project = ((await created.json()) as { data: { id: string } }).data;
+    const viewer = await register("viewer@example.com", "审阅者");
+    await repository.createWorkspace(
+      {
+        id: owner.body.data.workspace.id,
+        name: "共享空间",
+        createdAt: new Date().toISOString(),
+      },
+      {
+        workspaceId: owner.body.data.workspace.id,
+        userId: viewer.body.data.user.id,
+        role: "viewer",
+      },
+    );
+    expect(
+      (
+        await app.request(`/api/v1/projects/${project.id}`, {
+          headers: { cookie: viewer.cookie },
+        })
+      ).status,
+    ).toBe(200);
+    const denied = await app.request(
+      `/api/v1/projects/${project.id}/mutations`,
+      {
+        method: "POST",
+        headers: { cookie: viewer.cookie, "content-type": "application/json" },
+        body: JSON.stringify({
+          mutationId: "viewer-batch",
+          projectId: project.id,
+          baseRevision: 0,
+          clientId: "viewer-tab",
+          createdAt: new Date().toISOString(),
+          operations: [
+            { type: "document.patch", patch: { title: "越权标题" } },
+            { type: "viewport.set", viewport: { x: 9, y: 9, k: 2 } },
+          ],
+        }),
+      },
+    );
+    expect(denied.status).toBe(403);
+    const after = (await (
+      await app.request(`/api/v1/projects/${project.id}`, {
+        headers: { cookie: owner.cookie },
+      })
+    ).json()) as {
+      data: {
+        document: { title: string; revision: number; viewport: unknown };
+      };
+    };
+    expect(after.data.document).toMatchObject({
+      title: "只读画布",
+      revision: 0,
+      viewport: { x: 0, y: 0, k: 1 },
+    });
   });
   it("returns validation errors as 400", async () =>
     expect(
