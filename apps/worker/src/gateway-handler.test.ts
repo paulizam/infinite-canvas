@@ -45,6 +45,10 @@ describe("model gateway worker handler", () => {
           return { ...job, ...patch, phase } as GenerationJob;
         },
       ),
+      persistAsset: vi.fn(async () => ({
+        assetId: "asset-1",
+        mimeType: "image/png",
+      })),
     } as unknown as WorkerApiClient;
     const fetcher = vi.fn(
       async () =>
@@ -69,5 +73,80 @@ describe("model gateway worker handler", () => {
       "https://api.example.com/v1/images/generations",
       expect.objectContaining({ method: "POST" }),
     );
+    expect(client.persistAsset).toHaveBeenCalledOnce();
   });
+
+  it("persists a binary audio response without parsing it as JSON", async () => {
+    const audioJob = {
+      ...job,
+      capability: "audio",
+      logicalModelId: "audio.default",
+    } as GenerationJob;
+    const audioResolved = {
+      ...resolved,
+      upstreamModel: { modelId: "tts-v1" },
+    } as WorkerResolvedModel;
+    const phases: string[] = [];
+    const client = {
+      resolveModel: vi.fn(async () => audioResolved),
+      transition: vi.fn(async (_w, _id, phase, patch) => {
+        phases.push(phase);
+        return { ...audioJob, ...patch, phase } as GenerationJob;
+      }),
+      persistAsset: vi.fn(async () => ({
+        assetId: "audio-1",
+        mimeType: "audio/mpeg",
+      })),
+    } as unknown as WorkerApiClient;
+    const fetcher = vi.fn(
+      async () =>
+        new Response(Uint8Array.from([0x49, 0x44, 0x33, 3, 0, 0, 0, 0, 0, 0]), {
+          headers: { "content-type": "audio/mpeg" },
+        }),
+    );
+    await createModelGatewayHandler(fetcher as typeof fetch)(
+      audioJob,
+      client,
+      "worker-a",
+    );
+    expect(phases).toEqual([
+      "submitting",
+      "submitted",
+      "result_ready",
+      "persisting",
+      "succeeded",
+    ]);
+    expect(client.persistAsset).toHaveBeenCalledWith(
+      "worker-a",
+      "job-1",
+      expect.any(Uint8Array),
+      "job-1.mp3",
+      undefined,
+    );
+  });
+
+  it.each([
+    ["result_ready", ["persisting", "succeeded"]],
+    ["persisting", ["succeeded"]],
+  ] as const)(
+    "resumes %s without another provider call",
+    async (phase, expected) => {
+      const phases: string[] = [];
+      const resumable = { ...job, phase } as GenerationJob;
+      const client = {
+        transition: vi.fn(async (_w, _id, next, patch) => {
+          phases.push(next);
+          return { ...resumable, ...patch, phase: next } as GenerationJob;
+        }),
+      } as unknown as WorkerApiClient;
+      const fetcher = vi.fn();
+      await createModelGatewayHandler(fetcher as typeof fetch)(
+        resumable,
+        client,
+        "worker-a",
+      );
+      expect(phases).toEqual(expected);
+      expect(fetcher).not.toHaveBeenCalled();
+    },
+  );
 });

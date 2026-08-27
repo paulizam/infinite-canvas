@@ -123,13 +123,36 @@ describe("generation job API", () => {
     });
     const jobId = ((await claimed.json()) as { data: Array<{ id: string }> })
       .data[0]!.id;
-    const transition = (workerId: string) =>
+    const transition = (workerId: string, phase = "submitting") =>
       app.request(`/internal/v1/generation/jobs/${jobId}/transition`, {
         method: "POST",
         headers,
-        body: JSON.stringify({ workerId, phase: "submitting", patch: {} }),
+        body: JSON.stringify({ workerId, phase, patch: {} }),
       });
     expect((await transition("worker-b")).status).toBe(409);
     expect((await transition("worker-a")).status).toBe(200);
+    expect((await transition("worker-a", "submitted")).status).toBe(200);
+    const png = Buffer.from(
+      "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=",
+      "base64",
+    );
+    const persisted = await app.request(
+      `/internal/v1/generation/jobs/${jobId}/assets`,
+      {
+        method: "POST",
+        headers: {
+          authorization: "Bearer test-worker-token-32-characters-long",
+          "content-type": "application/octet-stream",
+          "x-worker-id": "worker-a",
+          "x-file-name": "provider-result.png",
+        },
+        body: png,
+      },
+    );
+    expect(persisted.status).toBe(201);
+    expect(
+      ((await persisted.json()) as { data: { asset: { mimeType: string } } })
+        .data.asset.mimeType,
+    ).toBe("image/png");
   });
 });

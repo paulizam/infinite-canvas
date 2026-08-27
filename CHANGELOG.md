@@ -3,6 +3,8 @@
 ## Unreleased
 
 + [新增] 新增 Model Gateway：Protocol/Channel/Upstream/Logical Model 分层、能力校验、健康路由、AES-GCM 凭据、Maintenance control-plane 与 Worker OpenAI-compatible submit/poll。
++ [新增] Generation Worker 将 URL/Base64/binary audio 结果写入不可变 Asset BlobStore，Job result 仅保存 AssetRef；内部上传受 Worker Token、有效租约和 phase 约束。
++ [安全] Provider 媒体下载仅允许无凭据 HTTPS URL，限制手动重定向并拒绝显式 local/private host。
 + [新增] 新增独立 Generation Worker 进程：空闲指数退避、全局 heartbeat、批次租约续期、过期恢复、取消收敛、SIGINT/SIGTERM 优雅退出及容器构建入口。
 + [新增] Generation Job API 支持 Workspace RBAC、`clientRequestId` 幂等、取消与显式新 attempt 重试；Worker 内部 API 使用独立强 Token、租约所有权和过期回收保护。
 + [新增] 建立 Generation Job 完整 phase/status contract、严格状态转换和同 attempt 上游任务标识不可变约束，并新增 lease/heartbeat 数据结构。

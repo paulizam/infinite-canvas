@@ -17,3 +17,8 @@
 - 完成 Job repository contract、Memory/PostgreSQL 原子实现、用户 create/list/get/cancel/retry API 与 Worker claim/heartbeat/transition 内部 API；强 Token、租约所有权、过期回收及跨用户隐藏已覆盖测试。
 - 新增独立 `apps/worker`：全局/租约 heartbeat、指数退避 claim、批次续租、取消处理、失效租约恢复、信号优雅退出及 Worker Dockerfile；Model Gateway 未配置时显式进入 needs_review。
 - 完成 Model Gateway 首个纵切：五层模型契约、健康/优先级路由、能力校验、AES-256-GCM channel secret、Maintenance/Worker 分权 API 与 OpenAI-compatible submit/poll Worker handler。
+
+## 2026-08-28
+
+- 打通生成媒体持久化：Worker 支持 provider URL/Base64 与 binary audio，下载结果通过租约绑定的内部 API 经 magic-byte 校验、Workspace 去重写入 Asset BlobStore，Job result 仅保留 AssetRef。
+- Provider 媒体下载强制 credential-free HTTPS，限制重定向次数并拒绝显式 private/local host；内部上传校验 Worker Token、workerId、有效租约及持久化阶段。

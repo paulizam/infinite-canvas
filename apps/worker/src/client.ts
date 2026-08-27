@@ -1,4 +1,5 @@
 import type {
+  AssetRef,
   GenerationJob,
   GenerationJobPhase,
   ResolvedModelCandidate,
@@ -68,6 +69,46 @@ export class WorkerApiClient {
       { capability, logicalModelId },
       signal,
     );
+  }
+  async persistAsset(
+    workerId: string,
+    jobId: string,
+    bytes: Uint8Array,
+    originalName: string,
+    signal?: AbortSignal,
+  ): Promise<AssetRef> {
+    const body = new Uint8Array(bytes.byteLength);
+    body.set(bytes);
+    const response = await this.fetcher(
+      new URL(
+        `/internal/v1/generation/jobs/${encodeURIComponent(jobId)}/assets`,
+        this.origin,
+      ),
+      {
+        method: "POST",
+        signal,
+        headers: {
+          authorization: `Bearer ${this.token}`,
+          "content-type": "application/octet-stream",
+          "x-worker-id": workerId,
+          "x-file-name": originalName,
+        },
+        body: body.buffer,
+      },
+    );
+    const payload = (await response.json()) as {
+      data?: { asset: { id: string; mimeType: string } };
+      error?: { code?: string; message?: string };
+      requestId?: string;
+    };
+    if (!response.ok || !payload.data?.asset)
+      throw new Error(
+        `${payload.error?.code || "ASSET_PERSIST_ERROR"}: ${payload.error?.message || response.statusText} (${payload.requestId || "no-request-id"})`,
+      );
+    return {
+      assetId: payload.data.asset.id,
+      mimeType: payload.data.asset.mimeType,
+    };
   }
   private async request<T>(
     path: string,

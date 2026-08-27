@@ -171,6 +171,13 @@ export class PostgresGenerationJobRepository implements GenerationJobRepository 
       client.release();
     }
   }
+  async getForWorker(workerId: string, jobId: string, now: string) {
+    const result = await this.pool.query(
+      "SELECT * FROM generation_jobs WHERE id=$1 AND worker_id=$2 AND lease_until>$3",
+      [jobId, workerId, now],
+    );
+    return result.rows[0] ? mapJob(result.rows[0]) : null;
+  }
   async heartbeat(
     workerId: string,
     jobIds: string[],

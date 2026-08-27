@@ -35,6 +35,11 @@ export interface GenerationJobRepository {
     patch: GenerationJobTransitionPatch;
     now: string;
   }): Promise<GenerationJob>;
+  getForWorker(
+    workerId: string,
+    jobId: string,
+    now: string,
+  ): Promise<GenerationJob | null>;
   heartbeat(
     workerId: string,
     jobIds: string[],
@@ -196,6 +201,12 @@ export class MemoryGenerationJobRepository implements GenerationJobRepository {
     );
     this.jobs.set(job.id, updated);
     return updated;
+  }
+  async getForWorker(workerId: string, jobId: string, now: string) {
+    const job = this.jobs.get(jobId);
+    return job?.workerId === workerId && job.leaseUntil && job.leaseUntil > now
+      ? job
+      : null;
   }
   async heartbeat(
     workerId: string,

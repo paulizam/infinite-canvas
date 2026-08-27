@@ -353,6 +353,33 @@ export function createApp(services: AppServices) {
     });
     return c.json({ data: job, requestId: requestId(c) });
   });
+  app.post("/internal/v1/generation/jobs/:jobId/assets", async (c) => {
+    const workerId = c.req.header("x-worker-id")?.trim();
+    if (!workerId)
+      throw new DomainError("WORKER_ID_REQUIRED", 400, "缺少 Worker 标识");
+    const now = new Date().toISOString();
+    const job = await services.jobRepository.getForWorker(
+      workerId,
+      c.req.param("jobId"),
+      now,
+    );
+    if (!job) throw new DomainError("JOB_LEASE_LOST", 409, "任务租约已失效");
+    if (
+      !new Set(["submitted", "polling", "result_ready", "persisting"]).has(
+        job.phase,
+      )
+    )
+      throw new DomainError(
+        "JOB_NOT_READY_FOR_ASSET",
+        409,
+        "任务尚未进入结果持久化阶段",
+      );
+    const result = await services.assets.upload(job.ownerId, job.workspaceId, {
+      bytes: await services.assets.readUpload(c.req.raw),
+      originalName: c.req.header("x-file-name") || `${job.id}-result`,
+    });
+    return c.json({ data: result, requestId: requestId(c) }, 201);
+  });
   app.post("/internal/v1/model-gateway/resolve", async (c) => {
     const input = resolveModelSchema.parse(await c.req.json());
     const resolved = await services.modelGateway.resolve(

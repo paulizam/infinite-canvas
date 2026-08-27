@@ -1,4 +1,5 @@
 import type {
+  AssetRef,
   GenerationJob,
   ModelCapability,
 } from "@infinite-canvas/contracts";
@@ -21,6 +22,27 @@ export function createModelGatewayHandler(fetcher: typeof fetch = fetch) {
       return;
     }
     try {
+      if (job.phase === "result_ready") {
+        const persisting = await client.transition(
+          workerId,
+          job.id,
+          "persisting",
+          {},
+          signal,
+        );
+        await client.transition(
+          workerId,
+          persisting.id,
+          "succeeded",
+          {},
+          signal,
+        );
+        return;
+      }
+      if (job.phase === "persisting") {
+        await client.transition(workerId, job.id, "succeeded", {}, signal);
+        return;
+      }
       if (job.phase === "submitted" || job.phase === "polling") {
         await poll(job, client, workerId, fetcher, signal);
         return;
@@ -93,7 +115,8 @@ async function submit(
   const response = await fetcher(request.url, { ...request.init, signal });
   if (!response.ok)
     throw new Error(`Provider submit failed with HTTP ${response.status}`);
-  const payload = await safeJson(response);
+  const binary = await binaryMediaResponse(response, capability);
+  const payload = binary ? {} : await safeJson(response);
   const upstreamTaskId = taskId(payload);
   const status = upstreamStatus(payload);
   const submitted = await client.transition(
@@ -118,7 +141,16 @@ async function submit(
     );
     return;
   }
-  await complete(submitted, payload, client, workerId, signal);
+  await complete(
+    submitted,
+    payload,
+    capability,
+    client,
+    workerId,
+    fetcher,
+    signal,
+    binary,
+  );
 }
 
 async function poll(
@@ -171,21 +203,39 @@ async function poll(
     );
     return;
   }
-  await complete(job, payload, client, workerId, signal);
+  await complete(job, payload, capability, client, workerId, fetcher, signal);
 }
 
 async function complete(
   job: GenerationJob,
   payload: Record<string, unknown>,
+  capability: ModelCapability,
   client: WorkerApiClient,
   workerId: string,
+  fetcher: typeof fetch,
   signal?: AbortSignal,
+  binary?: Uint8Array,
 ) {
+  const result =
+    capability === "text"
+      ? payload
+      : {
+          assets: await persistMediaResult(
+            job,
+            payload,
+            capability,
+            client,
+            workerId,
+            fetcher,
+            signal,
+            binary,
+          ),
+        };
   const ready = await client.transition(
     workerId,
     job.id,
     "result_ready",
-    { result: payload },
+    { result },
     signal,
   );
   const persisting = await client.transition(
@@ -196,6 +246,136 @@ async function complete(
     signal,
   );
   await client.transition(workerId, persisting.id, "succeeded", {}, signal);
+}
+
+async function persistMediaResult(
+  job: GenerationJob,
+  payload: Record<string, unknown>,
+  capability: Exclude<ModelCapability, "text">,
+  client: WorkerApiClient,
+  workerId: string,
+  fetcher: typeof fetch,
+  signal?: AbortSignal,
+  binary?: Uint8Array,
+): Promise<AssetRef[]> {
+  const artifacts = binary
+    ? [{ bytes: binary, name: `${job.id}.${extensionFor(capability)}` }]
+    : await materializeArtifacts(payload, capability, fetcher, signal);
+  if (!artifacts.length)
+    throw new Error(`Provider returned no ${capability} artifact`);
+  const refs: AssetRef[] = [];
+  for (const artifact of artifacts)
+    refs.push(
+      await client.persistAsset(
+        workerId,
+        job.id,
+        artifact.bytes,
+        artifact.name,
+        signal,
+      ),
+    );
+  return refs;
+}
+
+async function materializeArtifacts(
+  payload: Record<string, unknown>,
+  capability: Exclude<ModelCapability, "text">,
+  fetcher: typeof fetch,
+  signal?: AbortSignal,
+) {
+  const items = Array.isArray(payload.data)
+    ? payload.data
+    : Array.isArray(payload.output)
+      ? payload.output
+      : [payload];
+  const artifacts: Array<{ bytes: Uint8Array; name: string }> = [];
+  for (const [index, raw] of items.entries()) {
+    if (!raw || typeof raw !== "object") continue;
+    const item = raw as Record<string, unknown>;
+    const encoded = item.b64_json ?? item.base64 ?? item.audio;
+    if (typeof encoded === "string" && encoded.trim()) {
+      artifacts.push({
+        bytes: Uint8Array.from(Buffer.from(encoded, "base64")),
+        name: `${capability}-${index + 1}.${extensionFor(capability)}`,
+      });
+      continue;
+    }
+    const url = item.url ?? item.uri ?? item.download_url;
+    if (typeof url === "string" && url.trim())
+      artifacts.push({
+        bytes: await downloadPublicMedia(url, fetcher, signal),
+        name: safeRemoteName(url, capability, index),
+      });
+  }
+  return artifacts;
+}
+
+async function downloadPublicMedia(
+  value: string,
+  fetcher: typeof fetch,
+  signal?: AbortSignal,
+) {
+  let url = publicMediaUrl(value);
+  for (let redirects = 0; redirects <= 3; redirects++) {
+    const response = await fetcher(url, { signal, redirect: "manual" });
+    if (response.status >= 300 && response.status < 400) {
+      const location = response.headers.get("location");
+      if (!location || redirects === 3)
+        throw new Error("Provider media redirect is invalid");
+      url = publicMediaUrl(new URL(location, url).toString());
+      continue;
+    }
+    if (!response.ok)
+      throw new Error(
+        `Provider media download failed with HTTP ${response.status}`,
+      );
+    return new Uint8Array(await response.arrayBuffer());
+  }
+  throw new Error("Provider media redirect limit exceeded");
+}
+
+function publicMediaUrl(value: string) {
+  const url = new URL(value);
+  if (url.protocol !== "https:" || url.username || url.password)
+    throw new Error("Provider media URL must be credential-free HTTPS");
+  const host = url.hostname.toLowerCase().replace(/^\[|\]$/g, "");
+  if (
+    host === "localhost" ||
+    host === "::1" ||
+    host.endsWith(".local") ||
+    /^(127\.|10\.|169\.254\.|192\.168\.|0\.)/.test(host) ||
+    /^172\.(1[6-9]|2\d|3[01])\./.test(host)
+  )
+    throw new Error("Provider media URL targets a private host");
+  return url;
+}
+
+async function binaryMediaResponse(
+  response: Response,
+  capability: ModelCapability,
+) {
+  if (capability !== "audio") return undefined;
+  const type = response.headers.get("content-type")?.toLowerCase() || "";
+  if (type.includes("json")) return undefined;
+  return new Uint8Array(await response.arrayBuffer());
+}
+
+function extensionFor(capability: Exclude<ModelCapability, "text">) {
+  return capability === "image"
+    ? "png"
+    : capability === "video"
+      ? "mp4"
+      : "mp3";
+}
+function safeRemoteName(
+  value: string,
+  capability: Exclude<ModelCapability, "text">,
+  index: number,
+) {
+  const name = new URL(value).pathname.split("/").at(-1);
+  return name && /^[a-zA-Z0-9._-]{1,160}$/.test(name)
+    ? name
+    : `${capability}-${index + 1}.${extensionFor(capability)}`;
 }
 function pollingUrl(
   resolved: WorkerResolvedModel,

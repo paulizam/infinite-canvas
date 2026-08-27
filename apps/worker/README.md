@@ -20,6 +20,7 @@ calling or charging an unknown provider; cancellation requests are completed nor
 
 For configured jobs, the Worker resolves a logical model through the API, validates request
 parameters against its capability profile, and invokes the selected OpenAI-compatible channel.
-Provider credentials remain API-managed and are never stored in Worker configuration. The current
-runtime supports JSON text/image/video flows; binary audio persistence, SSE text streaming,
-Gemini/custom adapters, provider-side cancellation, and health feedback remain follow-up work.
+Provider credentials remain API-managed and are never stored in Worker configuration. URL,
+Base64, and binary audio media results are persisted through the API Asset pipeline, and Job JSON
+retains only Asset references. SSE text streaming, Gemini/custom adapters, provider-side
+cancellation, and health feedback remain follow-up work.
