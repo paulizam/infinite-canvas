@@ -24,6 +24,7 @@ export type AppServices = {
   jobs: GenerationJobService;
   jobRepository: GenerationJobRepository;
   workerToken: string;
+  workerStaleMs: number;
   secureCookies: boolean;
   collaboration?: {
     publishMutation: (
@@ -72,6 +73,25 @@ export function createApp(services: AppServices) {
   app.get("/health", (c) =>
     c.json({ data: { status: "ok" }, requestId: requestId(c) }),
   );
+  app.get("/health/worker", async (c) => {
+    const lastHeartbeatAt =
+      await services.jobRepository.latestWorkerHeartbeat();
+    const healthy = Boolean(
+      lastHeartbeatAt &&
+      Date.now() - Date.parse(lastHeartbeatAt) <= services.workerStaleMs,
+    );
+    return c.json(
+      {
+        data: {
+          healthy,
+          lastHeartbeatAt,
+          staleAfterMs: services.workerStaleMs,
+        },
+        requestId: requestId(c),
+      },
+      healthy ? 200 : 503,
+    );
+  });
 
   const registerSchema = z.object({
     email: z.email(),
@@ -282,6 +302,10 @@ export function createApp(services: AppServices) {
   app.post("/internal/v1/generation/heartbeat", async (c) => {
     const input = workerHeartbeatSchema.parse(await c.req.json());
     const now = new Date();
+    await services.jobRepository.recordWorkerHeartbeat(
+      input.workerId,
+      now.toISOString(),
+    );
     const renewed = await services.jobRepository.heartbeat(
       input.workerId,
       input.jobIds,

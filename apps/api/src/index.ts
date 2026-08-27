@@ -40,6 +40,7 @@ const app = createApp({
   jobs: new GenerationJobService(repository, jobRepository),
   jobRepository,
   workerToken: strongWorkerToken(),
+  workerStaleMs: positiveInteger("WORKER_STALE_MS"),
   collaboration,
   secureCookies: process.env.NODE_ENV === "production",
 });
@@ -60,6 +61,13 @@ function strongWorkerToken() {
   if (token.length < 32)
     throw new Error("WORKER_TOKEN must contain at least 32 characters");
   return token;
+}
+
+function positiveInteger(name: string) {
+  const value = Number(required(name));
+  if (!Number.isSafeInteger(value) || value <= 0)
+    throw new Error(`${name} must be a positive integer`);
+  return value;
 }
 
 function createBlobStore() {

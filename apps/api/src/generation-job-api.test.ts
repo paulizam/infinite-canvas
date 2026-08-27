@@ -23,6 +23,7 @@ beforeEach(() => {
     jobs: new GenerationJobService(platform, jobs),
     jobRepository: jobs,
     workerToken: "test-worker-token-32-characters-long",
+    workerStaleMs: 120_000,
     secureCookies: false,
   });
 });
@@ -88,6 +89,7 @@ describe("generation job API", () => {
       limit: 1,
       leaseMs: 90_000,
     });
+    expect((await app.request("/health/worker")).status).toBe(503);
     expect(
       (
         await app.request("/internal/v1/generation/claim", {
@@ -101,6 +103,16 @@ describe("generation job API", () => {
       authorization: "Bearer test-worker-token-32-characters-long",
       "content-type": "application/json",
     };
+    expect(
+      (
+        await app.request("/internal/v1/generation/heartbeat", {
+          method: "POST",
+          headers,
+          body: JSON.stringify({ workerId: "worker-a", jobIds: [] }),
+        })
+      ).status,
+    ).toBe(200);
+    expect((await app.request("/health/worker")).status).toBe(200);
     const claimed = await app.request("/internal/v1/generation/claim", {
       method: "POST",
       headers,

@@ -6,7 +6,7 @@
     "build": "pnpm -r --if-present build",
     "typecheck": "pnpm -r --if-present typecheck",
     "test": "pnpm -r --if-present test",
-    "format:check": "prettier --check apps/api packages/contracts packages/canvas-core",
+    "format:check": "prettier --check apps/api apps/worker packages/contracts packages/canvas-core",
     "quality": "pnpm format:check && pnpm typecheck && pnpm test && pnpm build"
   },
   "devDependencies": {

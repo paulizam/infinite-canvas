@@ -184,6 +184,24 @@ export class PostgresGenerationJobRepository implements GenerationJobRepository 
     );
     return result.rowCount || 0;
   }
+  async recordWorkerHeartbeat(workerId: string, now: string) {
+    await this.pool.query(
+      `INSERT INTO generation_worker_heartbeats(worker_id,last_seen_at,started_at)
+       VALUES($1,$2,$2) ON CONFLICT(worker_id) DO UPDATE SET last_seen_at=EXCLUDED.last_seen_at`,
+      [workerId, now],
+    );
+  }
+  async latestWorkerHeartbeat() {
+    const result = await this.pool.query(
+      "SELECT max(last_seen_at) AS last_seen_at FROM generation_worker_heartbeats",
+    );
+    const value = result.rows[0]?.last_seen_at as Date | string | null;
+    return value
+      ? value instanceof Date
+        ? value.toISOString()
+        : String(value)
+      : null;
+  }
   private async userTransition(
     userId: string,
     jobId: string,

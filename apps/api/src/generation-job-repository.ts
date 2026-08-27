@@ -41,10 +41,13 @@ export interface GenerationJobRepository {
     now: string,
     leaseUntil: string,
   ): Promise<number>;
+  recordWorkerHeartbeat(workerId: string, now: string): Promise<void>;
+  latestWorkerHeartbeat(): Promise<string | null>;
 }
 
 export class MemoryGenerationJobRepository implements GenerationJobRepository {
   private jobs = new Map<string, GenerationJob>();
+  readonly workerHeartbeats = new Map<string, string>();
 
   async create(job: GenerationJob) {
     const existing = [...this.jobs.values()].find(
@@ -219,6 +222,12 @@ export class MemoryGenerationJobRepository implements GenerationJobRepository {
       count++;
     }
     return count;
+  }
+  async recordWorkerHeartbeat(workerId: string, now: string) {
+    this.workerHeartbeats.set(workerId, now);
+  }
+  async latestWorkerHeartbeat() {
+    return [...this.workerHeartbeats.values()].sort().at(-1) || null;
   }
   private requireUserJob(userId: string, jobId: string) {
     const job = this.jobs.get(jobId);

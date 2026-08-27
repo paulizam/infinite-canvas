@@ -27,6 +27,7 @@ beforeEach(() => {
     jobs: new GenerationJobService(repository, jobRepository),
     jobRepository,
     workerToken: "test-worker-token-32-characters-long",
+    workerStaleMs: 120_000,
     secureCookies: false,
   });
 });

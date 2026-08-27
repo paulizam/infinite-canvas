@@ -1,0 +1,19 @@
+# Infinite Canvas Generation Worker
+
+The Worker polls the authenticated API for PostgreSQL-backed generation leases. Configure
+`WORKER_API_ORIGIN` and the same 32+ character `WORKER_TOKEN` used by the API. `WORKER_ID` is
+optional; a process-unique ID is generated otherwise.
+
+```bash
+cp apps/worker/.env.example apps/worker/.env
+pnpm --filter @infinite-canvas/worker build
+pnpm --filter @infinite-canvas/worker start
+```
+
+The API must already be running, its migrations must be applied, and `WORKER_API_ORIGIN` must be
+reachable from the Worker network. Never expose `WORKER_TOKEN` to the browser.
+
+It heartbeats even while idle, renews ownership through the API, recovers expired leases, uses
+bounded exponential idle backoff, and exits cleanly on SIGINT/SIGTERM. Until Model Gateway
+channels are configured, claimed generation work is moved to `needs_review` rather than silently
+calling or charging an unknown provider; cancellation requests are completed normally.
