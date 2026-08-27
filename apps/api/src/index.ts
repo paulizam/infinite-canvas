@@ -33,6 +33,8 @@ import { CommunityService } from "./community-service.js";
 import { PostgresCommunityRepository } from "./postgres-community-repository.js";
 import { CommunitySocialService } from "./community-social-service.js";
 import { PostgresCommunitySocialRepository } from "./postgres-community-social-repository.js";
+import { CommerceService } from "./commerce-service.js";
+import { PostgresCommerceRepository } from "./postgres-commerce-repository.js";
 import {
   IdentityService,
   ProjectService,
@@ -154,6 +156,14 @@ const app = createApp({
   ),
   communitySocial: new CommunitySocialService(
     new PostgresCommunitySocialRepository(databaseUrl),
+  ),
+  commerce: new CommerceService(
+    new PostgresCommerceRepository(databaseUrl),
+    required("BILLING_CODE_SECRET"),
+    {
+      inviter: positiveInteger("INVITE_INVITER_REWARD_UNITS"),
+      invitee: positiveInteger("INVITE_INVITEE_REWARD_UNITS"),
+    },
   ),
   maintenanceToken,
   collaboration,

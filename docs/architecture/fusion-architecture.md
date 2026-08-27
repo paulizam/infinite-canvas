@@ -18,13 +18,13 @@
 
 ### 1.1 质量目标
 
-| 维度 | 目标 |
-|---|---|
-| 兼容性 | infinite-canvas `version: 3` 项目无损导入；未知插件节点可 round-trip |
-| 可靠性 | 已受理生成任务刷新页面/重启实例后继续；重复请求不重复调用上游或扣费 |
-| 安全性 | Server mode 密钥永不下发浏览器；远程插件不在主 Window Realm 执行 |
-| 可部署性 | 单机 Docker Compose 为第一优先；云平台能力均位于 adapter 后 |
-| 可扩展性 | 新模型、新节点、新存储、新支付渠道通过稳定 contract 接入 |
+| 维度     | 目标                                                                  |
+| -------- | --------------------------------------------------------------------- |
+| 兼容性   | infinite-canvas `version: 3` 项目无损导入；未知插件节点可 round-trip  |
+| 可靠性   | 已受理生成任务刷新页面/重启实例后继续；重复请求不重复调用上游或扣费   |
+| 安全性   | Server mode 密钥永不下发浏览器；远程插件不在主 Window Realm 执行      |
+| 可部署性 | 单机 Docker Compose 为第一优先；云平台能力均位于 adapter 后           |
+| 可扩展性 | 新模型、新节点、新存储、新支付渠道通过稳定 contract 接入              |
 | 可测试性 | domain state machine、migration、权限、计费与任务恢复必须有自动化测试 |
 
 ### 1.2 非目标
@@ -140,16 +140,16 @@ infra/
 
 ## 5. 前端组件边界
 
-| Surface | 职责 | 状态来源 |
-|---|---|---|
-| Canvas Shell | 节点编辑、连线、图片编辑、插件节点 | Canvas repository + UI store |
-| Workflow View | typed ports、校验、执行、timeline | Workflow API + execution events |
-| Creative Studio | 按媒体/版本浏览同一项目成果 | Assets + node output projection |
-| Agent Panel | 对话、Skill、planning、结构化 operations | Agent run/events |
-| Drama Studio | 剧本、角色、场景、分镜、配音、字幕、合成 | Drama domain APIs |
-| Library | 素材、提示词、生成历史、版本 | Asset/Prompt services |
-| Community | 草稿、审核、发布、互动 | Publication/Governance services |
-| Admin | 用户、模型、任务、财务、内容、审计 | Admin-scoped APIs |
+| Surface         | 职责                                     | 状态来源                        |
+| --------------- | ---------------------------------------- | ------------------------------- |
+| Canvas Shell    | 节点编辑、连线、图片编辑、插件节点       | Canvas repository + UI store    |
+| Workflow View   | typed ports、校验、执行、timeline        | Workflow API + execution events |
+| Creative Studio | 按媒体/版本浏览同一项目成果              | Assets + node output projection |
+| Agent Panel     | 对话、Skill、planning、结构化 operations | Agent run/events                |
+| Drama Studio    | 剧本、角色、场景、分镜、配音、字幕、合成 | Drama domain APIs               |
+| Library         | 素材、提示词、生成历史、版本             | Asset/Prompt services           |
+| Community       | 草稿、审核、发布、互动                   | Publication/Governance services |
+| Admin           | 用户、模型、任务、财务、内容、审计       | Admin-scoped APIs               |
 
 前端组件禁止直接访问数据库、支付接口或 Server mode 上游模型。所有 Canvas 写入统一转换为 `CanvasOperation[]`，UI、Agent、插件和协作不得绕过 reducer。
 
@@ -225,6 +225,8 @@ queued -> claimed -> submitting -> submitted -> polling
 
 钱包/积分流水为 ledger，不直接覆写余额；扣费、任务创建、流水写入同一事务。商品、套餐、促销、优惠券、CDK、邀请、订单、支付、退款、对账均通过状态机与 webhook idempotency key 保护。
 
+商品价格使用整数最小货币单位，促销按服务端时间窗计算。免费额度以 `(product,user)` 唯一授权并与钱包、ledger 原子入账。优惠券/CDK/邀请码仅在创建响应暴露一次明文，持久层只保存带独立部署密钥的 HMAC-SHA256；兑换与邀请关系以数据库唯一约束、行锁和幂等键抵御并发重复领取，自邀与一人多邀请关系被领域规则拒绝。
+
 ### 6.9 Drama Production
 
 独立 domain module：剧本版本、分析任务、角色/场景/道具、分镜、镜头媒体、配音、字幕、时间线、合成版本。它引用通用 Asset/Generation Job/Model Gateway，不侵入 Canvas core。
@@ -237,25 +239,43 @@ queued -> claimed -> submitting -> submitted -> polling
 
 ```ts
 type CanvasDocument = {
-  id: string; schemaVersion: number; revision: number;
-  viewport: Viewport; nodes: CanvasNode[]; connections: CanvasConnection[];
-  assistantSessions: AssistantSession[]; updatedAt: string;
+  id: string;
+  schemaVersion: number;
+  revision: number;
+  viewport: Viewport;
+  nodes: CanvasNode[];
+  connections: CanvasConnection[];
+  assistantSessions: AssistantSession[];
+  updatedAt: string;
 };
 
 type CanvasNode = {
-  id: string; kind: string; schemaVersion: number;
-  position: Position; size: Size; data: unknown;
-  ports?: Port[]; pluginRef?: { id: string; version: string };
+  id: string;
+  kind: string;
+  schemaVersion: number;
+  position: Position;
+  size: Size;
+  data: unknown;
+  ports?: Port[];
+  pluginRef?: { id: string; version: string };
 };
 
 type AssetRef = {
-  assetId: string; variant?: "original" | "preview" | string;
-  mimeType?: string; width?: number; height?: number; durationMs?: number;
+  assetId: string;
+  variant?: "original" | "preview" | string;
+  mimeType?: string;
+  width?: number;
+  height?: number;
+  durationMs?: number;
 };
 
 type CanvasMutation = {
-  mutationId: string; projectId: string; baseRevision: number;
-  operations: CanvasOperation[]; clientId: string; createdAt: string;
+  mutationId: string;
+  projectId: string;
+  baseRevision: number;
+  operations: CanvasOperation[];
+  clientId: string;
+  createdAt: string;
 };
 ```
 
@@ -336,13 +356,13 @@ Skill 远程安装采用强制两阶段协议：`preview` 仅接受无凭据、�
 
 ## 13. 测试与质量门禁
 
-| 层级 | 必测内容 |
-|---|---|
-| Contract | schema migration、DTO、provider normalization、plugin RPC |
-| Unit | reducer、router、pricing、job state、refund、RBAC、DAG validator |
+| 层级        | 必测内容                                                              |
+| ----------- | --------------------------------------------------------------------- |
+| Contract    | schema migration、DTO、provider normalization、plugin RPC             |
+| Unit        | reducer、router、pricing、job state、refund、RBAC、DAG validator      |
 | Integration | Postgres transaction/lease、object store、WebSocket conflict、webhook |
-| E2E | local canvas、云项目、生成恢复、Agent operation、短剧链路、支付退款 |
-| Security | plugin escape、IDOR、SSRF、upload、secret exposure、webhook replay |
+| E2E         | local canvas、云项目、生成恢复、Agent operation、短剧链路、支付退款   |
+| Security    | plugin escape、IDOR、SSRF、upload、secret exposure、webhook replay    |
 
 PR 门禁：format、lint、typecheck、unit/integration tests、production build、license/secret scan。数据库 migration 必须 forward-only，并附 rollback/compatibility 说明。
 

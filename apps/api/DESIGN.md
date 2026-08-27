@@ -112,3 +112,9 @@ Community works are revisioned drafts linked to same-Workspace Canvas projects. 
 ### Community social layer
 
 Comments use immutable IDs, per-author mutation keys, bounded content, reply ownership checks, soft moderation states, reports, and Maintenance audit events. Bookmarks are set-valued rows. Collections are owner-controlled revisioned aggregates with request hashes and public/unlisted/private visibility. Service-level sliding windows limit abusive comment/report/bookmark bursts; database uniqueness remains the authoritative consistency boundary.
+
+## Billing commerce catalog
+
+`CommerceService` owns BIL-003/004 product, promotion, redemption-code, free-grant, and referral rules. Public catalog prices are calculated from integer minor units and active promotion windows; free products use a unique `(product_id, user_id)` grant so retries never mint units twice. Wallet mutations, immutable ledger entries, redemption/referral records, and counters are committed in one PostgreSQL transaction under row locks.
+
+Coupon/CDK and invite plaintext is returned only at creation. Persistence stores `HMAC-SHA256(code, BILLING_CODE_SECRET)`; production requires a secret of at least 32 bytes and explicit inviter/invitee reward units. User-supplied idempotency keys are unique, replay returns the original outcome, self-invite and a second referral relationship are rejected, and ledger entry types distinguish `redemption` and `referral` from purchases and generation billing.

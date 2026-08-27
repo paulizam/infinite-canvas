@@ -29,6 +29,7 @@ import type { DramaRenderService } from "./drama-render-service.js";
 import type { DramaInteropService } from "./drama-interop-service.js";
 import type { CommunityService } from "./community-service.js";
 import type { CommunitySocialService } from "./community-social-service.js";
+import type { CommerceService } from "./commerce-service.js";
 import { ModelDiscoveryService } from "./model-discovery.js";
 import { createModelDiscoveryApi } from "./model-discovery-api.js";
 import {
@@ -64,6 +65,7 @@ export type AppServices = {
   dramaInterop?: DramaInteropService;
   community?: CommunityService;
   communitySocial?: CommunitySocialService;
+  commerce?: CommerceService;
   maintenanceToken: string;
   secureCookies: boolean;
   modelDiscovery?: ModelDiscoveryService;
@@ -163,6 +165,13 @@ export function createApp(services: AppServices) {
       }),
     );
   }
+  if (services.commerce)
+    app.get("/api/public/v1/billing/products", async (c) =>
+      c.json({
+        data: await services.commerce!.products(true),
+        requestId: requestId(c),
+      }),
+    );
   if (services.communitySocial) {
     app.get("/api/public/v1/community/works/:workId/comments", async (c) =>
       c.json({
@@ -915,6 +924,48 @@ export function createApp(services: AppServices) {
       requestId: requestId(c),
     }),
   );
+  if (services.commerce) {
+    app.post("/api/v1/billing/codes/redeem", async (c) => {
+      const x = billingRedeemSchema.parse(await c.req.json());
+      return c.json({
+        data: await services.commerce!.redeemCode(
+          c.get("user").id,
+          x.code,
+          x.idempotencyKey,
+        ),
+        requestId: requestId(c),
+      });
+    });
+    app.post("/api/v1/billing/invites", async (c) =>
+      c.json(
+        {
+          data: await services.commerce!.createInvite(c.get("user").id),
+          requestId: requestId(c),
+        },
+        201,
+      ),
+    );
+    app.post("/api/v1/billing/invites/redeem", async (c) => {
+      const x = billingRedeemSchema.parse(await c.req.json());
+      return c.json({
+        data: await services.commerce!.redeemInvite(
+          c.get("user").id,
+          x.code,
+          x.idempotencyKey,
+        ),
+        requestId: requestId(c),
+      });
+    });
+    app.post("/api/v1/billing/products/:productId/claim-free", async (c) =>
+      c.json({
+        data: await services.commerce!.claimFreeProduct(
+          c.get("user").id,
+          c.req.param("productId"),
+        ),
+        requestId: requestId(c),
+      }),
+    );
+  }
   app.get("/api/v1/projects/:projectId", async (c) => {
     const project = await services.projects.get(
       c.get("user").id,
@@ -2003,6 +2054,35 @@ export function createApp(services: AppServices) {
       requestId: requestId(c),
     });
   });
+  if (services.commerce) {
+    app.put("/internal/v1/maintenance/billing/products", async (c) =>
+      c.json({
+        data: await services.commerce!.saveProduct(
+          billingProductSchema.parse(await c.req.json()),
+        ),
+        requestId: requestId(c),
+      }),
+    );
+    app.post("/internal/v1/maintenance/billing/codes", async (c) =>
+      c.json(
+        {
+          data: await services.commerce!.createCode(
+            billingCodeSchema.parse(await c.req.json()),
+          ),
+          requestId: requestId(c),
+        },
+        201,
+      ),
+    );
+    app.put("/internal/v1/maintenance/billing/promotions", async (c) =>
+      c.json({
+        data: await services.commerce!.savePromotion(
+          billingPromotionSchema.parse(await c.req.json()),
+        ),
+        requestId: requestId(c),
+      }),
+    );
+  }
   return app;
 }
 
@@ -2753,6 +2833,58 @@ const walletAdjustmentSchema = z
     note: z.string().trim().min(1).max(500),
   })
   .strict();
+const billingRedeemSchema = z
+  .object({
+    code: z.string().trim().min(8).max(200),
+    idempotencyKey: z.string().trim().min(8).max(200),
+  })
+  .strict();
+const billingProductSchema = z
+  .object({
+    code: z
+      .string()
+      .trim()
+      .regex(/^[a-z0-9_-]{2,80}$/i),
+    name: z.string().trim().min(1).max(160),
+    description: z.string().max(4000).optional(),
+    units: z.number().int().safe().nonnegative(),
+    priceMinor: z.number().int().safe().nonnegative(),
+    currency: z.string().regex(/^[A-Za-z]{3}$/),
+    active: z.boolean(),
+    metadata: z.record(z.string(), z.unknown()).optional(),
+  })
+  .strict();
+const billingCodeSchema = z
+  .object({
+    kind: z.enum(["coupon", "cdk"]),
+    label: z.string().trim().min(1).max(160),
+    discountBps: z.number().int().min(0).max(10000),
+    bonusUnits: z.number().int().safe().nonnegative(),
+    maxRedemptions: z.number().int().positive().max(1_000_000),
+    perUserLimit: z.number().int().positive().max(100),
+    startsAt: z.iso.datetime(),
+    expiresAt: z.iso.datetime(),
+    active: z.boolean(),
+  })
+  .strict()
+  .refine((x) => x.expiresAt > x.startsAt, {
+    message: "expiresAt 必须晚于 startsAt",
+  });
+const billingPromotionSchema = z
+  .object({
+    id: z.uuid().optional(),
+    name: z.string().trim().min(1).max(160),
+    discountBps: z.number().int().min(0).max(10000),
+    bonusUnits: z.number().int().safe().nonnegative(),
+    startsAt: z.iso.datetime(),
+    endsAt: z.iso.datetime(),
+    active: z.boolean(),
+    productId: z.uuid().nullable().optional(),
+  })
+  .strict()
+  .refine((x) => x.endsAt > x.startsAt, {
+    message: "endsAt 必须晚于 startsAt",
+  });
 const resolveModelSchema = z.object({
   capability: modelCapabilitySchema,
   logicalModelId: z.string().trim().min(1).max(160),
