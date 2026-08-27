@@ -22,3 +22,4 @@
 
 - 打通生成媒体持久化：Worker 支持 provider URL/Base64 与 binary audio，下载结果通过租约绑定的内部 API 经 magic-byte 校验、Workspace 去重写入 Asset BlobStore，Job result 仅保留 AssetRef。
 - Provider 媒体下载强制 credential-free HTTPS，限制重定向次数并拒绝显式 private/local host；内部上传校验 Worker Token、workerId、有效租约及持久化阶段。
+- 打通 Model Gateway 运行态健康反馈：Worker 上报 submit/poll 成败，连续失败依次进入 degraded/cooldown，60 秒冷却期间 Router 自动排除，成功后恢复 healthy。

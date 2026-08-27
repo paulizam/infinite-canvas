@@ -391,6 +391,15 @@ export function createApp(services: AppServices) {
       throw new DomainError("MODEL_UNAVAILABLE", 404, "没有可用的模型渠道");
     return c.json({ data: resolved, requestId: requestId(c) });
   });
+  app.post("/internal/v1/model-gateway/health", async (c) => {
+    const input = modelHealthSchema.parse(await c.req.json());
+    await services.modelGateway.reportHealth(
+      input.upstreamModelId,
+      input.outcome,
+      new Date().toISOString(),
+    );
+    return c.json({ data: { accepted: true }, requestId: requestId(c) });
+  });
   app.put("/internal/v1/maintenance/model-protocols/:id", async (c) => {
     const input = protocolSchema.parse(await c.req.json());
     return c.json({
@@ -617,6 +626,10 @@ const resolveModelSchema = z.object({
   capability: modelCapabilitySchema,
   logicalModelId: z.string().trim().min(1).max(160),
   preferredChannelId: z.uuid().optional(),
+});
+const modelHealthSchema = z.object({
+  upstreamModelId: z.string().uuid(),
+  outcome: z.enum(["success", "failure"]),
 });
 const protocolSchema = z
   .object({

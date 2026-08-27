@@ -19,7 +19,7 @@
 - [x] WebSocket collaboration hub
 - [x] Asset storage（magic-byte、SHA-256、Local/S3、RBAC、AssetRef 保护）
 - [x] Generation Job Worker（contract/state/schema/repository/API、独立 runtime、heartbeat/lease recovery）
-- [▶] Model Gateway（OpenAI-compatible 与媒体 Asset 持久化已完成；Gemini/custom、streaming、health feedback 待完成）、Billing ledger
+- [▶] Model Gateway（OpenAI-compatible、媒体 Asset 持久化、health feedback/cooldown 已完成；Gemini/custom、streaming 待完成）、Billing ledger
 
 ## 错误账本
 

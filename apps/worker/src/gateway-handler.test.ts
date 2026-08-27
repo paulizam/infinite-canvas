@@ -24,7 +24,10 @@ const resolved = {
     enabled: true,
     credentialConfigured: true,
   },
-  upstreamModel: { modelId: "image-v1" },
+  upstreamModel: {
+    id: "11111111-1111-4111-8111-111111111111",
+    modelId: "image-v1",
+  },
   binding: { capabilityProfile: {} },
   apiKey: "secret",
 } as WorkerResolvedModel;
@@ -49,6 +52,7 @@ describe("model gateway worker handler", () => {
         assetId: "asset-1",
         mimeType: "image/png",
       })),
+      reportModelHealth: vi.fn(async () => ({ accepted: true as const })),
     } as unknown as WorkerApiClient;
     const fetcher = vi.fn(
       async () =>
@@ -97,6 +101,7 @@ describe("model gateway worker handler", () => {
         assetId: "audio-1",
         mimeType: "audio/mpeg",
       })),
+      reportModelHealth: vi.fn(async () => ({ accepted: true as const })),
     } as unknown as WorkerApiClient;
     const fetcher = vi.fn(
       async () =>

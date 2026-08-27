@@ -167,6 +167,28 @@ export class PostgresModelGatewayRepository implements ModelGatewayRepository {
       ),
     };
   }
+  async reportHealth(
+    upstreamModelId: string,
+    outcome: "success" | "failure",
+    now: string,
+  ) {
+    if (outcome === "success") {
+      await this.pool.query(
+        `UPDATE upstream_models SET consecutive_failures=0,health_state='healthy',cooldown_until=NULL,last_success_at=$2,updated_at=$2 WHERE id=$1 AND enabled`,
+        [upstreamModelId, now],
+      );
+      return;
+    }
+    await this.pool.query(
+      `UPDATE upstream_models SET
+         consecutive_failures=consecutive_failures+1,
+         health_state=CASE WHEN consecutive_failures+1>=3 THEN 'cooldown' ELSE 'degraded' END,
+         cooldown_until=CASE WHEN consecutive_failures+1>=3 THEN $2::timestamptz + interval '60 seconds' ELSE NULL END,
+         last_failure_at=$2,updated_at=$2
+       WHERE id=$1 AND enabled`,
+      [upstreamModelId, now],
+    );
+  }
 }
 function mapProtocol(r: Record<string, unknown>): ModelProtocol {
   return {

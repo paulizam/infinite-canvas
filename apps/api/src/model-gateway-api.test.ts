@@ -130,6 +130,40 @@ describe("model gateway control plane", () => {
     expect(
       ((await resolved.json()) as { data: { apiKey: string } }).data.apiKey,
     ).toBe("provider-secret");
+    const health = (outcome: "success" | "failure") =>
+      app.request("/internal/v1/model-gateway/health", {
+        method: "POST",
+        headers: { authorization: worker, "content-type": "application/json" },
+        body: JSON.stringify({ upstreamModelId: upstreamId, outcome }),
+      });
+    expect((await health("failure")).status).toBe(200);
+    await health("failure");
+    await health("failure");
+    expect(
+      (
+        await app.request("/internal/v1/model-gateway/resolve", {
+          method: "POST",
+          headers: {
+            authorization: worker,
+            "content-type": "application/json",
+          },
+          body,
+        })
+      ).status,
+    ).toBe(404);
+    await health("success");
+    expect(
+      (
+        await app.request("/internal/v1/model-gateway/resolve", {
+          method: "POST",
+          headers: {
+            authorization: worker,
+            "content-type": "application/json",
+          },
+          body,
+        })
+      ).status,
+    ).toBe(200);
   });
   it("rejects insecure or credential-bearing channel URLs by default", async () => {
     const common = {

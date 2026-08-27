@@ -112,9 +112,17 @@ async function submit(
     parameters: job.input,
     allowInsecure: resolved.channel.config.allowInsecure === true,
   });
-  const response = await fetcher(request.url, { ...request.init, signal });
-  if (!response.ok)
+  let response: Response;
+  try {
+    response = await fetcher(request.url, { ...request.init, signal });
+  } catch (error) {
+    await reportHealth(client, resolved.upstreamModel.id, "failure", signal);
+    throw error;
+  }
+  if (!response.ok) {
+    await reportHealth(client, resolved.upstreamModel.id, "failure", signal);
     throw new Error(`Provider submit failed with HTTP ${response.status}`);
+  }
   const binary = await binaryMediaResponse(response, capability);
   const payload = binary ? {} : await safeJson(response);
   const upstreamTaskId = taskId(payload);
@@ -132,6 +140,7 @@ async function submit(
     signal,
   );
   if (upstreamTaskId && isPending(status)) {
+    await reportHealth(client, resolved.upstreamModel.id, "success", signal);
     await client.transition(
       workerId,
       submitted.id,
@@ -151,6 +160,7 @@ async function submit(
     signal,
     binary,
   );
+  await reportHealth(client, resolved.upstreamModel.id, "success", signal);
 }
 
 async function poll(
@@ -171,16 +181,25 @@ async function poll(
   if (resolved.channel.id !== job.channelId)
     throw new Error("Resolved channel differs from submitted channel");
   const url = pollingUrl(resolved, capability, job.upstreamTaskId);
-  const response = await fetcher(url, {
-    method: "GET",
-    signal,
-    headers: { authorization: `Bearer ${resolved.apiKey}` },
-  });
-  if (!response.ok)
+  let response: Response;
+  try {
+    response = await fetcher(url, {
+      method: "GET",
+      signal,
+      headers: { authorization: `Bearer ${resolved.apiKey}` },
+    });
+  } catch (error) {
+    await reportHealth(client, resolved.upstreamModel.id, "failure", signal);
+    throw error;
+  }
+  if (!response.ok) {
+    await reportHealth(client, resolved.upstreamModel.id, "failure", signal);
     throw new Error(`Provider poll failed with HTTP ${response.status}`);
+  }
   const payload = await safeJson(response);
   const status = upstreamStatus(payload);
   if (isPending(status)) {
+    await reportHealth(client, resolved.upstreamModel.id, "success", signal);
     await client.transition(
       workerId,
       job.id,
@@ -191,6 +210,7 @@ async function poll(
     return;
   }
   if (["failed", "error", "cancelled"].includes(status)) {
+    await reportHealth(client, resolved.upstreamModel.id, "failure", signal);
     await client.transition(
       workerId,
       job.id,
@@ -204,6 +224,18 @@ async function poll(
     return;
   }
   await complete(job, payload, capability, client, workerId, fetcher, signal);
+  await reportHealth(client, resolved.upstreamModel.id, "success", signal);
+}
+
+async function reportHealth(
+  client: WorkerApiClient,
+  upstreamModelId: string,
+  outcome: "success" | "failure",
+  signal?: AbortSignal,
+) {
+  await client
+    .reportModelHealth(upstreamModelId, outcome, signal)
+    .catch(() => undefined);
 }
 
 async function complete(

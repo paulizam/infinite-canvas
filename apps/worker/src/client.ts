@@ -70,6 +70,17 @@ export class WorkerApiClient {
       signal,
     );
   }
+  reportModelHealth(
+    upstreamModelId: string,
+    outcome: "success" | "failure",
+    signal?: AbortSignal,
+  ) {
+    return this.request<{ accepted: true }>(
+      "/internal/v1/model-gateway/health",
+      { upstreamModelId, outcome },
+      signal,
+    );
+  }
   async persistAsset(
     workerId: string,
     jobId: string,
