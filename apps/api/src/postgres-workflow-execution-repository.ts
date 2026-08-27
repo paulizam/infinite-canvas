@@ -108,6 +108,94 @@ export class PostgresWorkflowExecutionRepository implements WorkflowExecutionRep
       client.release();
     }
   }
+  async claim(input: {
+    workerId: string;
+    now: string;
+    leaseUntil: string;
+    limit: number;
+  }) {
+    const result = await this.pool.query(
+      `WITH due AS (SELECT id FROM workflow_executions WHERE status IN ('queued','running','waiting','cancel_requested')
+       AND next_run_at<=$1 AND (lease_until IS NULL OR lease_until<=$1) ORDER BY next_run_at,id FOR UPDATE SKIP LOCKED LIMIT $3)
+       UPDATE workflow_executions e SET worker_id=$2,lease_until=$4,last_heartbeat_at=$1 FROM due WHERE e.id=due.id RETURNING e.id`,
+      [input.now, input.workerId, input.limit, input.leaseUntil],
+    );
+    const records = await Promise.all(
+      result.rows.map((row) => loadInternal(this.pool, String(row.id))),
+    );
+    return records.filter((record): record is WorkflowExecutionRecord =>
+      Boolean(record),
+    );
+  }
+  async heartbeat(
+    workerId: string,
+    executionIds: string[],
+    now: string,
+    leaseUntil: string,
+  ) {
+    if (!executionIds.length) return 0;
+    const result = await this.pool.query(
+      "UPDATE workflow_executions SET lease_until=$4,last_heartbeat_at=$3 WHERE worker_id=$1 AND id=ANY($2::uuid[]) AND lease_until>$3",
+      [workerId, [...new Set(executionIds)], now, leaseUntil],
+    );
+    return result.rowCount || 0;
+  }
+  async getForWorker(workerId: string, executionId: string, now: string) {
+    return loadWorker(this.pool, workerId, executionId, now, false);
+  }
+  async saveByWorker(
+    workerId: string,
+    record: WorkflowExecutionRecord,
+    expectedRevision: number,
+    now: string,
+    nextRunAt: string,
+  ) {
+    const client = await this.pool.connect();
+    try {
+      await client.query("BEGIN");
+      const current = await loadWorker(
+        client,
+        workerId,
+        record.state.id,
+        now,
+        true,
+      );
+      if (!current)
+        throw new DomainError("EXECUTION_LEASE_LOST", 409, "执行租约已失效");
+      if (current.revision !== expectedRevision)
+        throw new DomainError(
+          "EXECUTION_REVISION_CONFLICT",
+          409,
+          "执行版本冲突",
+        );
+      if (!sameExecutionCreation(current, record))
+        throw new DomainError(
+          "EXECUTION_IDENTITY_CONFLICT",
+          409,
+          "执行身份或初始快照不可修改",
+        );
+      const next = { ...record, revision: expectedRevision + 1, nextRunAt };
+      await client.query(
+        "UPDATE workflow_executions SET status=$2,revision=$3,updated_at=$4,completed_at=$5,next_run_at=$6 WHERE id=$1",
+        [
+          record.state.id,
+          record.state.status,
+          next.revision,
+          record.state.updatedAt,
+          record.state.completedAt || null,
+          nextRunAt,
+        ],
+      );
+      await writeChildren(client, next);
+      await client.query("COMMIT");
+      return next;
+    } catch (error) {
+      await client.query("ROLLBACK");
+      throw error;
+    } finally {
+      client.release();
+    }
+  }
 }
 
 function executionValues(record: WorkflowExecutionRecord) {
@@ -185,6 +273,36 @@ async function load(
   );
   const row = result.rows[0];
   if (!row) return null;
+  return hydrate(db, row);
+}
+async function loadInternal(db: pg.Pool | pg.PoolClient, executionId: string) {
+  const result = await db.query(
+    `SELECT e.*,v.definition AS workflow_definition FROM workflow_executions e
+     JOIN workflow_versions v ON v.workflow_id=e.workflow_id AND v.version=e.workflow_version WHERE e.id=$1`,
+    [executionId],
+  );
+  return result.rows[0] ? hydrate(db, result.rows[0]) : null;
+}
+async function loadWorker(
+  db: pg.Pool | pg.PoolClient,
+  workerId: string,
+  executionId: string,
+  now: string,
+  lock: boolean,
+) {
+  const result = await db.query(
+    `SELECT e.*,v.definition AS workflow_definition FROM workflow_executions e
+     JOIN workflow_versions v ON v.workflow_id=e.workflow_id AND v.version=e.workflow_version
+     WHERE e.id=$1 AND e.worker_id=$2 AND e.lease_until>$3 ${lock ? "FOR UPDATE OF e" : ""}`,
+    [executionId, workerId, now],
+  );
+  return result.rows[0] ? hydrate(db, result.rows[0]) : null;
+}
+async function hydrate(
+  db: pg.Pool | pg.PoolClient,
+  row: Record<string, unknown>,
+): Promise<WorkflowExecutionRecord> {
+  const executionId = String(row.id);
   const nodes = await db.query(
     "SELECT * FROM workflow_node_executions WHERE execution_id=$1 ORDER BY node_id",
     [executionId],
