@@ -110,22 +110,36 @@ export type WorkflowPort = {
   required?: boolean;
   multiple?: boolean;
 };
+export type WorkflowNodeDefinition = {
+  id: string;
+  type: string;
+  inputs: WorkflowPort[];
+  outputs: WorkflowPort[];
+  config: unknown;
+  requiredCapabilities?: string[];
+  credentialRefs?: string[];
+};
+export type WorkflowNodeSchema = {
+  type: string;
+  schemaVersion: number;
+  inputs: WorkflowPort[];
+  outputs: WorkflowPort[];
+  configSchema?: Record<string, unknown>;
+  requiredCapabilities?: string[];
+  credentialSlots?: string[];
+};
+export type WorkflowEdge = {
+  id: string;
+  fromNodeId: string;
+  fromPortId: string;
+  toNodeId: string;
+  toPortId: string;
+};
 export type WorkflowDefinition = {
   id: string;
   schemaVersion: number;
   name: string;
-  nodes: Array<{
-    id: string;
-    type: string;
-    inputs: WorkflowPort[];
-    outputs: WorkflowPort[];
-    config: unknown;
-  }>;
-  edges: Array<{
-    id: string;
-    fromNodeId: string;
-    fromPortId: string;
-    toNodeId: string;
-    toPortId: string;
-  }>;
+  nodes: WorkflowNodeDefinition[];
+  edges: WorkflowEdge[];
+  entryNodeIds?: string[];
 };

@@ -198,6 +198,12 @@ importers:
         specifier: workspace:*
         version: link:../contracts
 
+  packages/workflow-runtime:
+    dependencies:
+      '@infinite-canvas/contracts':
+        specifier: workspace:*
+        version: link:../contracts
+
   plugins/canvas/html:
     devDependencies:
       '@infinite-canvas/plugin-sdk':
