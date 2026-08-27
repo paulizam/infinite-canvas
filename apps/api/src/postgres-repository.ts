@@ -15,6 +15,7 @@ import {
   type AssetRecord,
 } from "./domain.js";
 import { extractAssetIds } from "./asset-references.js";
+import { createHash } from "node:crypto";
 
 export class PostgresPlatformRepository implements PlatformRepository {
   private pool: pg.Pool;
@@ -213,11 +214,24 @@ export class PostgresPlatformRepository implements PlatformRepository {
         p.rows[0].workspace_id,
         "editor",
       );
+      const { createdAt: _, ...semanticMutation } = mutation;
+      const requestHash = createHash("sha256")
+        .update(JSON.stringify(semanticMutation))
+        .digest("hex");
       const replay = await c.query(
-        "SELECT revision FROM canvas_project_mutations WHERE project_id=$1 AND mutation_id=$2",
+        "SELECT revision,request_hash FROM canvas_project_mutations WHERE project_id=$1 AND mutation_id=$2",
         [projectId, mutation.mutationId],
       );
       if (replay.rows[0]) {
+        if (
+          replay.rows[0].request_hash &&
+          replay.rows[0].request_hash !== requestHash
+        )
+          throw new DomainError(
+            "MUTATION_IDEMPOTENCY_CONFLICT",
+            409,
+            "Mutation 幂等键内容漂移",
+          );
         await c.query("COMMIT");
         return { project: mapProject(p.rows[0]), replayed: true };
       }
@@ -238,8 +252,14 @@ export class PostgresPlatformRepository implements PlatformRepository {
         ],
       );
       await c.query(
-        "INSERT INTO canvas_project_mutations(project_id,mutation_id,revision,created_at) VALUES($1,$2,$3,$4)",
-        [projectId, mutation.mutationId, document.revision, mutation.createdAt],
+        "INSERT INTO canvas_project_mutations(project_id,mutation_id,revision,created_at,request_hash) VALUES($1,$2,$3,$4,$5)",
+        [
+          projectId,
+          mutation.mutationId,
+          document.revision,
+          mutation.createdAt,
+          requestHash,
+        ],
       );
       await syncAssetReferences(c, projectId, document);
       await c.query("COMMIT");

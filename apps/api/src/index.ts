@@ -28,6 +28,7 @@ import { DramaProductionService } from "./drama-production-service.js";
 import { PostgresDramaProductionRepository } from "./postgres-drama-production-repository.js";
 import { DramaRenderService } from "./drama-render-service.js";
 import { PostgresDramaRenderRepository } from "./postgres-drama-render-repository.js";
+import { DramaInteropService } from "./drama-interop-service.js";
 import {
   IdentityService,
   ProjectService,
@@ -82,6 +83,13 @@ const dramaProduction = new DramaProductionService(
   new PostgresDramaProductionRepository(databaseUrl),
   new GenerationJobService(repository, jobRepository),
 );
+const dramaRender = new DramaRenderService(
+  repository,
+  drama,
+  dramaProduction,
+  new PostgresDramaRenderRepository(databaseUrl),
+  assets,
+);
 const collaboration = new CollaborationHub(
   identity,
   projects,
@@ -127,12 +135,13 @@ const app = createApp({
   agentRuns: new AgentRunService(repository, agentRunRepository),
   drama,
   dramaProduction,
-  dramaRender: new DramaRenderService(
+  dramaRender,
+  dramaInterop: new DramaInteropService(
     repository,
+    projects,
     drama,
     dramaProduction,
-    new PostgresDramaRenderRepository(databaseUrl),
-    assets,
+    dramaRender,
   ),
   maintenanceToken,
   collaboration,

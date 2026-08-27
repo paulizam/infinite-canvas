@@ -378,3 +378,7 @@ DRM-005/006/010 后端基座复用统一 Generation Job、Wallet 与 Asset：镜
 ### DRM-007/008 Worker（2026-08-28）
 
 Render Worker 已接入独立租约循环。输入/输出 API 均校验 Worker token、活跃 lease 与任务素材白名单；FFmpeg 通过无 shell argv 执行并支持 abort 清理；剪映导出生成 deterministic ZIP，包含 v6 draft metadata/content、时间轴与本地化素材。成功上传后才允许创建不可变成片版本，失败进入可重试终态。
+
+### DRM-009 双向互通（2026-08-28）
+
+Drama 可将来源、实体参考、镜头选择、时间轴或成片 Asset 投递为 Canvas media node；Canvas 中绑定云端 assetId 的节点可反向导入 Drama 实体或时间轴，Asset Library 亦可直接导入。所有路径强制同 Workspace、目标 revision、mutationId 与 payload hash，Canvas Asset reference 会阻止仍在画布使用的素材被删除。

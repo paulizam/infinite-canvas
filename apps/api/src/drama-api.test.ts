@@ -17,6 +17,7 @@ import { MemoryDramaProductionRepository } from "./drama-production-repository.j
 import { DramaProductionService } from "./drama-production-service.js";
 import { MemoryDramaRenderRepository } from "./drama-render-repository.js";
 import { DramaRenderService } from "./drama-render-service.js";
+import { DramaInteropService } from "./drama-interop-service.js";
 let app: ReturnType<typeof createApp>;
 beforeEach(() => {
   const p = new MemoryPlatformRepository(),
@@ -42,10 +43,23 @@ beforeEach(() => {
     ),
     jobs,
   );
+  const render = new DramaRenderService(
+    p,
+    drama,
+    production,
+    new MemoryDramaRenderRepository(
+      async (userId, projectId) =>
+        (await dramaRepository.get(userId, projectId))?.project || null,
+      (...x) => p.requireWorkspaceRole(...x),
+      (id, revision) => dramaRepository.bumpRevision(id, revision),
+    ),
+    assetService,
+  );
+  const projectService = new ProjectService(p);
   app = createApp({
     identity: new IdentityService(p, 60_000),
     workspaces: new WorkspaceService(p),
-    projects: new ProjectService(p),
+    projects: projectService,
     assets: assetService,
     jobs,
     jobRepository: j,
@@ -56,17 +70,13 @@ beforeEach(() => {
     secureCookies: false,
     drama,
     dramaProduction: production,
-    dramaRender: new DramaRenderService(
+    dramaRender: render,
+    dramaInterop: new DramaInteropService(
       p,
+      projectService,
       drama,
       production,
-      new MemoryDramaRenderRepository(
-        async (userId, projectId) =>
-          (await dramaRepository.get(userId, projectId))?.project || null,
-        (...x) => p.requireWorkspaceRole(...x),
-        (id, revision) => dramaRepository.bumpRevision(id, revision),
-      ),
-      assetService,
+      render,
     ),
   });
 });
@@ -91,6 +101,123 @@ const headers = (cookie: string) => ({
   "content-type": "application/json",
 });
 describe("Drama API", () => {
+  it("transfers a workspace asset from Drama to Canvas and back with revision and drift guards", async () => {
+    const s = await setup();
+    const png = Buffer.from(
+      "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=",
+      "base64",
+    );
+    let r = await app.request(`/api/v1/workspaces/${s.workspaceId}/assets`, {
+      method: "POST",
+      headers: {
+        cookie: s.cookie,
+        "x-file-name": "ref.png",
+        "content-type": "application/octet-stream",
+      },
+      body: png,
+    });
+    expect(r.status).toBe(201);
+    const assetId = ((await r.json()) as any).data.asset.id;
+    r = await app.request(
+      `/api/v1/workspaces/${s.workspaceId}/drama-projects`,
+      {
+        method: "POST",
+        headers: headers(s.cookie),
+        body: JSON.stringify({ title: "互通", sourceAssetId: assetId }),
+      },
+    );
+    const dramaId = ((await r.json()) as any).data.project.id;
+    r = await app.request(`/api/v1/workspaces/${s.workspaceId}/projects`, {
+      method: "POST",
+      headers: headers(s.cookie),
+      body: JSON.stringify({ title: "互通画布" }),
+    });
+    const canvasId = ((await r.json()) as any).data.id;
+    const toCanvas = {
+      canvasProjectId: canvasId,
+      assetId,
+      expectedCanvasRevision: 0,
+      mutationId: "transfer-to-canvas-001",
+      position: { x: 10, y: 20 },
+    };
+    r = await app.request(
+      `/api/v1/drama-projects/${dramaId}/transfers/to-canvas`,
+      {
+        method: "POST",
+        headers: headers(s.cookie),
+        body: JSON.stringify(toCanvas),
+      },
+    );
+    expect(r.status).toBe(201);
+    const node = ((await r.json()) as any).data.node;
+    expect(node).toMatchObject({
+      type: "image",
+      metadata: { assetId, dramaProjectId: dramaId },
+    });
+    r = await app.request(
+      `/api/v1/drama-projects/${dramaId}/transfers/to-canvas`,
+      {
+        method: "POST",
+        headers: headers(s.cookie),
+        body: JSON.stringify(toCanvas),
+      },
+    );
+    expect(((await r.json()) as any).data.mutation.replayed).toBe(true);
+    r = await app.request(
+      `/api/v1/drama-projects/${dramaId}/transfers/to-canvas`,
+      {
+        method: "POST",
+        headers: headers(s.cookie),
+        body: JSON.stringify({ ...toCanvas, title: "漂移节点" }),
+      },
+    );
+    expect(r.status).toBe(409);
+    const fromCanvas = {
+      canvasProjectId: canvasId,
+      nodeId: node.id,
+      expectedDramaRevision: 0,
+      mutationId: "transfer-from-canvas-001",
+      target: {
+        type: "entity",
+        kind: "character",
+        name: "参考角色",
+        sortOrder: 0,
+      },
+    };
+    r = await app.request(
+      `/api/v1/drama-projects/${dramaId}/transfers/from-canvas`,
+      {
+        method: "POST",
+        headers: headers(s.cookie),
+        body: JSON.stringify(fromCanvas),
+      },
+    );
+    expect(r.status).toBe(201);
+    expect(
+      ((await r.json()) as any).data.detail.entities[0].referenceAssetId,
+    ).toBe(assetId);
+    r = await app.request(
+      `/api/v1/drama-projects/${dramaId}/transfers/from-canvas`,
+      {
+        method: "POST",
+        headers: headers(s.cookie),
+        body: JSON.stringify(fromCanvas),
+      },
+    );
+    expect(((await r.json()) as any).data.replayed).toBe(true);
+    r = await app.request(
+      `/api/v1/drama-projects/${dramaId}/transfers/from-canvas`,
+      {
+        method: "POST",
+        headers: headers(s.cookie),
+        body: JSON.stringify({
+          ...fromCanvas,
+          target: { ...fromCanvas.target, name: "漂移" },
+        }),
+      },
+    );
+    expect(r.status).toBe(409);
+  });
   it("creates an immutable script lineage, reusable entity and ordered shot with optimistic idempotent writes", async () => {
     const s = await setup();
     let r = await app.request(

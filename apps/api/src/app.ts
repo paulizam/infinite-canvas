@@ -26,6 +26,7 @@ import type { AgentRunService } from "./agent-run-service.js";
 import type { DramaService } from "./drama-service.js";
 import type { DramaProductionService } from "./drama-production-service.js";
 import type { DramaRenderService } from "./drama-render-service.js";
+import type { DramaInteropService } from "./drama-interop-service.js";
 import { ModelDiscoveryService } from "./model-discovery.js";
 import { createModelDiscoveryApi } from "./model-discovery-api.js";
 import {
@@ -58,6 +59,7 @@ export type AppServices = {
   drama?: DramaService;
   dramaProduction?: DramaProductionService;
   dramaRender?: DramaRenderService;
+  dramaInterop?: DramaInteropService;
   maintenanceToken: string;
   secureCookies: boolean;
   modelDiscovery?: ModelDiscoveryService;
@@ -447,6 +449,51 @@ export function createApp(services: AppServices) {
         202,
       );
     });
+  }
+  if (services.dramaInterop) {
+    app.post("/api/v1/drama-projects/:dramaId/transfers/to-canvas", async (c) =>
+      c.json(
+        {
+          data: await services.dramaInterop!.toCanvas(
+            c.get("user").id,
+            c.req.param("dramaId"),
+            dramaToCanvasSchema.parse(await c.req.json()),
+          ),
+          requestId: requestId(c),
+        },
+        201,
+      ),
+    );
+    app.post(
+      "/api/v1/drama-projects/:dramaId/transfers/from-canvas",
+      async (c) =>
+        c.json(
+          {
+            data: await services.dramaInterop!.fromCanvas(
+              c.get("user").id,
+              c.req.param("dramaId"),
+              dramaFromCanvasSchema.parse(await c.req.json()),
+            ),
+            requestId: requestId(c),
+          },
+          201,
+        ),
+    );
+    app.post(
+      "/api/v1/drama-projects/:dramaId/transfers/from-asset",
+      async (c) =>
+        c.json(
+          {
+            data: await services.dramaInterop!.fromAsset(
+              c.get("user").id,
+              c.req.param("dramaId"),
+              dramaFromAssetSchema.parse(await c.req.json()),
+            ),
+            requestId: requestId(c),
+          },
+          201,
+        ),
+    );
   }
   app.get("/api/v1/workspaces", async (c) =>
     c.json({
@@ -2709,6 +2756,60 @@ const dramaRenderTransitionSchema = z
         errorMessage: z.string().max(2000).optional(),
       })
       .strict(),
+  })
+  .strict();
+const dramaTransferTargetSchema = z.discriminatedUnion("type", [
+  z
+    .object({
+      type: z.literal("entity"),
+      kind: z.enum(["character", "scene", "prop"]),
+      name: z.string().trim().min(1).max(120),
+      description: z.string().max(20_000).optional(),
+      prompt: z.string().max(20_000).optional(),
+      sortOrder: z.number().int().nonnegative(),
+    })
+    .strict(),
+  z
+    .object({
+      type: z.literal("timeline"),
+      shotId: z.uuid().optional(),
+      kind: z.enum(["dialogue", "voice", "bgm", "subtitle"]),
+      textContent: z.string().max(20_000).optional(),
+      voice: z.string().max(160).optional(),
+      startMs: z.number().int().nonnegative(),
+      endMs: z.number().int().positive(),
+      sortOrder: z.number().int().nonnegative(),
+    })
+    .strict()
+    .refine((x) => x.endMs > x.startMs, { message: "endMs 必须大于 startMs" }),
+]);
+const dramaToCanvasSchema = z
+  .object({
+    canvasProjectId: z.string().min(1).max(128),
+    assetId: z.uuid(),
+    expectedCanvasRevision: z.number().int().nonnegative(),
+    mutationId: z.string().trim().min(8).max(128),
+    title: z.string().max(160).optional(),
+    position: z
+      .object({ x: z.number().finite(), y: z.number().finite() })
+      .strict(),
+  })
+  .strict();
+const dramaFromAssetSchema = z
+  .object({
+    assetId: z.uuid(),
+    expectedDramaRevision: z.number().int().nonnegative(),
+    mutationId: z.string().trim().min(8).max(200),
+    target: dramaTransferTargetSchema,
+  })
+  .strict();
+const dramaFromCanvasSchema = z
+  .object({
+    canvasProjectId: z.string().min(1).max(128),
+    nodeId: z.string().min(1).max(128),
+    expectedDramaRevision: z.number().int().nonnegative(),
+    mutationId: z.string().trim().min(8).max(200),
+    target: dramaTransferTargetSchema,
   })
   .strict();
 function writeSession(

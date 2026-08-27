@@ -100,3 +100,7 @@ pnpm --filter @infinite-canvas/api build
 ### Render worker execution
 
 Workers claim Drama render leases independently from model-generation jobs. Input assets and output uploads are lease-bound API calls. FFmpeg is invoked with `spawn(executable, argv, { shell: false })`, controlled temporary filenames, `-nostdin`, and abort-driven termination. `FFMPEG_PATH` selects the deployment binary and defaults to `ffmpeg`. Jianying exports are deterministic ZIP packages containing v6 draft metadata/content and bundled media. Generic ZIP outputs use the restricted `file` asset kind; arbitrary executables/documents remain rejected.
+
+### Drama / Canvas interoperability
+
+`DramaInteropService` supports Drama-to-Canvas media nodes and Canvas/Asset-to-Drama entity or timeline imports. It requires source and destination to share a Workspace, verifies Drama ownership of exported media, and uses destination revisions and mutation IDs. Canvas mutations now persist SHA-256 request hashes and reject mutation-ID payload drift; legacy mutation rows without hashes remain replayable for forward migration compatibility.

@@ -14,6 +14,7 @@ import {
   type AssetRecord,
 } from "./domain.js";
 import { extractAssetIds } from "./asset-references.js";
+import { createHash } from "node:crypto";
 
 export class MemoryPlatformRepository implements PlatformRepository {
   private users = new Map<string, UserRecord>();
@@ -22,7 +23,10 @@ export class MemoryPlatformRepository implements PlatformRepository {
   private workspaces = new Map<string, WorkspaceRecord>();
   private memberships = new Map<string, MembershipRecord>();
   private projects = new Map<string, ProjectRecord>();
-  private mutations = new Map<string, MutationResult>();
+  private mutations = new Map<
+    string,
+    MutationResult & { requestHash: string }
+  >();
   private checkpoints = new Map<string, ProjectCheckpointRecord>();
   private assets = new Map<string, AssetRecord>();
 
@@ -117,7 +121,19 @@ export class MemoryPlatformRepository implements PlatformRepository {
     await this.requireWorkspaceRole(userId, project.workspaceId, "editor");
     const key = `${projectId}:${mutation.mutationId}`;
     const replay = this.mutations.get(key);
-    if (replay) return { ...replay, replayed: true };
+    const { createdAt: _, ...semanticMutation } = mutation;
+    const requestHash = createHash("sha256")
+      .update(JSON.stringify(semanticMutation))
+      .digest("hex");
+    if (replay) {
+      if (replay.requestHash !== requestHash)
+        throw new DomainError(
+          "MUTATION_IDEMPOTENCY_CONFLICT",
+          409,
+          "Mutation 幂等键内容漂移",
+        );
+      return { project: replay.project, replayed: true };
+    }
     if (mutation.baseRevision !== project.document.revision)
       throw new DomainError("REVISION_CONFLICT", 409, "项目版本冲突");
     const document = applyCanvasOperations(
@@ -127,7 +143,7 @@ export class MemoryPlatformRepository implements PlatformRepository {
     const next = { ...project, document, updatedAt: document.updatedAt };
     const result = { project: next, replayed: false };
     this.projects.set(projectId, next);
-    this.mutations.set(key, result);
+    this.mutations.set(key, { ...result, requestHash });
     return result;
   }
   async listProjectCheckpoints(userId: string, projectId: string) {
