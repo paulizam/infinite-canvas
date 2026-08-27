@@ -92,3 +92,7 @@ pnpm --filter @infinite-canvas/api build
 ### Drama media production
 
 `DramaProductionService` binds image/video Generation Jobs to shots, records selected outputs, maintains dialogue/voice/BGM/subtitle timeline items, and appends immutable shot review decisions. Production mutations share the Drama aggregate revision and mutation hash. Generation creation uses a stable `drama:<project>:<mutation>` client request ID, so a failed binding can be retried without duplicate billing.
+
+### Drama render queue
+
+`DramaRenderService` owns FFmpeg/Jianying render creation and retry. PostgreSQL claims use `FOR UPDATE SKIP LOCKED`; workers must hold a renewable lease to report progress or terminal state. Successful transitions create immutable, monotonically versioned render records. Render creation snapshots selected media and timeline input and advances the Drama aggregate revision.

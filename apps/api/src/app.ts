@@ -25,6 +25,7 @@ import type { WorkflowPublicApiService } from "./workflow-public-api-service.js"
 import type { AgentRunService } from "./agent-run-service.js";
 import type { DramaService } from "./drama-service.js";
 import type { DramaProductionService } from "./drama-production-service.js";
+import type { DramaRenderService } from "./drama-render-service.js";
 import { ModelDiscoveryService } from "./model-discovery.js";
 import { createModelDiscoveryApi } from "./model-discovery-api.js";
 import {
@@ -56,6 +57,7 @@ export type AppServices = {
   agentRuns?: AgentRunService;
   drama?: DramaService;
   dramaProduction?: DramaProductionService;
+  dramaRender?: DramaRenderService;
   maintenanceToken: string;
   secureCookies: boolean;
   modelDiscovery?: ModelDiscoveryService;
@@ -404,6 +406,47 @@ export function createApp(services: AppServices) {
         201,
       ),
     );
+  }
+  if (services.dramaRender) {
+    app.get("/api/v1/drama-projects/:dramaId/renders", async (c) =>
+      c.json({
+        data: await services.dramaRender!.list(
+          c.get("user").id,
+          c.req.param("dramaId"),
+        ),
+        requestId: requestId(c),
+      }),
+    );
+    app.post("/api/v1/drama-projects/:dramaId/renders", async (c) =>
+      c.json(
+        {
+          data: await services.dramaRender!.create(
+            c.get("user").id,
+            c.req.param("dramaId"),
+            dramaRenderCreateSchema.parse(await c.req.json()),
+          ),
+          requestId: requestId(c),
+        },
+        202,
+      ),
+    );
+    app.post("/api/v1/drama-renders/:renderId/retry", async (c) => {
+      const x = z
+        .object({ mutationId: z.string().trim().min(8).max(200) })
+        .strict()
+        .parse(await c.req.json());
+      return c.json(
+        {
+          data: await services.dramaRender!.retry(
+            c.get("user").id,
+            c.req.param("renderId"),
+            x.mutationId,
+          ),
+          requestId: requestId(c),
+        },
+        202,
+      );
+    });
   }
   app.get("/api/v1/workspaces", async (c) =>
     c.json({
@@ -1130,6 +1173,14 @@ export function createApp(services: AppServices) {
     );
     await next();
   });
+  app.use("/internal/v1/drama-render/*", async (c, next) => {
+    requireBearerToken(
+      c.req.header("authorization"),
+      services.workerToken,
+      "Worker",
+    );
+    await next();
+  });
   app.use("/internal/v1/workflow/*", async (c, next) => {
     requireBearerToken(
       c.req.header("authorization"),
@@ -1174,6 +1225,42 @@ export function createApp(services: AppServices) {
     });
     return c.json({ data: jobs, requestId: requestId(c) });
   });
+  if (services.dramaRender) {
+    app.post("/internal/v1/drama-render/claim", async (c) => {
+      const x = workerClaimSchema.parse(await c.req.json());
+      return c.json({
+        data: await services.dramaRender!.claim(x.workerId, x.limit, x.leaseMs),
+        requestId: requestId(c),
+      });
+    });
+    app.post("/internal/v1/drama-render/heartbeat", async (c) => {
+      const x = dramaRenderHeartbeatSchema.parse(await c.req.json());
+      return c.json({
+        data: {
+          renewed: await services.dramaRender!.heartbeat(
+            x.workerId,
+            x.renderIds,
+          ),
+        },
+        requestId: requestId(c),
+      });
+    });
+    app.post(
+      "/internal/v1/drama-render/jobs/:renderId/transition",
+      async (c) => {
+        const x = dramaRenderTransitionSchema.parse(await c.req.json());
+        return c.json({
+          data: await services.dramaRender!.transition(
+            x.workerId,
+            c.req.param("renderId"),
+            x.status,
+            x.patch,
+          ),
+          requestId: requestId(c),
+        });
+      },
+    );
+  }
   if (services.workflowWorker) {
     app.post("/internal/v1/workflow/claim", async (c) => {
       const input = workflowWorkerClaimSchema.parse(await c.req.json());
@@ -2564,6 +2651,33 @@ const dramaReviewSchema = z
     shotId: z.uuid(),
     status: z.enum(["pending", "approved", "changes_requested"]),
     comment: z.string().max(4000).optional(),
+  })
+  .strict();
+const dramaRenderCreateSchema = z
+  .object({
+    ...dramaMutationBase,
+    kind: z.enum(["ffmpeg", "jianying"]),
+    settings: z.record(z.string(), z.unknown()),
+  })
+  .strict();
+const dramaRenderHeartbeatSchema = z
+  .object({
+    workerId: z.string().trim().min(1).max(160),
+    renderIds: z.array(z.uuid()).max(100),
+  })
+  .strict();
+const dramaRenderTransitionSchema = z
+  .object({
+    workerId: z.string().trim().min(1).max(160),
+    status: z.enum(["running", "succeeded", "failed", "cancelled"]),
+    patch: z
+      .object({
+        progress: z.number().int().min(0).max(100).optional(),
+        outputAssetId: z.uuid().optional(),
+        errorCode: z.string().max(160).optional(),
+        errorMessage: z.string().max(2000).optional(),
+      })
+      .strict(),
   })
   .strict();
 function writeSession(

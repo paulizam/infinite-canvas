@@ -15,6 +15,8 @@ import { MemoryGenerationJobRepository } from "./generation-job-repository.js";
 import { MemoryModelGatewayRepository } from "./model-gateway-repository.js";
 import { MemoryDramaProductionRepository } from "./drama-production-repository.js";
 import { DramaProductionService } from "./drama-production-service.js";
+import { MemoryDramaRenderRepository } from "./drama-render-repository.js";
+import { DramaRenderService } from "./drama-render-service.js";
 let app: ReturnType<typeof createApp>;
 beforeEach(() => {
   const p = new MemoryPlatformRepository(),
@@ -24,6 +26,17 @@ beforeEach(() => {
   );
   const drama = new DramaService(p, dramaRepository);
   const jobs = new GenerationJobService(p, j);
+  const production = new DramaProductionService(
+    p,
+    drama,
+    new MemoryDramaProductionRepository(
+      async (userId, projectId) =>
+        (await dramaRepository.get(userId, projectId))?.project || null,
+      (...x) => p.requireWorkspaceRole(...x),
+      (id, revision) => dramaRepository.bumpRevision(id, revision),
+    ),
+    jobs,
+  );
   app = createApp({
     identity: new IdentityService(p, 60_000),
     workspaces: new WorkspaceService(p),
@@ -37,16 +50,17 @@ beforeEach(() => {
     maintenanceToken: "maintenance-token-at-least-32-chars",
     secureCookies: false,
     drama,
-    dramaProduction: new DramaProductionService(
+    dramaProduction: production,
+    dramaRender: new DramaRenderService(
       p,
       drama,
-      new MemoryDramaProductionRepository(
+      production,
+      new MemoryDramaRenderRepository(
         async (userId, projectId) =>
           (await dramaRepository.get(userId, projectId))?.project || null,
         (...x) => p.requireWorkspaceRole(...x),
         (id, revision) => dramaRepository.bumpRevision(id, revision),
       ),
-      jobs,
     ),
   });
 });
@@ -186,6 +200,54 @@ describe("Drama API", () => {
     });
     expect(r.status).toBe(201);
     expect(((await r.json()) as any).data.revision).toBe(6);
+    r = await app.request(`/api/v1/drama-projects/${id}/renders`, {
+      method: "POST",
+      headers: headers(s.cookie),
+      body: JSON.stringify({
+        expectedRevision: 6,
+        mutationId: "render-mutation-00001",
+        kind: "jianying",
+        settings: { version: "6" },
+      }),
+    });
+    expect(r.status).toBe(202);
+    const renderId = ((await r.json()) as any).data.job.id;
+    r = await app.request("/internal/v1/drama-render/claim", {
+      method: "POST",
+      headers: {
+        authorization: "Bearer worker-token-at-least-32-characters",
+        "content-type": "application/json",
+      },
+      body: JSON.stringify({
+        workerId: "render-worker",
+        limit: 1,
+        leaseMs: 90_000,
+      }),
+    });
+    expect(((await r.json()) as any).data[0].id).toBe(renderId);
+    r = await app.request(
+      `/internal/v1/drama-render/jobs/${renderId}/transition`,
+      {
+        method: "POST",
+        headers: {
+          authorization: "Bearer worker-token-at-least-32-characters",
+          "content-type": "application/json",
+        },
+        body: JSON.stringify({
+          workerId: "render-worker",
+          status: "succeeded",
+          patch: {
+            progress: 100,
+            outputAssetId: "00000000-0000-4000-8000-000000000001",
+          },
+        }),
+      },
+    );
+    expect(r.status).toBe(200);
+    r = await app.request(`/api/v1/drama-projects/${id}/renders`, {
+      headers: { cookie: s.cookie },
+    });
+    expect(((await r.json()) as any).data.versions).toHaveLength(1);
     const stale = await app.request(`/api/v1/drama-projects/${id}`, {
       method: "PATCH",
       headers: headers(s.cookie),
