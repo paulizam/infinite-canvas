@@ -153,6 +153,8 @@ infra/
 
 前端组件禁止直接访问数据库、支付接口或 Server mode 上游模型。所有 Canvas 写入统一转换为 `CanvasOperation[]`，UI、Agent、插件和协作不得绕过 reducer。
 
+Creative Studio 的实现遵守以下 projection contract：`CanvasProject` 始终是项目数据唯一真源，Studio 只读投影节点的文本、图片、视频和音频输出，不维护第二份可写项目状态；Workspace Asset 与 Generation Job AssetRef 作为带 `workspace_asset` / `generation_job` 来源标记的补充成果展示，不推断其归属当前 Project。Canvas 与 Studio 通过同一 Project ID 切换，返回 Canvas 时可用 `focusNode` 定位来源节点，因此切换视图不会改变节点、连线或 revision。
+
 ## 6. 领域模块
 
 ### 6.1 Identity & Workspace

@@ -15,6 +15,7 @@ export type CloudAsset = {
     id: string;
     workspaceId: string;
     mimeType: string;
+    kind: "image" | "video" | "audio";
     bytes: number;
     originalName: string;
     createdAt: string;
@@ -368,6 +369,10 @@ export class CloudPlatformClient {
 
     listGenerationJobs(workspaceId: string) {
         return this.request<GenerationJob[]>(`/api/v1/workspaces/${encodeURIComponent(workspaceId)}/generation-jobs`);
+    }
+
+    listAssets(workspaceId: string) {
+        return this.request<CloudAsset[]>(`/api/v1/workspaces/${encodeURIComponent(workspaceId)}/assets`);
     }
 
     async uploadAsset(workspaceId: string, blob: Blob, originalName: string, signal?: AbortSignal) {

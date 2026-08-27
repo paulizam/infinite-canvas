@@ -6,6 +6,7 @@ import AccountPage from "@/pages/account";
 import AssetsPage from "@/pages/assets";
 import CanvasPage from "@/pages/canvas";
 import CanvasProjectPage from "@/pages/canvas/project";
+import StudioProjectPage from "@/pages/studio/project";
 import ConfigPage from "@/pages/config";
 import HomePage from "@/pages/home";
 import ImagePage from "@/pages/image";
@@ -29,6 +30,7 @@ export const router = createBrowserRouter([
             { path: "/prompts", element: <PromptsPage /> },
             { path: "/canvas", element: <CanvasPage /> },
             { path: "/canvas/:id", element: <CanvasProjectPage /> },
+            { path: "/canvas/:id/studio", element: <StudioProjectPage /> },
             { path: "/config", element: <ConfigPage /> },
             { path: "/account", element: <AccountPage /> },
         ],

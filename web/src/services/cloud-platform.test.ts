@@ -40,6 +40,13 @@ describe("CloudPlatformClient", () => {
         expect(fetcher).toHaveBeenNthCalledWith(2, "https://api.example/api/v1/generation-jobs/job%2Fa", expect.any(Object));
     });
 
+    it("lists workspace assets with an encoded workspace id", async () => {
+        const fetcher = vi.fn(async () => Response.json({ data: [], requestId: "assets" }));
+        const client = new CloudPlatformClient("https://api.example", fetcher);
+        await client.listAssets("team/a");
+        expect(fetcher).toHaveBeenCalledWith("https://api.example/api/v1/workspaces/team%2Fa/assets", expect.objectContaining({ credentials: "include" }));
+    });
+
     it("loads wallet and immutable ledger through authenticated requests", async () => {
         const fetcher = vi.fn(async () => Response.json({ data: [], requestId: "r6" }));
         const client = new CloudPlatformClient("", fetcher);

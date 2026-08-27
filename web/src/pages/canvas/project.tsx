@@ -166,6 +166,7 @@ function InfiniteCanvasPage() {
     const lastHistoryRef = useRef<CanvasHistoryEntry | null>(null);
     const historyCommitTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
     const viewportSaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+    const focusedQueryRef = useRef("");
     const applyingHistoryRef = useRef(false);
     const historyPausedRef = useRef(false);
     const didInitialCenterRef = useRef(false);
@@ -959,6 +960,15 @@ function InfiniteCanvasPage() {
         },
         [size.height, size.width],
     );
+
+    useEffect(() => {
+        const nodeId = searchParams.get("focusNode") || "";
+        const key = `${projectId}:${nodeId}`;
+        if (!projectLoaded || !nodeId || focusedQueryRef.current === key) return;
+        if (!nodesRef.current.some((node) => node.id === nodeId)) return;
+        focusedQueryRef.current = key;
+        focusNode(nodeId);
+    }, [focusNode, projectId, projectLoaded, searchParams]);
 
     useEffect(() => () => void (focusAnimRef.current && cancelAnimationFrame(focusAnimRef.current)), []);
 
@@ -2927,6 +2937,7 @@ function InfiniteCanvasPage() {
                     onExportProject={exportCurrentProject}
                     onImportImage={() => handleUploadRequest()}
                     onOpenPlugins={() => setPluginManagerOpen(true)}
+                    onStudio={() => navigate(`/canvas/${projectId}/studio`)}
                     onUndo={undoCanvas}
                     onRedo={redoCanvas}
                     agentOpen={agentPanelOpen}
