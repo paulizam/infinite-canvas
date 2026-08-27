@@ -34,3 +34,6 @@
 - Cloud 参考图改为浏览器先上传 Workspace Asset，Job input 仅保存 AssetRef；并行相同引用使用 single-flight，服务端 SHA-256 继续兜底去重。
 - 新增租约绑定的 Worker input Asset 读取端点；严格校验 Worker Token、workerId、有效 lease 与 Workspace，S3 也由 API 读取原始字节，避免重定向携带内部请求头。
 - Worker Provider submit 前递归物化 AssetRef，单任务限制 16 个唯一输入、64MiB 原始字节，重复引用只读取一次且 Data URL 不回写 Job。
+- 将 Worker AssetRef materializer 拆出 gateway handler，并将占位字符串修正为 Promise single-flight，重复引用会等待同一读取结果而非把 `pending` 送给 Provider。
+- 新增 Canvas generation provider facade，统一 Local/Cloud text/image/video/audio 调用；主生成、批量槽位、Retry、Mask Edit、Angle Edit 全部共享逻辑，Server mode 不再落回浏览器 Provider credential。
+- Video Cloud Job 同步携带 image/video/audio 引用 AssetRef；多模态 text 的 `image_url.url` 保持 AssetRef 到 Worker 才物化。Job 成功、失败或取消结束后广播 Billing 刷新事件。

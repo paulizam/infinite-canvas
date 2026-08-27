@@ -19,7 +19,7 @@
 - [x] WebSocket collaboration hub
 - [x] Asset storage（magic-byte、SHA-256、Local/S3、RBAC、AssetRef 保护）
 - [x] Generation Job Worker（contract/state/schema/repository/API、独立 runtime、heartbeat/lease recovery）
-- [▶] Model Gateway（OpenAI-compatible、Gemini、声明式 Custom runtime、媒体 Asset、health/cooldown、provider cancel 已完成；streaming、连接测试/模型发现、provider-specific adapter 待完成）；Billing 原子预留/结算/退款、Web 预估/余额、Cloud Job 主生成与 AssetRef 回填已完成，重试全路径与运营对账待完成
+- [▶] Model Gateway（OpenAI-compatible、Gemini、声明式 Custom runtime、媒体 Asset、health/cooldown、provider cancel 已完成；streaming、连接测试/模型发现、provider-specific adapter 待完成）；Billing、Web 预估/余额、Cloud Job、AssetRef 回填、Canvas Retry/编辑全路径已完成，运营对账待完成
 
 ## 错误账本
 
@@ -38,3 +38,5 @@
 | 对历史宽行 `project.tsx` 运行 Prettier 造成无关展开 | 1 | 回滚该文件并以小块语义 patch 重放，禁止整文件格式化 |
 | Worker 重复 AssetRef 因并行递归穿透 cache 被读取两次 | 1 | 读取前写入占位并复用结果，测试断言唯一素材只读取一次 |
 | Web reference 单测顶层加载 i18n 依赖 localStorage | 1 | 本地 BlobStore 改为按 storageKey 动态导入，Data URL 路径无环境副作用 |
+| Asset materializer 用字符串 `pending` 占位存在并发污染风险 | 1 | 改为缓存 Promise，重复引用等待同一结果并保持唯一读取 |
+| Facade 单测顶层导入 Local API 触发 i18n/localStorage | 1 | 测试显式 mock Local provider 模块，不伪造浏览器全局 |

@@ -39,7 +39,11 @@ export async function createAndWaitForGeneration(client: CloudPlatformClient, re
         },
         options.signal,
     );
-    return waitForGeneration(client, created.job, options);
+    try {
+        return await waitForGeneration(client, created.job, options);
+    } finally {
+        if (typeof window !== "undefined") window.dispatchEvent(new Event("cloud-billing-changed"));
+    }
 }
 
 export async function waitForGeneration(client: CloudPlatformClient, initial: GenerationJob, options: WaitOptions = {}) {

@@ -25,10 +25,17 @@ export function useCloudBillingPreview(
 ) {
     const authenticated = useCloudSessionStore((state) => state.status === "authenticated");
     const [state, setState] = useState<CloudBillingPreviewState>(idleState);
+    const [refreshRevision, setRefreshRevision] = useState(0);
     const parameters = useMemo(
         () => generationBillingParameters(config),
         [config.count, config.size, config.videoSeconds],
     );
+
+    useEffect(() => {
+        const refresh = () => setRefreshRevision((value) => value + 1);
+        window.addEventListener("cloud-billing-changed", refresh);
+        return () => window.removeEventListener("cloud-billing-changed", refresh);
+    }, []);
 
     useEffect(() => {
         const enabled = cloudModeEnabled && authenticated;
@@ -42,7 +49,7 @@ export function useCloudBillingPreview(
             window.clearTimeout(timer);
             controller.dispose();
         };
-    }, [authenticated, capability, model, parameters]);
+    }, [authenticated, capability, model, parameters, refreshRevision]);
 
     return {
         ...state,

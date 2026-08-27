@@ -2,6 +2,8 @@
 
 ## Unreleased
 
++ [重构] Canvas Local/Cloud 生成统一收口到 provider facade，Server mode 现覆盖普通生成、批量槽位、Retry、Mask Edit、Angle Edit 及 image/video/audio 引用；Job 终态自动刷新积分余额。
++ [重构] Worker input AssetRef 物化从 gateway handler 拆为独立模块，并以 Promise single-flight 修复重复引用可能把占位值传入 Provider 的竞态。
 + [安全] Cloud 引用媒体先经 magic-byte 校验上传为 AssetRef，Job JSON 不再持久化大型 Data URL；Worker 仅凭有效 Job lease 读取同 Workspace 素材，并在受限内存中临时物化 Provider 输入。
 + [新增] Canvas Server mode 生成提交改走 Cloud Generation Job：逻辑模型解析、原子积分预留、终态轮询、Abort 上游取消、AssetRef 鉴权下载及 text/image/video/audio 节点回填形成闭环。
 + [新增] Web Server mode 接入逻辑模型目录、Generation Job 与 Billing typed client；生成配置节点以防竞态的 debounce 预估展示预计积分、余额及余额不足状态，Local mode 保持零云请求。

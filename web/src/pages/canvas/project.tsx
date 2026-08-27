@@ -5,9 +5,8 @@ import { Group, Video } from "lucide-react";
 import { saveAs } from "file-saver";
 import { useTranslation } from "react-i18next";
 
-import { requestEdit, requestGeneration, requestImageQuestion } from "@/services/api/image";
-import { requestAudioGeneration, storeGeneratedAudio } from "@/services/api/audio";
-import { requestVideoGeneration, storeGeneratedVideo } from "@/services/api/video";
+import { storeGeneratedAudio } from "@/services/api/audio";
+import { storeGeneratedVideo } from "@/services/api/video";
 import { defaultConfig, useConfigStore, useEffectiveConfig } from "@/stores/use-config-store";
 import { uploadImage } from "@/services/image-storage";
 import { uploadMediaFile } from "@/services/file-storage";
@@ -90,10 +89,8 @@ import {
 } from "@/types/canvas";
 import type { ReferenceImage } from "@/types/image";
 import type { ReferenceAudio } from "@/types/media";
-import { cloudModeEnabled } from "@/services/cloud-platform";
-import { runCloudMediaGeneration, runCloudTextGeneration } from "@/services/cloud-canvas-generation";
 import { useCloudSessionStore } from "@/stores/use-cloud-session-store";
-import { uploadCloudReferenceImages } from "@/services/cloud-reference-assets";
+import { generateCanvasAudio, generateCanvasImage, generateCanvasText, generateCanvasVideo, generationConfigReady } from "@/services/canvas-generation-provider";
 
 // Register built-in nodes in the shared registry once when the module loads.
 registerBuiltinNodes();
@@ -132,10 +129,6 @@ const NODE_STATUS_IDLE = "idle" as const;
 const NODE_STATUS_LOADING = "loading" as const;
 const NODE_STATUS_SUCCESS = "success" as const;
 const NODE_STATUS_ERROR = "error" as const;
-function requireCloudWorkspace(workspaceId: string | null) {
-    if (!workspaceId) throw new Error("Cloud workspace is not available");
-    return workspaceId;
-}
 export default function CanvasPage() {
     const [mounted, setMounted] = useState(false);
 
@@ -1807,7 +1800,7 @@ function InfiniteCanvasPage() {
         async (node: CanvasNodeData, payload: CanvasImageMaskEditPayload) => {
             if (!node.metadata?.content) return;
             const generationConfig = { ...buildGenerationConfig(effectiveConfig, node, "image"), count: "1", size: node.metadata?.size || "auto" };
-            if (!isAiConfigReady(generationConfig, generationConfig.model)) {
+            if (!generationConfigReady(isAiConfigReady(generationConfig, generationConfig.model))) {
                 openConfigDialog(true);
                 return;
             }
@@ -1836,8 +1829,8 @@ function InfiniteCanvasPage() {
             setDialogNodeId(childId);
             const controller = startGenerationRequest(childId, node.id, childId);
             try {
-                const image = await requestEdit(generationConfig, prompt, [source], { id: `${node.id}-mask`, name: "mask.png", type: "image/png", dataUrl: payload.maskDataUrl }, { signal: controller.signal }).then((items) => items[0]);
-                const uploaded = await uploadImage(image.dataUrl, { signal: controller.signal });
+                const imageSource = await generateCanvasImage(generationConfig, prompt, [source], { workspaceId: cloudWorkspaceId, signal: controller.signal }, { id: `${node.id}-mask`, name: "mask.png", type: "image/png", dataUrl: payload.maskDataUrl });
+                const uploaded = await uploadImage(imageSource, { signal: controller.signal });
                 const size = fitNodeSize(uploaded.width, uploaded.height, node.width, node.height);
                 setNodes((prev) => prev.map((item) => (item.id === childId ? { ...item, width: size.width, height: size.height, metadata: { ...item.metadata, ...imageMetadata(uploaded), prompt, ...generationMetadata } } : item)));
             } catch (error) {
@@ -1850,7 +1843,7 @@ function InfiniteCanvasPage() {
                 setRunningNodeId(null);
             }
         },
-        [effectiveConfig, finishGenerationRequest, isAiConfigReady, message, openConfigDialog, startGenerationRequest, t],
+        [cloudWorkspaceId, effectiveConfig, finishGenerationRequest, isAiConfigReady, message, openConfigDialog, startGenerationRequest, t],
     );
 
     const upscaleImageNode = useCallback(async (node: CanvasNodeData, params: CanvasImageUpscaleParams) => {
@@ -1882,7 +1875,7 @@ function InfiniteCanvasPage() {
         async (node: CanvasNodeData, params: CanvasImageAngleParams) => {
             if (!node.metadata?.content) return;
             const generationConfig = { ...buildGenerationConfig(effectiveConfig, node, "image"), count: "1" };
-            if (!isAiConfigReady(generationConfig, generationConfig.model)) {
+            if (!generationConfigReady(isAiConfigReady(generationConfig, generationConfig.model))) {
                 openConfigDialog(true);
                 return;
             }
@@ -1912,14 +1905,8 @@ function InfiniteCanvasPage() {
             setDialogNodeId(childId);
             const controller = startGenerationRequest(childId, node.id, childId);
             try {
-                const image = await requestEdit(
-                    generationConfig,
-                    prompt,
-                    [{ id: node.id, name: `${node.title || node.id}.png`, type: node.metadata.mimeType || "image/png", dataUrl: node.metadata.content, storageKey: node.metadata.storageKey }],
-                    undefined,
-                    { signal: controller.signal },
-                ).then((items) => items[0]);
-                const uploaded = await uploadImage(image.dataUrl, { signal: controller.signal });
+                const imageSource = await generateCanvasImage(generationConfig, prompt, [{ id: node.id, name: `${node.title || node.id}.png`, type: node.metadata.mimeType || "image/png", dataUrl: node.metadata.content, storageKey: node.metadata.storageKey }], { workspaceId: cloudWorkspaceId, signal: controller.signal });
+                const uploaded = await uploadImage(imageSource, { signal: controller.signal });
                 const size = fitNodeSize(uploaded.width, uploaded.height, imageConfig.width, imageConfig.height);
                 setNodes((prev) => prev.map((item) => (item.id === childId ? { ...item, width: size.width, height: size.height, metadata: { ...item.metadata, ...imageMetadata(uploaded), prompt, ...generationMetadata } } : item)));
             } catch (error) {
@@ -1931,7 +1918,7 @@ function InfiniteCanvasPage() {
                 setRunningNodeId(null);
             }
         },
-        [effectiveConfig, finishGenerationRequest, openConfigDialog, startGenerationRequest, t],
+        [cloudWorkspaceId, effectiveConfig, finishGenerationRequest, isAiConfigReady, openConfigDialog, startGenerationRequest, t],
     );
 
     const handleFontSizeChange = useCallback((nodeId: string, fontSize: number) => {
@@ -2121,7 +2108,7 @@ function InfiniteCanvasPage() {
         async (nodeId: string, mode: CanvasNodeGenerationMode, prompt: string) => {
             const sourceNode = nodesRef.current.find((node) => node.id === nodeId);
             const generationConfig = buildGenerationConfig(effectiveConfig, sourceNode, mode);
-            if (!cloudModeEnabled && !isAiConfigReady(generationConfig, generationConfig.model)) {
+            if (!generationConfigReady(isAiConfigReady(generationConfig, generationConfig.model))) {
                 openConfigDialog(true);
                 return;
             }
@@ -2139,11 +2126,7 @@ function InfiniteCanvasPage() {
                     const fullPrompt = (builtinPanel.promptPrefix || "") + scene;
                     const context = await hydrateNodeGenerationContext(buildNodeGenerationContext(nodeId, nodesRef.current, connectionsRef.current, fullPrompt));
                     const refs = context.referenceImages;
-                    const imageSource = cloudModeEnabled
-                        ? await runCloudMediaGeneration({ workspaceId: requireCloudWorkspace(cloudWorkspaceId), capability: "image", requestedModel: generationConfig.model, parameters: { prompt: context.prompt, images: await uploadCloudReferenceImages(requireCloudWorkspace(cloudWorkspaceId), refs, controller.signal), count: 1, size: generationConfig.size, resolution: generationConfig.size, quality: generationConfig.quality }, signal: controller.signal }).then((items) => items[0])
-                        : await (refs.length
-                              ? requestEdit({ ...generationConfig, count: "1" }, context.prompt, refs, undefined, { signal: controller.signal }).then((items) => items[0].dataUrl)
-                              : requestGeneration({ ...generationConfig, count: "1" }, context.prompt, { signal: controller.signal }).then((items) => items[0].dataUrl));
+                    const imageSource = await generateCanvasImage({ ...generationConfig, count: "1" }, context.prompt, refs, { workspaceId: cloudWorkspaceId, signal: controller.signal });
                     const uploaded = await uploadImage(imageSource, { signal: controller.signal });
                     setNodes((prev) =>
                         prev.map((node) => (node.id === nodeId ? { ...node, metadata: { ...node.metadata, ...imageMetadata(uploaded), prompt: scene, model: generationConfig.model, status: NODE_STATUS_SUCCESS, errorDetails: undefined } } : node)),
@@ -2266,11 +2249,7 @@ function InfiniteCanvasPage() {
                     await Promise.all(
                         imageIds.map(async (imageId) => {
                             try {
-                                const imageSource = cloudModeEnabled
-                                    ? await runCloudMediaGeneration({ workspaceId: requireCloudWorkspace(cloudWorkspaceId), capability: "image", requestedModel: generationConfig.model, parameters: { prompt: effectivePrompt, images: await uploadCloudReferenceImages(requireCloudWorkspace(cloudWorkspaceId), referenceImages, controller.signal), count: 1, size: generationConfig.size, resolution: generationConfig.size, quality: generationConfig.quality }, signal: controller.signal }).then((items) => items[0])
-                                    : await (referenceImages.length
-                                          ? requestEdit({ ...generationConfig, count: "1" }, effectivePrompt, referenceImages, undefined, { signal: controller.signal }).then((items) => items[0].dataUrl)
-                                          : requestGeneration({ ...generationConfig, count: "1" }, effectivePrompt, { signal: controller.signal }).then((items) => items[0].dataUrl));
+                                const imageSource = await generateCanvasImage({ ...generationConfig, count: "1" }, effectivePrompt, referenceImages, { workspaceId: cloudWorkspaceId, signal: controller.signal });
                                 const uploaded = await uploadImage(imageSource, { signal: controller.signal });
                                 const imageSize = fitNodeSize(uploaded.width, uploaded.height, imageConfig.width, imageConfig.height);
                                 const item: CanvasNodeImage = { id: imageId, status: NODE_STATUS_SUCCESS, content: uploaded.url, storageKey: uploaded.storageKey, naturalWidth: uploaded.width, naturalHeight: uploaded.height, bytes: uploaded.bytes, mimeType: uploaded.mimeType };
@@ -2364,11 +2343,7 @@ function InfiniteCanvasPage() {
                     if (!isEmptyVideoNode) setConnections((prev) => [...prev, { id: nanoid(), fromNodeId: nodeId, toNodeId: videoId }]);
                     const controller = startGenerationRequest(videoId, nodeId, nodeId, runController);
                     try {
-                        const video = await storeGeneratedVideo(
-                            cloudModeEnabled
-                                ? { blob: await runCloudMediaGeneration({ workspaceId: requireCloudWorkspace(cloudWorkspaceId), capability: "video", requestedModel: generationConfig.model, parameters: { prompt: effectivePrompt, images: await uploadCloudReferenceImages(requireCloudWorkspace(cloudWorkspaceId), generationContext.referenceImages, controller.signal), durationSeconds: Number(generationConfig.videoSeconds), seconds: generationConfig.videoSeconds, size: generationConfig.size, resolution: generationConfig.vquality, generateAudio: generationConfig.videoGenerateAudio === "true", watermark: generationConfig.videoWatermark === "true" }, signal: controller.signal }).then((items) => items[0]) }
-                                : await requestVideoGeneration(generationConfig, effectivePrompt, generationContext.referenceImages, { signal: controller.signal }),
-                        );
+                        const video = await storeGeneratedVideo(await generateCanvasVideo(generationConfig, effectivePrompt, { images: generationContext.referenceImages, videos: generationContext.referenceVideos, audios: generationContext.referenceAudios }, { workspaceId: cloudWorkspaceId, signal: controller.signal }));
                         const videoSize = fitNodeSize(video.width || spec.width, video.height || spec.height, VIDEO_NODE_MAX_WIDTH, VIDEO_NODE_MAX_HEIGHT);
                         setNodes((prev) =>
                             prev.map((node) =>
@@ -2423,9 +2398,7 @@ function InfiniteCanvasPage() {
                     if (!isEmptyAudioNode) setConnections((prev) => [...prev, { id: nanoid(), fromNodeId: nodeId, toNodeId: audioId }]);
                     const controller = startGenerationRequest(audioId, nodeId, nodeId, runController);
                     try {
-                        const audioBlob = cloudModeEnabled
-                            ? await runCloudMediaGeneration({ workspaceId: requireCloudWorkspace(cloudWorkspaceId), capability: "audio", requestedModel: generationConfig.model, parameters: { input: effectivePrompt, prompt: effectivePrompt, voice: generationConfig.audioVoice, response_format: generationConfig.audioFormat, speed: Number(generationConfig.audioSpeed), instructions: generationConfig.audioInstructions }, signal: controller.signal }).then((items) => items[0])
-                            : await requestAudioGeneration(generationConfig, effectivePrompt, { signal: controller.signal });
+                        const audioBlob = await generateCanvasAudio(generationConfig, effectivePrompt, { workspaceId: cloudWorkspaceId, signal: controller.signal });
                         const audio = await storeGeneratedAudio(audioBlob, generationConfig.audioFormat);
                         setNodes((prev) => prev.map((node) => (node.id === audioId ? { ...node, metadata: { ...node.metadata, ...audioMetadata(audio), prompt: effectivePrompt, ...buildAudioGenerationMetadata(generationConfig) } } : node)));
                     } finally {
@@ -2477,12 +2450,12 @@ function InfiniteCanvasPage() {
                         let streamed = "";
                         try {
                             const messages = buildNodeResponseMessages({ ...generationContext, prompt: effectivePrompt });
-                            const answer = cloudModeEnabled
-                                ? await runCloudTextGeneration({ workspaceId: requireCloudWorkspace(cloudWorkspaceId), capability: "text", requestedModel: generationConfig.model, parameters: { prompt: effectivePrompt, messages, reasoning_effort: generationConfig.reasoningEffort }, signal: controller.signal })
-                                : await requestImageQuestion(
-                                      generationConfig,
-                                      messages,
-                                      (text) => {
+                            const answer = await generateCanvasText(
+                                generationConfig,
+                                effectivePrompt,
+                                messages,
+                                generationContext.referenceImages,
+                                (text) => {
                                     streamed = text;
                                     setNodes((prev) =>
                                         prev.map((node) =>
@@ -2499,8 +2472,8 @@ function InfiniteCanvasPage() {
                                         ),
                                     );
                                 },
-                                      { signal: controller.signal },
-                                  );
+                                { workspaceId: cloudWorkspaceId, signal: controller.signal },
+                            );
                             const content = answer || streamed;
                             setNodes((prev) =>
                                 prev.map((node) =>
@@ -2585,7 +2558,7 @@ function InfiniteCanvasPage() {
                           count: "1",
                       }
                     : { ...buildGenerationConfig(effectiveConfig, sourceNode, node.type === CanvasNodeType.Text ? "text" : node.type === CanvasNodeType.Video ? "video" : node.type === CanvasNodeType.Audio ? "audio" : "image"), count: "1" };
-            if (!isAiConfigReady(generationConfig, generationConfig.model)) {
+            if (!generationConfigReady(isAiConfigReady(generationConfig, generationConfig.model))) {
                 openConfigDialog(true);
                 return;
             }
@@ -2615,20 +2588,22 @@ function InfiniteCanvasPage() {
                 if (node.type === CanvasNodeType.Text) {
                     if (!context) return;
                     let streamed = "";
-                    const answer = await requestImageQuestion(
+                    const answer = await generateCanvasText(
                         generationConfig,
+                        prompt,
                         buildNodeResponseMessages({ ...context, prompt }),
+                        context.referenceImages,
                         (text) => {
                             streamed = text;
                             setNodes((prev) => prev.map((item) => (item.id === node.id ? { ...item, type: CanvasNodeType.Text, metadata: { ...item.metadata, content: text, status: NODE_STATUS_LOADING } } : item)));
                         },
-                        { signal: controller.signal },
+                        { workspaceId: cloudWorkspaceId, signal: controller.signal },
                     );
                     setNodes((prev) => prev.map((item) => (item.id === node.id ? { ...item, type: CanvasNodeType.Text, metadata: { ...item.metadata, content: answer || streamed, prompt, status: NODE_STATUS_SUCCESS } } : item)));
                     return;
                 }
                 if (node.type === CanvasNodeType.Video) {
-                    const video = await storeGeneratedVideo(await requestVideoGeneration(generationConfig, prompt, retryImages, { signal: controller.signal }));
+                    const video = await storeGeneratedVideo(await generateCanvasVideo(generationConfig, prompt, { images: retryImages, videos: context?.referenceVideos, audios: context?.referenceAudios }, { workspaceId: cloudWorkspaceId, signal: controller.signal }));
                     const videoSize = fitNodeSize(video.width || node.width, video.height || node.height, VIDEO_NODE_MAX_WIDTH, VIDEO_NODE_MAX_HEIGHT);
                     setNodes((prev) =>
                         prev.map((item) =>
@@ -2656,15 +2631,13 @@ function InfiniteCanvasPage() {
                     return;
                 }
                 if (node.type === CanvasNodeType.Audio) {
-                    const audio = await storeGeneratedAudio(await requestAudioGeneration(generationConfig, prompt, { signal: controller.signal }), generationConfig.audioFormat);
+                    const audio = await storeGeneratedAudio(await generateCanvasAudio(generationConfig, prompt, { workspaceId: cloudWorkspaceId, signal: controller.signal }), generationConfig.audioFormat);
                     setNodes((prev) => prev.map((item) => (item.id === node.id ? { ...item, metadata: { ...item.metadata, ...audioMetadata(audio), prompt, ...buildAudioGenerationMetadata(generationConfig) } } : item)));
                     return;
                 }
 
-                const image = useReferenceImages
-                    ? await requestEdit(generationConfig, prompt, retryImages, undefined, { signal: controller.signal }).then((items) => items[0])
-                    : await requestGeneration(generationConfig, prompt, { signal: controller.signal }).then((items) => items[0]);
-                const uploadedImage = await uploadImage(image.dataUrl, { signal: controller.signal });
+                const imageSource = await generateCanvasImage(generationConfig, prompt, useReferenceImages ? retryImages : [], { workspaceId: cloudWorkspaceId, signal: controller.signal });
+                const uploadedImage = await uploadImage(imageSource, { signal: controller.signal });
                 const imageConfig = NODE_DEFAULT_SIZE[CanvasNodeType.Image];
                 const retryImage: CanvasNodeImage = {
                     id: imageId || node.metadata?.primaryImageId || nanoid(),
@@ -2718,7 +2691,7 @@ function InfiniteCanvasPage() {
                 setRunningNodeId(null);
             }
         },
-        [effectiveConfig, finishGenerationRequest, isAiConfigReady, message, openConfigDialog, startGenerationRequest, t],
+        [cloudWorkspaceId, effectiveConfig, finishGenerationRequest, isAiConfigReady, message, openConfigDialog, startGenerationRequest, t],
     );
 
     const deleteBatchImage = useCallback((nodeId: string, imageId: string) => {

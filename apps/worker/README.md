@@ -23,7 +23,10 @@ parameters against its capability profile, and invokes the selected OpenAI-compa
 declarative Custom channel.
 Provider credentials remain API-managed and are never stored in Worker configuration. URL,
 Base64, and binary audio media results are persisted through the API Asset pipeline, and Job JSON
-retains only Asset references. Runtime calls report health for routing cooldown. Cancellation calls
+retains only Asset references. Input Asset references are read only through the active Worker lease,
+then materialized by the isolated input-asset module with 16-asset and 64 MiB bounds; duplicate
+references share one in-flight read and materialized data never returns to Job storage. Runtime calls
+report health for routing cooldown. Cancellation calls
 the original provider when the binding declares `supportsCancel`; an uncertain unsupported cancel
 moves to `needs_review` rather than falsely claiming that billing stopped. SSE text streaming and
 provider-specific adapters remain follow-up work.
