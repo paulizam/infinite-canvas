@@ -163,6 +163,13 @@ export class PostgresDramaRenderRepository implements DramaRenderRepository {
     );
     return r.rows.map(job);
   }
+  async getLeased(workerId: string, id: string, now: string) {
+    const r = await this.pool.query(
+      "SELECT * FROM drama_render_jobs WHERE id=$1 AND worker_id=$2 AND status='running' AND lease_until>$3",
+      [id, workerId, now],
+    );
+    return r.rows[0] ? job(r.rows[0]) : null;
+  }
   async heartbeat(w: string, ids: string[], lease: string) {
     const r = await this.pool.query(
       "UPDATE drama_render_jobs SET lease_until=$3 WHERE worker_id=$1 AND id=ANY($2::uuid[]) AND status='running'",

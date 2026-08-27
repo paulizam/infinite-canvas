@@ -11,6 +11,7 @@ import type {
   WorkflowWorkerRecord,
 } from "./workflow-types.js";
 import type { AgentWorkerOperation, AgentWorkerRun } from "./agent-types.js";
+import type { DramaRenderJob } from "./drama-render-types.js";
 
 export type WorkerResolvedModel = ResolvedModelCandidate & { apiKey: string };
 export type WorkerScheduleTrigger = {
@@ -57,6 +58,106 @@ export class WorkerApiClient {
       { workerId, jobIds },
       signal,
     );
+  }
+  claimDramaRenders(
+    workerId: string,
+    limit: number,
+    leaseMs: number,
+    signal?: AbortSignal,
+  ) {
+    return this.request<DramaRenderJob[]>(
+      "/internal/v1/drama-render/claim",
+      { workerId, limit, leaseMs },
+      signal,
+    );
+  }
+  heartbeatDramaRenders(
+    workerId: string,
+    renderIds: string[],
+    signal?: AbortSignal,
+  ) {
+    return this.request<{ renewed: number }>(
+      "/internal/v1/drama-render/heartbeat",
+      { workerId, renderIds },
+      signal,
+    );
+  }
+  transitionDramaRender(
+    workerId: string,
+    id: string,
+    status: "running" | "succeeded" | "failed" | "cancelled",
+    patch: Record<string, unknown>,
+    signal?: AbortSignal,
+  ) {
+    return this.request<DramaRenderJob>(
+      `/internal/v1/drama-render/jobs/${encodeURIComponent(id)}/transition`,
+      { workerId, status, patch },
+      signal,
+    );
+  }
+  async readDramaRenderAsset(
+    workerId: string,
+    id: string,
+    assetId: string,
+    signal?: AbortSignal,
+  ) {
+    const response = await this.fetcher(
+      new URL(
+        `/internal/v1/drama-render/jobs/${encodeURIComponent(id)}/assets/${encodeURIComponent(assetId)}`,
+        this.origin,
+      ),
+      {
+        signal,
+        headers: {
+          authorization: `Bearer ${this.token}`,
+          "x-worker-id": workerId,
+        },
+      },
+    );
+    if (!response.ok)
+      throw new Error(`DRAMA_RENDER_ASSET_READ_ERROR: HTTP ${response.status}`);
+    return {
+      bytes: new Uint8Array(await response.arrayBuffer()),
+      mimeType:
+        response.headers.get("content-type")?.split(";", 1)[0] ||
+        "application/octet-stream",
+    };
+  }
+  async persistDramaRenderOutput(
+    workerId: string,
+    id: string,
+    bytes: Uint8Array,
+    name: string,
+    signal?: AbortSignal,
+  ) {
+    const body = new Uint8Array(bytes.byteLength);
+    body.set(bytes);
+    const response = await this.fetcher(
+      new URL(
+        `/internal/v1/drama-render/jobs/${encodeURIComponent(id)}/output`,
+        this.origin,
+      ),
+      {
+        method: "POST",
+        signal,
+        headers: {
+          authorization: `Bearer ${this.token}`,
+          "x-worker-id": workerId,
+          "x-file-name": name,
+          "content-type": "application/octet-stream",
+        },
+        body: body.buffer,
+      },
+    );
+    const payload = (await response.json()) as {
+      data?: { asset: { id: string; mimeType: string } };
+      error?: { code?: string; message?: string };
+    };
+    if (!response.ok || !payload.data)
+      throw new Error(
+        `${payload.error?.code || "DRAMA_RENDER_OUTPUT_ERROR"}: ${payload.error?.message || response.statusText}`,
+      );
+    return payload.data.asset;
   }
   claimWorkflows(
     workerId: string,

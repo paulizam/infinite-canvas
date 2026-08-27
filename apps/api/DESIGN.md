@@ -96,3 +96,7 @@ pnpm --filter @infinite-canvas/api build
 ### Drama render queue
 
 `DramaRenderService` owns FFmpeg/Jianying render creation and retry. PostgreSQL claims use `FOR UPDATE SKIP LOCKED`; workers must hold a renewable lease to report progress or terminal state. Successful transitions create immutable, monotonically versioned render records. Render creation snapshots selected media and timeline input and advances the Drama aggregate revision.
+
+### Render worker execution
+
+Workers claim Drama render leases independently from model-generation jobs. Input assets and output uploads are lease-bound API calls. FFmpeg is invoked with `spawn(executable, argv, { shell: false })`, controlled temporary filenames, `-nostdin`, and abort-driven termination. `FFMPEG_PATH` selects the deployment binary and defaults to `ffmpeg`. Jianying exports are deterministic ZIP packages containing v6 draft metadata/content and bundled media. Generic ZIP outputs use the restricted `file` asset kind; arbitrary executables/documents remain rejected.

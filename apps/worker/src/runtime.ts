@@ -6,6 +6,7 @@ import { runWorkflowCycle, type WorkflowHandler } from "./workflow-runtime.js";
 import type { WorkflowNodeAdapters } from "./workflow-executor.js";
 import { runScheduleTriggerCycle } from "./trigger-runtime.js";
 import { runAgentCycle, type AgentRunHandler } from "./agent-runtime.js";
+import { runDramaRenderCycle } from "./drama-render-runtime.js";
 
 export type JobHandler = (
   job: GenerationJob,
@@ -75,48 +76,66 @@ export async function runWorker(input: {
   workflowHandler?: WorkflowHandler;
   workflowAdapters?: WorkflowNodeAdapters;
   agentHandler?: AgentRunHandler;
+  ffmpegPath?: string;
   signal?: AbortSignal;
 }) {
   let idleBatches = 0;
   while (!input.signal?.aborted) {
     try {
-      const [generationClaimed, workflowClaimed, triggerClaimed, agentClaimed] =
-        await Promise.all([
-          runWorkerCycle({
-            client: input.client,
-            workerId: input.workerId,
-            limit: input.limit || 10,
-            leaseMs: input.leaseMs || 90_000,
-            handler: input.handler,
-            signal: input.signal,
-          }),
-          runWorkflowCycle({
-            client: input.client,
-            workerId: input.workerId,
-            limit: input.limit || 10,
-            leaseMs: input.leaseMs || 90_000,
-            handler: input.workflowHandler,
-            adapters: input.workflowAdapters,
-            signal: input.signal,
-          }),
-          runScheduleTriggerCycle({
-            client: input.client,
-            workerId: input.workerId,
-            limit: input.limit || 10,
-            leaseMs: input.leaseMs || 90_000,
-            signal: input.signal,
-          }),
-          runAgentCycle({
-            client: input.client,
-            workerId: input.workerId,
-            limit: input.limit || 10,
-            leaseMs: input.leaseMs || 90_000,
-            handler: input.agentHandler,
-            signal: input.signal,
-          }),
-        ]);
+      const [
+        generationClaimed,
+        workflowClaimed,
+        triggerClaimed,
+        agentClaimed,
+        renderClaimed,
+      ] = await Promise.all([
+        runWorkerCycle({
+          client: input.client,
+          workerId: input.workerId,
+          limit: input.limit || 10,
+          leaseMs: input.leaseMs || 90_000,
+          handler: input.handler,
+          signal: input.signal,
+        }),
+        runWorkflowCycle({
+          client: input.client,
+          workerId: input.workerId,
+          limit: input.limit || 10,
+          leaseMs: input.leaseMs || 90_000,
+          handler: input.workflowHandler,
+          adapters: input.workflowAdapters,
+          signal: input.signal,
+        }),
+        runScheduleTriggerCycle({
+          client: input.client,
+          workerId: input.workerId,
+          limit: input.limit || 10,
+          leaseMs: input.leaseMs || 90_000,
+          signal: input.signal,
+        }),
+        runAgentCycle({
+          client: input.client,
+          workerId: input.workerId,
+          limit: input.limit || 10,
+          leaseMs: input.leaseMs || 90_000,
+          handler: input.agentHandler,
+          signal: input.signal,
+        }),
+        runDramaRenderCycle({
+          client: input.client,
+          workerId: input.workerId,
+          limit: input.limit || 10,
+          leaseMs: input.leaseMs || 90_000,
+          ffmpegPath: input.ffmpegPath,
+          signal: input.signal,
+        }),
+      ]);
       const claimed =
-        generationClaimed + workflowClaimed + triggerClaimed + agentClaimed;
+        generationClaimed +
+        workflowClaimed +
+        triggerClaimed +
+        agentClaimed +
+        renderClaimed;
       const policy = nextPollDelay({
         claimed,
         idleBatches,

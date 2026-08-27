@@ -55,6 +55,11 @@ export interface DramaRenderRepository {
     mutationId: string,
     now: string,
   ): Promise<DramaRenderJob>;
+  getLeased(
+    workerId: string,
+    jobId: string,
+    now: string,
+  ): Promise<DramaRenderJob | null>;
   claim(
     workerId: string,
     limit: number,
@@ -186,6 +191,15 @@ export class MemoryDramaRenderRepository implements DramaRenderRepository {
         updatedAt: now,
       });
     return a.map(clean);
+  }
+  async getLeased(workerId: string, id: string, now: string) {
+    const x = this.jobs.get(id);
+    return x?.workerId === workerId &&
+      x.status === "running" &&
+      !!x.leaseUntil &&
+      x.leaseUntil > now
+      ? clean(x)
+      : null;
   }
   async heartbeat(w: string, ids: string[], lease: string) {
     let n = 0;

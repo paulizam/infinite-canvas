@@ -43,7 +43,7 @@ export type ProjectCheckpointRecord = {
   createdBy: string;
   createdAt: string;
 };
-export type MediaKind = "image" | "video" | "audio";
+export type MediaKind = "image" | "video" | "audio" | "file";
 export type AssetRecord = {
   id: string;
   workspaceId: string;

@@ -132,6 +132,7 @@ const app = createApp({
     drama,
     dramaProduction,
     new PostgresDramaRenderRepository(databaseUrl),
+    assets,
   ),
   maintenanceToken,
   collaboration,

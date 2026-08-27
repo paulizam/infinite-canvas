@@ -374,3 +374,7 @@ PR 门禁：format、lint、typecheck、unit/integration tests、production buil
 ### R3 媒体生产增量（2026-08-28）
 
 DRM-005/006/010 后端基座复用统一 Generation Job、Wallet 与 Asset：镜头生成任务使用稳定 clientRequestId 防重复计费，结果选择、对白/配音/BGM/字幕时间轴与镜头审核共用 Drama revision/mutationId 并发边界。跨 Workspace Asset 在 Service 与复合外键双重拒绝。FFmpeg 合成、剪映导出及 Canvas 双向发送继续作为 DRM-007～009 独立执行链落地。
+
+### DRM-007/008 Worker（2026-08-28）
+
+Render Worker 已接入独立租约循环。输入/输出 API 均校验 Worker token、活跃 lease 与任务素材白名单；FFmpeg 通过无 shell argv 执行并支持 abort 清理；剪映导出生成 deterministic ZIP，包含 v6 draft metadata/content、时间轴与本地化素材。成功上传后才允许创建不可变成片版本，失败进入可重试终态。

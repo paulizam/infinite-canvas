@@ -8,12 +8,14 @@ import type {
   RenderKind,
   RenderStatus,
 } from "./drama-render-repository.js";
+import type { AssetService } from "./asset-service.js";
 export class DramaRenderService {
   constructor(
     private platform: PlatformRepository,
     private drama: DramaService,
     private production: DramaProductionService,
     private repository: DramaRenderRepository,
+    private assets: AssetService,
   ) {}
   list(userId: string, id: string) {
     return this.repository.list(userId, id);
@@ -124,5 +126,53 @@ export class DramaRenderService {
       patch,
       new Date().toISOString(),
     );
+  }
+  async readInput(workerId: string, id: string, assetId: string) {
+    const job = await this.leased(workerId, id);
+    if (!job.input.assetIds.includes(assetId))
+      throw new DomainError(
+        "DRAMA_RENDER_ASSET_FORBIDDEN",
+        403,
+        "素材不属于该渲染任务",
+      );
+    const value = await this.assets.readBytes(job.ownerId, assetId);
+    if (value.asset.workspaceId !== job.workspaceId)
+      throw new DomainError("ASSET_NOT_FOUND", 404, "素材不存在");
+    return value;
+  }
+  async persistOutput(
+    workerId: string,
+    id: string,
+    bytes: Buffer,
+    name: string,
+  ) {
+    const job = await this.leased(workerId, id);
+    const result = await this.assets.upload(job.ownerId, job.workspaceId, {
+      bytes,
+      originalName: name,
+    });
+    if (job.kind === "ffmpeg" && result.asset.kind !== "video")
+      throw new DomainError(
+        "DRAMA_RENDER_OUTPUT_INVALID",
+        422,
+        "FFmpeg 产物必须是视频",
+      );
+    if (job.kind === "jianying" && result.asset.kind !== "file")
+      throw new DomainError(
+        "DRAMA_RENDER_OUTPUT_INVALID",
+        422,
+        "剪映产物必须是 ZIP",
+      );
+    return result;
+  }
+  private async leased(workerId: string, id: string) {
+    const job = await this.repository.getLeased(
+      workerId,
+      id,
+      new Date().toISOString(),
+    );
+    if (!job)
+      throw new DomainError("DRAMA_RENDER_LEASE_LOST", 409, "渲染租约已失效");
+    return job;
   }
 }

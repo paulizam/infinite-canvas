@@ -111,6 +111,7 @@ function mediaKind(mime?: string): MediaKind | null {
   if (mime?.startsWith("image/") && mime !== "image/svg+xml") return "image";
   if (mime?.startsWith("video/")) return "video";
   if (mime?.startsWith("audio/") || mime === "application/ogg") return "audio";
+  if (mime === "application/zip") return "file";
   return null;
 }
 function safeName(value: string, extension: string) {

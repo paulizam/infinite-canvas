@@ -26,6 +26,11 @@ beforeEach(() => {
   );
   const drama = new DramaService(p, dramaRepository);
   const jobs = new GenerationJobService(p, j);
+  const assetService = new AssetService(
+    p,
+    new MemoryAssetBlobStore(),
+    1024 * 1024,
+  );
   const production = new DramaProductionService(
     p,
     drama,
@@ -41,7 +46,7 @@ beforeEach(() => {
     identity: new IdentityService(p, 60_000),
     workspaces: new WorkspaceService(p),
     projects: new ProjectService(p),
-    assets: new AssetService(p, new MemoryAssetBlobStore(), 1024),
+    assets: assetService,
     jobs,
     jobRepository: j,
     workerToken: "worker-token-at-least-32-characters",
@@ -61,6 +66,7 @@ beforeEach(() => {
         (...x) => p.requireWorkspaceRole(...x),
         (id, revision) => dramaRepository.bumpRevision(id, revision),
       ),
+      assetService,
     ),
   });
 });

@@ -1260,6 +1260,37 @@ export function createApp(services: AppServices) {
         });
       },
     );
+    app.get(
+      "/internal/v1/drama-render/jobs/:renderId/assets/:assetId",
+      async (c) => {
+        const workerId = c.req.header("x-worker-id")?.trim();
+        if (!workerId)
+          throw new DomainError("WORKER_ID_REQUIRED", 400, "缺少 Worker 标识");
+        const x = await services.dramaRender!.readInput(
+          workerId,
+          c.req.param("renderId"),
+          c.req.param("assetId"),
+        );
+        return c.body(new Uint8Array(x.bytes), 200, {
+          "content-type": x.asset.mimeType,
+          "content-length": String(x.asset.bytes),
+          "cache-control": "no-store",
+        });
+      },
+    );
+    app.post("/internal/v1/drama-render/jobs/:renderId/output", async (c) => {
+      const workerId = c.req.header("x-worker-id")?.trim();
+      if (!workerId)
+        throw new DomainError("WORKER_ID_REQUIRED", 400, "缺少 Worker 标识");
+      const bytes = await services.assets.readUpload(c.req.raw);
+      const x = await services.dramaRender!.persistOutput(
+        workerId,
+        c.req.param("renderId"),
+        bytes,
+        c.req.header("x-file-name") || "render-output",
+      );
+      return c.json({ data: x, requestId: requestId(c) }, 201);
+    });
   }
   if (services.workflowWorker) {
     app.post("/internal/v1/workflow/claim", async (c) => {

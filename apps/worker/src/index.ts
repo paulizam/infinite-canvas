@@ -22,7 +22,13 @@ const agentHandler = remoteAgentUrl
       token: required("REMOTE_AGENT_TOKEN"),
     })
   : undefined;
-await runWorker({ client, workerId, agentHandler, signal: controller.signal });
+await runWorker({
+  client,
+  workerId,
+  agentHandler,
+  ffmpegPath: process.env.FFMPEG_PATH?.trim() || "ffmpeg",
+  signal: controller.signal,
+});
 console.log(`Generation worker stopped: ${workerId}`);
 
 function required(name: string) {
