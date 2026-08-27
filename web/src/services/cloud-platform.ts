@@ -109,23 +109,35 @@ export class CloudPlatformClient {
             clientRequestId: string;
             parameters: Record<string, unknown>;
         },
+        signal?: AbortSignal,
     ) {
         return this.request<{ job: GenerationJob; replayed: boolean }>(`/api/v1/workspaces/${encodeURIComponent(workspaceId)}/generation-jobs`, {
             method: "POST",
             body: JSON.stringify(input),
+            signal,
         });
     }
 
-    getGenerationJob(jobId: string) {
-        return this.request<GenerationJob>(`/api/v1/generation-jobs/${encodeURIComponent(jobId)}`);
+    getGenerationJob(jobId: string, signal?: AbortSignal) {
+        return this.request<GenerationJob>(`/api/v1/generation-jobs/${encodeURIComponent(jobId)}`, { signal });
     }
 
-    cancelGenerationJob(jobId: string) {
-        return this.request<GenerationJob>(`/api/v1/generation-jobs/${encodeURIComponent(jobId)}/cancel`, { method: "POST" });
+    cancelGenerationJob(jobId: string, signal?: AbortSignal) {
+        return this.request<GenerationJob>(`/api/v1/generation-jobs/${encodeURIComponent(jobId)}/cancel`, { method: "POST", signal });
     }
 
     retryGenerationJob(jobId: string) {
         return this.request<GenerationJob>(`/api/v1/generation-jobs/${encodeURIComponent(jobId)}/retry`, { method: "POST" });
+    }
+
+    assetContentUrl(assetId: string) {
+        return `${this.baseUrl}/api/v1/assets/${encodeURIComponent(assetId)}/content`;
+    }
+
+    async downloadAsset(assetId: string, signal?: AbortSignal) {
+        const response = await this.fetcher(this.assetContentUrl(assetId), { credentials: "include", signal });
+        if (!response.ok) throw new CloudApiError(response.status, "ASSET_DOWNLOAD_FAILED", response.statusText);
+        return response.blob();
     }
 
     private async request<T>(path: string, init: RequestInit = {}): Promise<T> {

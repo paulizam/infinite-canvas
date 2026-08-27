@@ -29,3 +29,5 @@
 - 新增余额、流水、参数倍率预估 API，以及 Maintenance price rule/钱包调整接口；Memory contract 覆盖重复创建不重复扣费、失败退款和实际用量结算。
 - Web Cloud Platform client 新增逻辑模型、Generation Job、Billing estimate/wallet/ledger 全套 typed endpoint。
 - 生成配置节点在 Server mode 登录态 debounce 获取服务端权威预估与余额，展示预计积分/余额并阻止已知余额不足提交；controller 丢弃过期响应，Local mode 经测试不触发任何 Cloud API。
+- Canvas Server mode 主生成链改走 Cloud Generation Job：按 capability 解析默认逻辑模型，以稳定 clientRequestId 创建任务并轮询终态；浏览器 Abort 会请求服务端取消，失败/needs_review 保留诊断。
+- Cloud text 兼容 Gemini/OpenAI 结果归一化；image/video/audio 从 Job AssetRef 经 Session 鉴权下载 Blob，再复用现有本地媒体存储与节点回填，后端 reservation 成为权威扣费边界。

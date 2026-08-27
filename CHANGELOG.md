@@ -2,6 +2,7 @@
 
 ## Unreleased
 
++ [新增] Canvas Server mode 生成提交改走 Cloud Generation Job：逻辑模型解析、原子积分预留、终态轮询、Abort 上游取消、AssetRef 鉴权下载及 text/image/video/audio 节点回填形成闭环。
 + [新增] Web Server mode 接入逻辑模型目录、Generation Job 与 Billing typed client；生成配置节点以防竞态的 debounce 预估展示预计积分、余额及余额不足状态，Local mode 保持零云请求。
 + [新增] 新增 Model Gateway：Protocol/Channel/Upstream/Logical Model 分层、能力校验、健康路由、AES-GCM 凭据、Maintenance control-plane 与 Worker OpenAI-compatible submit/poll。
 + [新增] Generation Worker 将 URL/Base64/binary audio 结果写入不可变 Asset BlobStore，Job result 仅保存 AssetRef；内部上传受 Worker Token、有效租约和 phase 约束。

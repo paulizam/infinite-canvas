@@ -19,7 +19,7 @@
 - [x] WebSocket collaboration hub
 - [x] Asset storage（magic-byte、SHA-256、Local/S3、RBAC、AssetRef 保护）
 - [x] Generation Job Worker（contract/state/schema/repository/API、独立 runtime、heartbeat/lease recovery）
-- [▶] Model Gateway（OpenAI-compatible、Gemini、声明式 Custom runtime、媒体 Asset、health/cooldown、provider cancel 已完成；streaming、连接测试/模型发现、provider-specific adapter 待完成）；Billing ledger 基础、原子预留/结算/退款、Web Server mode 预估/余额提示已完成，Cloud Job 结果回填与运营对账待完成
+- [▶] Model Gateway（OpenAI-compatible、Gemini、声明式 Custom runtime、媒体 Asset、health/cooldown、provider cancel 已完成；streaming、连接测试/模型发现、provider-specific adapter 待完成）；Billing 原子预留/结算/退款、Web 预估/余额、Cloud Job 主生成与 AssetRef 回填已完成，重试全路径与运营对账待完成
 
 ## 错误账本
 
@@ -34,3 +34,5 @@
 | Cancel test 使用创建时间早于 cancel 的 nextRunAt | 1 | 以 cancel 响应的权威 nextRunAt claim，消除毫秒竞态 |
 | 对历史单行 i18n 文件显式运行 Prettier 导致千行无关展开 | 1 | 回滚两文件后使用精确单行替换，仅保留新增 key |
 | PowerShell `Get-ChildItem -Filter` 误传数组 | 1 | 改用单次枚举后按 Name 过滤 |
+| 误判 Model Gateway adapter 文件名为 `runtime-adapters.ts` | 1 | 重新枚举目录并定位 `openai-compatible.ts`/`provider-adapters.ts` |
+| 对历史宽行 `project.tsx` 运行 Prettier 造成无关展开 | 1 | 回滚该文件并以小块语义 patch 重放，禁止整文件格式化 |

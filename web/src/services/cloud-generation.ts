@@ -1,0 +1,121 @@
+import type { AssetRef, GenerationCapability, GenerationJob } from "@infinite-canvas/contracts";
+
+import type { CloudPlatformClient } from "./cloud-platform";
+
+type GenerationRequest = {
+    workspaceId: string;
+    capability: GenerationCapability;
+    logicalModelId: string;
+    clientRequestId: string;
+    parameters: Record<string, unknown>;
+};
+
+type WaitOptions = {
+    signal?: AbortSignal;
+    pollIntervalMs?: number;
+    timeoutMs?: number;
+    onUpdate?: (job: GenerationJob) => void;
+    sleep?: (milliseconds: number, signal?: AbortSignal) => Promise<void>;
+};
+
+export class CloudGenerationError extends Error {
+    constructor(
+        message: string,
+        public readonly job: GenerationJob,
+    ) {
+        super(message);
+    }
+}
+
+export async function createAndWaitForGeneration(client: CloudPlatformClient, request: GenerationRequest, options: WaitOptions = {}) {
+    throwIfAborted(options.signal);
+    const created = await client.createGenerationJob(
+        request.workspaceId,
+        {
+            capability: request.capability,
+            logicalModelId: request.logicalModelId,
+            clientRequestId: request.clientRequestId,
+            parameters: request.parameters,
+        },
+        options.signal,
+    );
+    return waitForGeneration(client, created.job, options);
+}
+
+export async function waitForGeneration(client: CloudPlatformClient, initial: GenerationJob, options: WaitOptions = {}) {
+    const interval = options.pollIntervalMs ?? 1_500;
+    const timeout = options.timeoutMs ?? 10 * 60_000;
+    const sleep = options.sleep ?? abortableSleep;
+    const startedAt = Date.now();
+    let job = initial;
+    options.onUpdate?.(job);
+    while (!isTerminal(job)) {
+        try {
+            throwIfAborted(options.signal);
+            if (Date.now() - startedAt >= timeout) throw new CloudGenerationError("Cloud generation timed out", job);
+            await sleep(interval, options.signal);
+            job = await client.getGenerationJob(job.id, options.signal);
+            options.onUpdate?.(job);
+        } catch (error) {
+            if (isAbortError(error) || options.signal?.aborted) {
+                await client.cancelGenerationJob(job.id).catch(() => undefined);
+                throw abortError();
+            }
+            throw error;
+        }
+    }
+    if (job.phase !== "succeeded") {
+        throw new CloudGenerationError(job.errorMessage || `Cloud generation ended as ${job.phase}`, job);
+    }
+    return job;
+}
+
+export function generationAssets(job: GenerationJob): AssetRef[] {
+    const assets = job.result?.assets;
+    if (!Array.isArray(assets)) return [];
+    return assets.filter((asset): asset is AssetRef => Boolean(asset) && typeof asset === "object" && typeof (asset as Record<string, unknown>).assetId === "string");
+}
+
+export function generationText(job: GenerationJob) {
+    const result = job.result;
+    if (!result) return "";
+    if (typeof result.text === "string") return result.text;
+    if (typeof result.output_text === "string") return result.output_text;
+    const choices = Array.isArray(result.choices) ? result.choices : [];
+    const first = choices[0];
+    if (!first || typeof first !== "object") return "";
+    const message = (first as Record<string, unknown>).message;
+    if (!message || typeof message !== "object") return "";
+    const content = (message as Record<string, unknown>).content;
+    return typeof content === "string" ? content : "";
+}
+
+function isTerminal(job: GenerationJob) {
+    return ["succeeded", "failed", "cancelled", "needs_review"].includes(job.phase);
+}
+
+function abortableSleep(milliseconds: number, signal?: AbortSignal) {
+    return new Promise<void>((resolve, reject) => {
+        const timer = window.setTimeout(resolve, milliseconds);
+        signal?.addEventListener(
+            "abort",
+            () => {
+                window.clearTimeout(timer);
+                reject(abortError());
+            },
+            { once: true },
+        );
+    });
+}
+
+function throwIfAborted(signal?: AbortSignal) {
+    if (signal?.aborted) throw abortError();
+}
+
+function abortError() {
+    return new DOMException("The operation was aborted", "AbortError");
+}
+
+function isAbortError(error: unknown) {
+    return error instanceof Error && error.name === "AbortError";
+}
