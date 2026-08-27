@@ -13,5 +13,6 @@ export type CanvasOperation =
   | { type: "connection.upsert"; connection: CanvasConnection }
   | { type: "connection.remove"; connectionIds: string[] }
   | { type: "viewport.set"; viewport: ViewportTransform }
+  | { type: "document.sync"; patch: Partial<Pick<CanvasDocument, "nodes" | "connections" | "chatSessions" | "activeChatId" | "backgroundMode" | "showImageInfo" | "viewport">> }
   | { type: "document.patch"; patch: Partial<Pick<CanvasDocument, "title" | "backgroundMode" | "showImageInfo" | "activeChatId">> };
 export type CanvasMutation = { mutationId: string; projectId: string; baseRevision: number; operations: CanvasOperation[]; clientId: string; createdAt: string };

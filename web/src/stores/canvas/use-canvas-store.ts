@@ -2,6 +2,8 @@ import { create } from "zustand";
 import { persist, type PersistStorage, type StorageValue } from "zustand/middleware";
 
 import { nanoid } from "nanoid";
+import { applyCanvasOperations, migrateCanvasDocument } from "@infinite-canvas/canvas-core";
+import { CANVAS_SCHEMA_VERSION, type CanvasOperation } from "@infinite-canvas/contracts";
 import i18n from "@/i18n";
 import { localForageStorage } from "@/lib/localforage-storage";
 import type { CanvasBackgroundMode } from "@/lib/canvas-theme";
@@ -9,6 +11,8 @@ import type { CanvasAssistantSession, CanvasConnection, CanvasNodeData, Viewport
 
 export type CanvasProject = {
     id: string;
+    schemaVersion: typeof CANVAS_SCHEMA_VERSION;
+    revision: number;
     title: string;
     createdAt: string;
     updatedAt: string;
@@ -30,6 +34,7 @@ type CanvasStore = {
     renameProject: (id: string, title: string) => void;
     deleteProjects: (ids: string[]) => void;
     replaceProjects: (projects: CanvasProject[]) => void;
+    applyOperations: (id: string, operations: CanvasOperation[]) => void;
     updateProject: (id: string, patch: Partial<Pick<CanvasProject, "nodes" | "connections" | "chatSessions" | "activeChatId" | "backgroundMode" | "showImageInfo" | "viewport">>) => void;
 };
 
@@ -39,12 +44,12 @@ type PersistedCanvasState = Pick<CanvasStore, "projects">;
 let saveTimer: ReturnType<typeof setTimeout> | null = null;
 let queuedPersistState: PersistedCanvasState | null = null;
 
-const canvasStorage: PersistStorage<CanvasStore> = {
+const canvasStorage: PersistStorage<PersistedCanvasState> = {
     getItem: async (name) => {
         const value = await localForageStorage.getItem(name);
         if (!value) return null;
-        const parsed = JSON.parse(value) as StorageValue<CanvasStore>;
-        queuedPersistState = parsed.state as PersistedCanvasState;
+        const parsed = JSON.parse(value) as StorageValue<PersistedCanvasState>;
+        queuedPersistState = parsed.state;
         return parsed;
     },
     setItem: (name, value) => {
@@ -61,7 +66,7 @@ const canvasStorage: PersistStorage<CanvasStore> = {
 };
 
 export const useCanvasStore = create<CanvasStore>()(
-    persist(
+    persist<CanvasStore, [], [], PersistedCanvasState>(
         (set, get) => ({
             hydrated: false,
             projects: [],
@@ -70,6 +75,8 @@ export const useCanvasStore = create<CanvasStore>()(
                 const id = nanoid();
                 const project: CanvasProject = {
                     id,
+                    schemaVersion: CANVAS_SCHEMA_VERSION,
+                    revision: 0,
                     title,
                     createdAt: now,
                     updatedAt: now,
@@ -86,19 +93,7 @@ export const useCanvasStore = create<CanvasStore>()(
             },
             importProject: (source) => {
                 const now = new Date().toISOString();
-                const project: CanvasProject = {
-                    id: nanoid(),
-                    title: source.title || i18n.t("canvas.project.imported"),
-                    createdAt: source.createdAt || now,
-                    updatedAt: now,
-                    nodes: source.nodes || [],
-                    connections: source.connections || [],
-                    chatSessions: source.chatSessions || [],
-                    activeChatId: source.activeChatId || null,
-                    backgroundMode: source.backgroundMode || "lines",
-                    showImageInfo: source.showImageInfo || false,
-                    viewport: source.viewport || initialViewport,
-                };
+                const project = normalizeProject({ ...source, id: nanoid(), updatedAt: now }, i18n.t("canvas.project.imported"));
                 set((state) => ({ projects: [project, ...state.projects] }));
                 return project.id;
             },
@@ -107,29 +102,53 @@ export const useCanvasStore = create<CanvasStore>()(
             },
             renameProject: (id, title) =>
                 set((state) => ({
-                    projects: state.projects.map((project) => (project.id === id ? { ...project, title: title.trim() || project.title, updatedAt: new Date().toISOString() } : project)),
+                    projects: state.projects.map((project) =>
+                        project.id === id
+                            ? fromDocument(applyCanvasOperations(toDocument(project), [{ type: "document.patch", patch: { title: title.trim() || project.title } }]))
+                            : project,
+                    ),
                 })),
             deleteProjects: (ids) =>
                 set((state) => {
                     const projects = state.projects.filter((project) => !ids.includes(project.id));
                     return { projects };
                 }),
-            replaceProjects: (projects) => set({ projects }),
+            replaceProjects: (projects) => set({ projects: projects.map((project) => normalizeProject(project)) }),
+            applyOperations: (id, operations) => set((state) => ({ projects: state.projects.map((project) => (project.id === id ? fromDocument(applyCanvasOperations(toDocument(project), operations)) : project)) })),
             updateProject: (id, patch) =>
                 set((state) => ({
-                    projects: state.projects.map((project) => (project.id === id ? { ...project, ...patch, updatedAt: new Date().toISOString() } : project)),
+                    projects: state.projects.map((project) =>
+                        project.id === id
+                            ? fromDocument(applyCanvasOperations(toDocument(project), [{ type: "document.sync", patch: patch as unknown as Extract<CanvasOperation, { type: "document.sync" }>["patch"] }]))
+                            : project,
+                    ),
                 })),
         }),
         {
             name: CANVAS_STORE_KEY,
+            version: CANVAS_SCHEMA_VERSION,
+            migrate: (state) => {
+                const persisted = state as Partial<PersistedCanvasState>;
+                return { projects: (persisted.projects || []).map((project) => normalizeProject(project)) } as PersistedCanvasState;
+            },
             storage: canvasStorage,
-            partialize: (state) =>
-                ({
-                    projects: state.projects,
-                }) as StorageValue<CanvasStore>["state"],
+            partialize: (state) => ({ projects: state.projects }),
             onRehydrateStorage: () => () => {
                 useCanvasStore.setState({ hydrated: true });
             },
         },
     ),
 );
+
+function normalizeProject(source: Partial<CanvasProject>, fallbackTitle = "Untitled"): CanvasProject {
+    const migrated = migrateCanvasDocument({ ...(source as object), id: source.id || nanoid(), title: source.title || fallbackTitle } as Parameters<typeof migrateCanvasDocument>[0]);
+    return fromDocument(migrated);
+}
+
+function toDocument(project: CanvasProject): Parameters<typeof applyCanvasOperations>[0] {
+    return project as unknown as Parameters<typeof applyCanvasOperations>[0];
+}
+
+function fromDocument(document: ReturnType<typeof applyCanvasOperations>): CanvasProject {
+    return document as unknown as CanvasProject;
+}

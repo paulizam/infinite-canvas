@@ -2,13 +2,13 @@ import type { CanvasProject } from "@/stores/canvas/use-canvas-store";
 
 export type CanvasExportFile = {
     app: "infinite-canvas";
-    version: 3;
+    version: 3 | 4;
     exportedAt: string;
     projects: CanvasProjectExportItem[];
 };
 
 export type CanvasProjectExportItem = {
-    project: CanvasProject;
+    project: Partial<CanvasProject> & Pick<CanvasProject, "id" | "title" | "nodes" | "connections">;
     files: CanvasExportAsset[];
 };
 

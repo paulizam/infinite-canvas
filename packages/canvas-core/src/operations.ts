@@ -12,6 +12,7 @@ function applyOperation(doc: CanvasDocument, op: CanvasOperation): CanvasDocumen
     case "connection.upsert": return { ...doc, connections: doc.connections.some(e => e.id === op.connection.id) ? doc.connections.map(e => e.id === op.connection.id ? op.connection : e) : [...doc.connections, op.connection] };
     case "connection.remove": { const ids = new Set(op.connectionIds); return { ...doc, connections: doc.connections.filter(e => !ids.has(e.id)) }; }
     case "viewport.set": return { ...doc, viewport: op.viewport };
+    case "document.sync": return { ...doc, ...op.patch };
     case "document.patch": return { ...doc, ...op.patch };
   }
 }

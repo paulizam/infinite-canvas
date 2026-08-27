@@ -14,6 +14,7 @@ import { useCanvasStore } from "@/stores/canvas/use-canvas-store";
 import { useCanvasUiStore } from "@/stores/canvas/use-canvas-ui-store";
 import { exportCanvasProjects } from "@/lib/canvas/canvas-export";
 import { hasAgentUrlBootstrap } from "@/lib/agent/agent-url-bootstrap";
+import { parseCanvasExportFile } from "@/lib/canvas/canvas-import";
 
 export default function CanvasPage() {
     const { message } = App.useApp();
@@ -43,7 +44,7 @@ export default function CanvasPage() {
             const zip = await readZip(file);
             const projectFile = zip.get("projects.json");
             if (!projectFile) throw new Error("missing projects.json");
-            const data = JSON.parse(await projectFile.text()) as CanvasExportFile;
+            const data: CanvasExportFile = parseCanvasExportFile(JSON.parse(await projectFile.text()));
             await Promise.all(
                 data.projects.flatMap((project) =>
                     project.files.map(async (item) => {
