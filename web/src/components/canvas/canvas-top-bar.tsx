@@ -34,6 +34,7 @@ export function CanvasTopBar({
     onToggleAgent,
     workflowControl,
     collaborationControl,
+    readOnly = false,
 }: {
     title: string;
     titleDraft: string;
@@ -59,6 +60,7 @@ export function CanvasTopBar({
     onToggleAgent: () => void;
     workflowControl?: ReactNode;
     collaborationControl?: ReactNode;
+    readOnly?: boolean;
 }) {
     const colorTheme = useThemeStore((state) => state.theme);
     const { t } = useTranslation();
@@ -100,14 +102,14 @@ export function CanvasTopBar({
                                 { key: "docs", icon: <BookOpen className="size-4" />, label: t("canvas.docs"), onClick: () => window.open(DOCS_URL, "_blank", "noopener,noreferrer") },
                                 { key: "projects", icon: <Images className="size-4" />, label: t("canvas.projects"), onClick: onProjects },
                                 { type: "divider" },
-                                { key: "new", icon: <Plus className="size-4" />, label: t("canvas.create"), onClick: onCreateProject },
-                                { key: "delete", danger: true, icon: <Trash2 className="size-4" />, label: t("canvas.deleteCurrent"), onClick: onDeleteProject },
+                                { key: "new", disabled: readOnly, icon: <Plus className="size-4" />, label: t("canvas.create"), onClick: onCreateProject },
+                                { key: "delete", disabled: readOnly, danger: true, icon: <Trash2 className="size-4" />, label: t("canvas.deleteCurrent"), onClick: onDeleteProject },
                                 { type: "divider" },
-                                { key: "import", icon: <Upload className="size-4" />, label: t("canvas.importAsset"), onClick: onImportImage },
+                                { key: "import", disabled: readOnly, icon: <Upload className="size-4" />, label: t("canvas.importAsset"), onClick: onImportImage },
                                 { key: "export", icon: <Download className="size-4" />, label: t("canvas.exportCurrent"), onClick: onExportProject },
                                 { type: "divider" },
-                                { key: "undo", disabled: !canUndo, icon: <Undo2 className="size-4" />, label: <MenuLabel text={t("canvas.undo")} shortcut="⌘ Z" />, onClick: onUndo },
-                                { key: "redo", disabled: !canRedo, icon: <Redo2 className="size-4" />, label: <MenuLabel text={t("canvas.redo")} shortcut="⌘ ⇧ Z / ⌘ Y" />, onClick: onRedo },
+                                { key: "undo", disabled: readOnly || !canUndo, icon: <Undo2 className="size-4" />, label: <MenuLabel text={t("canvas.undo")} shortcut="⌘ Z" />, onClick: onUndo },
+                                { key: "redo", disabled: readOnly || !canRedo, icon: <Redo2 className="size-4" />, label: <MenuLabel text={t("canvas.redo")} shortcut="⌘ ⇧ Z / ⌘ Y" />, onClick: onRedo },
                             ],
                         }}
                     >
@@ -134,7 +136,7 @@ export function CanvasTopBar({
                             <button
                                 type="button"
                                 className="max-w-[280px] truncate border-b border-dashed border-transparent text-left text-lg font-semibold tracking-normal transition hover:border-current"
-                                onDoubleClick={onStartTitleEditing}
+                                onDoubleClick={readOnly ? undefined : onStartTitleEditing}
                                 title={t("canvas.renameHint")}
                             >
                                 {title}
@@ -146,6 +148,7 @@ export function CanvasTopBar({
 
                 <div className="pointer-events-auto flex items-center gap-1.5">
                     {collaborationControl}
+                    {readOnly ? <span className="rounded-lg bg-amber-100 px-2 py-1 text-xs font-medium text-amber-700 dark:bg-amber-950 dark:text-amber-300">{t("collaboration.viewerReadOnly")}</span> : null}
                     <Button type="text" className="!h-10 !rounded-xl !px-3 !font-medium" style={{ background: theme.toolbar.panel, color: theme.node.text }} icon={<Clapperboard className="size-4" />} onClick={onStudio}>
                         {t("studio.studioView")}
                     </Button>

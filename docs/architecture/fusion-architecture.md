@@ -157,6 +157,8 @@ Creative Studio 的实现遵守以下 projection contract：`CanvasProject` 始�
 
 协作 presence 遵守 ephemeral contract：光标使用 Canvas world coordinates，选区只传 node ID；二者仅由 WebSocket room 广播并保存在浏览器内存 store，不进入 Canvas document、mutation、IndexedDB 或 PostgreSQL。客户端将发送频率限制在 20Hz，服务端继续执行 payload schema、16KiB 消息上限和 30 msg/s 限流；断线、切换 Workspace、Project 删除与 bridge 卸载必须同步清空在线成员，禁止显示幽灵 presence。
 
+Canvas 写能力按 Workspace role fail-closed：Local mode 与 `owner/admin/editor` 可写，Server mode 的 `viewer` 只能读取、选择、复制、缩放、平移和播放媒体。viewer 的节点/连线 state setter、写快捷键、Workflow 发布、上传/生成 UI、Agent operations 与 Plugin write/AI capability 均在浏览器能力边界阻断；API 仍须在锁定 Project 的同一事务内校验至少 `editor`，整批 operations 未授权时不得应用任一 patch 或增加 revision。
+
 ## 6. 领域模块
 
 ### 6.1 Identity & Workspace

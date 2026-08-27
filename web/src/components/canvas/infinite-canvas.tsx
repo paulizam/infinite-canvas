@@ -8,6 +8,7 @@ type InfiniteCanvasProps = {
     containerRef: React.RefObject<HTMLDivElement | null>;
     viewport: ViewportTransform;
     tool: "select" | "pan";
+    readOnly?: boolean;
     backgroundMode?: CanvasBackgroundMode;
     onViewportChange: (viewport: ViewportTransform) => void;
     onCanvasMouseDown?: (event: React.PointerEvent<HTMLDivElement>) => void;
@@ -24,6 +25,7 @@ export function InfiniteCanvas({
     containerRef,
     viewport,
     tool,
+    readOnly = false,
     backgroundMode = "lines",
     onViewportChange,
     onCanvasMouseDown,
@@ -156,6 +158,7 @@ export function InfiniteCanvas({
     };
 
     const handleDoubleClick = (event: React.MouseEvent<HTMLDivElement>) => {
+        if (readOnly) return;
         const target = event.target instanceof Element ? event.target : null;
         if (target?.closest("[data-canvas-no-zoom],[data-node-id],[data-connection-id]")) return;
         onCanvasDoubleClick?.(event);
@@ -223,19 +226,29 @@ export function InfiniteCanvas({
     const activeTool = temporaryTool ? (tool === "select" ? "pan" : "select") : tool;
     const cursor = isPanning ? "grabbing" : activeTool === "pan" ? "grab" : undefined;
 
+    const blockReadOnlyAction = (event: React.SyntheticEvent<HTMLDivElement>) => {
+        if (!readOnly) return;
+        const target = event.target instanceof Element ? event.target : null;
+        if (target?.closest("video,audio,[data-readonly-allowed]")) return;
+        if (!target?.closest("button,input,textarea,select,[contenteditable='true'],[role='button']")) return;
+        event.preventDefault();
+        event.stopPropagation();
+    };
+
     return (
         <div
             ref={containerRef}
             className="relative h-full w-full select-none overflow-hidden"
             style={{ background: theme.canvas.background, cursor }}
             onPointerDown={handlePointerDown}
+            onClickCapture={blockReadOnlyAction}
             onPointerMove={onCanvasPointerMove}
             onPointerLeave={onCanvasPointerLeave}
             onDoubleClick={handleDoubleClick}
             onWheel={handleWheel}
-            onContextMenu={onContextMenu}
+            onContextMenu={readOnly ? (event) => event.preventDefault() : onContextMenu}
             onDragOver={(event) => event.preventDefault()}
-            onDrop={onDrop}
+            onDrop={readOnly ? (event) => event.preventDefault() : onDrop}
         >
             <CanvasGrid viewport={viewport} mode={backgroundMode} />
             <div

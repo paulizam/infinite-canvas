@@ -14,10 +14,12 @@ import type { CanvasNodeToolbarItem, CanvasPluginAi, CanvasPluginHost } from "@/
 import type { ReferenceImage } from "@/types/image";
 import type { CanvasAgentOp } from "@/lib/canvas/canvas-agent-ops";
 import type { CanvasConnection, CanvasNodeData, ViewportTransform } from "@/types/canvas";
+import { assertCanvasWritable } from "@/lib/canvas/canvas-write-access";
 
 type CanvasTheme = (typeof canvasThemes)[keyof typeof canvasThemes];
 
 type PluginHostParams = {
+    readOnly?: boolean;
     effectiveConfig: AiConfig;
     isAiConfigReady: (config: AiConfig, model: string) => boolean;
     openConfigDialog: (open: boolean) => void;
@@ -36,7 +38,10 @@ type PluginHostParams = {
  */
 export function usePluginHost(params: PluginHostParams) {
     const { t } = useTranslation();
-    const { effectiveConfig, isAiConfigReady, openConfigDialog, theme, nodesRef, connectionsRef, viewportRef, setNodes, setDialogNodeId, applyAgentOps } = params;
+    const { readOnly = false, effectiveConfig, isAiConfigReady, openConfigDialog, theme, nodesRef, connectionsRef, viewportRef, setNodes, setDialogNodeId, applyAgentOps } = params;
+    const ensureWritable = useCallback(() => {
+        assertCanvasWritable(readOnly);
+    }, [readOnly]);
 
     // Host capabilities available to plugin nodes; methods receive nodeId and are not bound to a specific node.
     const pluginAi = useMemo<CanvasPluginAi>(() => {
@@ -51,21 +56,25 @@ export function usePluginHost(params: PluginHostParams) {
         };
         return {
             generateImage: async (prompt, options) => {
+                ensureWritable();
                 const config = { ...buildGenerationConfig(effectiveConfig, undefined, "image"), count: String(options?.count || 1), ...(options?.model ? { model: options.model } : {}), ...(options?.size ? { size: options.size } : {}) };
                 ensureReady(config);
                 const references = toReferences(options?.references);
                 const items = references.length ? await requestEdit(config, prompt, references, undefined, { signal: options?.signal }) : await requestGeneration(config, prompt, { signal: options?.signal });
-                const images = await Promise.all(items.map(async (item) => {
-                    try {
-                        return await imageToDataUrl({ dataUrl: item.dataUrl }, { signal: options?.signal });
-                    } catch (error) {
-                        if (options?.signal?.aborted) throw error;
-                        return item.dataUrl;
-                    }
-                }));
+                const images = await Promise.all(
+                    items.map(async (item) => {
+                        try {
+                            return await imageToDataUrl({ dataUrl: item.dataUrl }, { signal: options?.signal });
+                        } catch (error) {
+                            if (options?.signal?.aborted) throw error;
+                            return item.dataUrl;
+                        }
+                    }),
+                );
                 return { images };
             },
             generateVideo: async (prompt, options) => {
+                ensureWritable();
                 const config = {
                     ...buildGenerationConfig(effectiveConfig, undefined, "video"),
                     ...(options?.model ? { model: options.model } : {}),
@@ -77,6 +86,7 @@ export function usePluginHost(params: PluginHostParams) {
                 return { url: file.url, mimeType: file.mimeType, width: file.width, height: file.height, durationMs: file.durationMs };
             },
             generateText: async (prompt, options) => {
+                ensureWritable();
                 const config = { ...buildGenerationConfig(effectiveConfig, undefined, "text"), ...(options?.model ? { model: options.model } : {}) };
                 ensureReady(config);
                 const messages: AiTextMessage[] = [...(options?.system ? [{ role: "system" as const, content: options.system }] : []), { role: "user" as const, content: prompt }];
@@ -87,7 +97,7 @@ export function usePluginHost(params: PluginHostParams) {
             listModels: (capability) => selectableModelsByCapability(effectiveConfig, capability as ModelCapability | undefined).map((value) => ({ value, label: decodeChannelModel(value)?.model || value })),
             defaultModel: (capability) => buildGenerationConfig(effectiveConfig, undefined, capability).model,
         };
-    }, [effectiveConfig, isAiConfigReady, openConfigDialog, t]);
+    }, [effectiveConfig, ensureWritable, isAiConfigReady, openConfigDialog, t]);
 
     const pluginHost = useMemo<CanvasPluginHost>(
         () => ({
@@ -104,14 +114,20 @@ export function usePluginHost(params: PluginHostParams) {
                     .filter((conn) => conn.fromNodeId === nodeId)
                     .map((conn) => nodesRef.current.find((node) => node.id === conn.toNodeId))
                     .filter((node): node is CanvasNodeData => Boolean(node)),
-            updateNode: (nodeId, patch) => setNodes((prev) => prev.map((node) => (node.id === nodeId ? { ...node, ...patch } : node))),
-            updateMetadata: (nodeId, patch) => setNodes((prev) => prev.map((node) => (node.id === nodeId ? { ...node, metadata: { ...node.metadata, ...patch } } : node))),
+            updateNode: (nodeId, patch) => {
+                ensureWritable();
+                setNodes((prev) => prev.map((node) => (node.id === nodeId ? { ...node, ...patch } : node)));
+            },
+            updateMetadata: (nodeId, patch) => {
+                ensureWritable();
+                setNodes((prev) => prev.map((node) => (node.id === nodeId ? { ...node, metadata: { ...node.metadata, ...patch } } : node)));
+            },
             applyOps: (ops) => applyAgentOps(ops),
             ai: pluginAi,
             openPanel: (nodeId) => setDialogNodeId(nodeId),
             closePanel: () => setDialogNodeId(null),
         }),
-        [applyAgentOps, pluginAi],
+        [applyAgentOps, ensureWritable, pluginAi],
     );
 
     const renderPluginPanel = useCallback(

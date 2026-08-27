@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
-import type { ChangeEvent as ReactChangeEvent, DragEvent as ReactDragEvent, MouseEvent as ReactMouseEvent, PointerEvent as ReactPointerEvent } from "react";
+import type { ChangeEvent as ReactChangeEvent, Dispatch, DragEvent as ReactDragEvent, MouseEvent as ReactMouseEvent, PointerEvent as ReactPointerEvent, SetStateAction } from "react";
 import { useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { Group, Video } from "lucide-react";
 import { saveAs } from "file-saver";
@@ -93,6 +93,8 @@ import type { ReferenceImage } from "@/types/image";
 import type { ReferenceAudio } from "@/types/media";
 import { useCloudSessionStore } from "@/stores/use-cloud-session-store";
 import { useCollaborationStore } from "@/stores/use-collaboration-store";
+import { cloudModeEnabled } from "@/services/cloud-platform";
+import { isCanvasReadOnly, isReadOnlyWriteKey } from "@/lib/canvas/canvas-write-access";
 import { generateCanvasAudio, generateCanvasImage, generateCanvasText, generateCanvasVideo, generationConfigReady } from "@/services/canvas-generation-provider";
 
 // Register built-in nodes in the shared registry once when the module loads.
@@ -195,6 +197,8 @@ function InfiniteCanvasPage() {
     const isAiConfigReady = useConfigStore((state) => state.isAiConfigReady);
     const openConfigDialog = useConfigStore((state) => state.openConfigDialog);
     const cloudWorkspaceId = useCloudSessionStore((state) => state.activeWorkspaceId);
+    const cloudWorkspaceRole = useCloudSessionStore((state) => state.workspaces.find((workspace) => workspace.id === state.activeWorkspaceId)?.role);
+    const readOnly = isCanvasReadOnly(cloudModeEnabled, cloudWorkspaceRole);
     const addAsset = useAssetStore((state) => state.addAsset);
     const cleanupAssetImages = useAssetStore((state) => state.cleanupImages);
     const hydrated = useCanvasStore((state) => state.hydrated);
@@ -205,8 +209,8 @@ function InfiniteCanvasPage() {
     const deleteProjects = useCanvasStore((state) => state.deleteProjects);
     const currentProject = useCanvasStore((state) => state.projects.find((project) => project.id === projectId));
     const theme = canvasThemes[useThemeStore((state) => state.theme)];
-    const [nodes, setNodes] = useState<CanvasNodeData[]>([]);
-    const [connections, setConnections] = useState<CanvasConnection[]>([]);
+    const [nodes, setNodesState] = useState<CanvasNodeData[]>([]);
+    const [connections, setConnectionsState] = useState<CanvasConnection[]>([]);
     const [chatSessions, setChatSessions] = useState<CanvasAssistantSession[]>([]);
     const [activeChatId, setActiveChatId] = useState<string | null>(null);
     const [viewport, setViewport] = useState<ViewportTransform>({ x: 0, y: 0, k: 1 });
@@ -250,6 +254,13 @@ function InfiniteCanvasPage() {
     const [isNodeResizing, setIsNodeResizing] = useState(false);
     const [dropTargetGroupId, setDropTargetGroupId] = useState<string | null>(null);
     const [referencePickerNodeId, setReferencePickerNodeId] = useState<string | null>(null);
+
+    const setNodes = useCallback<Dispatch<SetStateAction<CanvasNodeData[]>>>((next) => {
+        if (!readOnly) setNodesState(next);
+    }, [readOnly]);
+    const setConnections = useCallback<Dispatch<SetStateAction<CanvasConnection[]>>>((next) => {
+        if (!readOnly) setConnectionsState(next);
+    }, [readOnly]);
 
     const nodesRef = useRef(nodes);
     const connectionsRef = useRef(connections);
@@ -349,8 +360,8 @@ function InfiniteCanvasPage() {
         const restore = async () => {
             const restoredNodes = await hydrateCanvasImages(resetInterruptedGeneration(project.nodes));
             const restoredSessions = await hydrateAssistantImages(project.chatSessions || []);
-            setNodes(restoredNodes);
-            setConnections(project.connections);
+            setNodesState(restoredNodes);
+            setConnectionsState(project.connections);
             setChatSessions(restoredSessions);
             setActiveChatId(project.activeChatId || null);
             setBackgroundMode(project.backgroundMode);
@@ -415,16 +426,16 @@ function InfiniteCanvasPage() {
     }, [activeChatId, backgroundMode, chatSessions, connections, createHistoryEntry, nodes, projectLoaded, showImageInfo]);
 
     useEffect(() => {
-        if (!projectLoaded || historyPausedRef.current) return;
+        if (!projectLoaded || historyPausedRef.current || readOnly) return;
         updateProject(projectId, { nodes, connections, chatSessions, activeChatId, backgroundMode, showImageInfo });
-    }, [activeChatId, backgroundMode, chatSessions, connections, nodes, projectId, projectLoaded, showImageInfo, updateProject]);
+    }, [activeChatId, backgroundMode, chatSessions, connections, nodes, projectId, projectLoaded, readOnly, showImageInfo, updateProject]);
 
     useEffect(() => {
         if (!dialogNodeId) setNodeImageSettingsOpen(false);
     }, [dialogNodeId]);
 
     useEffect(() => {
-        if (!projectLoaded) return;
+        if (!projectLoaded || readOnly) return;
         if (viewportSaveTimerRef.current) clearTimeout(viewportSaveTimerRef.current);
         viewportSaveTimerRef.current = setTimeout(() => {
             updateProject(projectId, { viewport: viewportRef.current });
@@ -433,7 +444,7 @@ function InfiniteCanvasPage() {
         return () => {
             if (viewportSaveTimerRef.current) clearTimeout(viewportSaveTimerRef.current);
         };
-    }, [projectId, projectLoaded, updateProject, viewport]);
+    }, [projectId, projectLoaded, readOnly, updateProject, viewport]);
 
     useLayoutEffect(() => {
         nodesRef.current = nodes;
@@ -699,6 +710,7 @@ function InfiniteCanvasPage() {
     }, [connections, nodeById]);
     const referenceConnectedNodeIds = useMemo(() => new Set([referencePickerNodeId, ...(referencePickerNodeId ? connectedNodesByNodeId.get(referencePickerNodeId)?.flatMap((node) => node.type === CanvasNodeType.Group ? [node.id, ...getGroupResourceNodes(node.id, nodes).map((child) => child.id)] : [node.id]) || [] : [])].filter((id): id is string => Boolean(id))), [connectedNodesByNodeId, nodes, referencePickerNodeId]);
     const { applyAgentOps } = useAgentBridge({
+        readOnly,
         projectId,
         title: currentProject?.title,
         nodes,
@@ -719,6 +731,7 @@ function InfiniteCanvasPage() {
     });
 
     const { pluginHost, renderPluginPanel, buildNodeToolbarItems } = usePluginHost({
+        readOnly,
         effectiveConfig,
         isAiConfigReady,
         openConfigDialog,
@@ -1452,6 +1465,12 @@ function InfiniteCanvasPage() {
             const key = event.key.toLowerCase();
             const isModifierShortcut = event.metaKey || event.ctrlKey;
 
+            if (readOnly && isReadOnlyWriteKey(event)) {
+                event.preventDefault();
+                message.info(t("collaboration.viewerReadOnly"));
+                return;
+            }
+
             if (isModifierShortcut && key === "c" && window.getSelection()?.toString()) return;
 
             if (isModifierShortcut && !event.altKey && key === "z") {
@@ -1515,7 +1534,7 @@ function InfiniteCanvasPage() {
 
         window.addEventListener("keydown", handleKeyDown);
         return () => window.removeEventListener("keydown", handleKeyDown);
-    }, [copySelectedNodes, deleteConnection, deleteNodes, pasteCopiedNodes, pasteSystemClipboard, redoCanvas, selectedConnectionId, setConnecting, undoCanvas]);
+    }, [copySelectedNodes, deleteConnection, deleteNodes, message, pasteCopiedNodes, pasteSystemClipboard, readOnly, redoCanvas, selectedConnectionId, setConnecting, t, undoCanvas]);
 
     const handleConnectStart = useCallback(
         (event: ReactMouseEvent, nodeId: string, handleType: "source" | "target") => {
@@ -2952,9 +2971,10 @@ function InfiniteCanvasPage() {
 
     return (
         <main className="flex h-full min-h-0 overflow-hidden" style={{ background: theme.canvas.background, color: theme.node.text }}>
-            <CanvasSidePanel nodes={nodes} selectedNodeIds={selectedNodeIds} onFocusNode={focusNode} onPreviewNode={setPreviewNodeId} onInsertAsset={handleAssetInsert} />
+            <CanvasSidePanel nodes={nodes} selectedNodeIds={selectedNodeIds} onFocusNode={focusNode} onPreviewNode={setPreviewNodeId} onInsertAsset={readOnly ? () => message.info(t("collaboration.viewerReadOnly")) : handleAssetInsert} />
             <section className="relative min-w-0 flex-1 overflow-hidden">
                 <CanvasTopBar
+                    readOnly={readOnly}
                     title={currentProject?.title || t("canvas.projectPage.untitledCanvas")}
                     titleDraft={titleDraft}
                     isTitleEditing={titleEditing}
@@ -2978,10 +2998,11 @@ function InfiniteCanvasPage() {
                     compactAgentStatus={{ connected: localAgentConnected, enabled: localAgentEnabled, activity: localAgentActivity }}
                     onToggleAgent={toggleAgentPanel}
                     collaborationControl={<CanvasCollaborationStatus projectId={projectId} />}
-                    workflowControl={currentProject ? <CanvasWorkflowPublisher projectId={projectId} projectRevision={currentProject.revision} projectName={currentProject.title} workspaceId={cloudWorkspaceId} onFocusNode={focusNode} /> : null}
+                    workflowControl={!readOnly && currentProject ? <CanvasWorkflowPublisher projectId={projectId} projectRevision={currentProject.revision} projectName={currentProject.title} workspaceId={cloudWorkspaceId} onFocusNode={focusNode} /> : null}
                 />
 
                 <InfiniteCanvas
+                    readOnly={readOnly}
                     containerRef={containerRef}
                     viewport={viewport}
                     tool={canvasTool}

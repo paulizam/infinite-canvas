@@ -610,7 +610,7 @@ export default {
         source: { all: "全部来源", canvas: "当前画布", workspace_asset: "工作区素材", generation_job: "生成任务" },
         group: { media: "按媒体浏览", node: "按节点浏览", version: "按版本浏览" },
     },
-    collaboration: { connecting: "正在连接协作服务", connected: "实时协作已连接", disconnected: "协作连接已断开", error: "协作连接异常", active: "正在操作", online: "在线", noMembers: "暂无在线成员", members: "{{count}} 位在线成员" },
+    collaboration: { connecting: "正在连接协作服务", connected: "实时协作已连接", disconnected: "协作连接已断开", error: "协作连接异常", active: "正在操作", online: "在线", noMembers: "暂无在线成员", members: "{{count}} 位在线成员", viewerReadOnly: "审阅者只读" },
     locale: {
         zhCN: "简体中文",
         enUS: "English",
