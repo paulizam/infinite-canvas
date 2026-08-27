@@ -1,0 +1,8 @@
+packages:
+  - web
+  - canvas-agent
+  - docs
+  - packages/*
+  - plugins/canvas/*
+onlyBuiltDependencies:
+  - esbuild
