@@ -4,6 +4,8 @@ import { PostgresPlatformRepository } from "./postgres-repository.js";
 import { CollaborationHub } from "./collaboration.js";
 import { AssetService } from "./asset-service.js";
 import { LocalAssetBlobStore, S3AssetBlobStore } from "./blob-store.js";
+import { PostgresGenerationJobRepository } from "./postgres-generation-job-repository.js";
+import { GenerationJobService } from "./generation-job-service.js";
 import {
   IdentityService,
   ProjectService,
@@ -15,6 +17,7 @@ const sessionTtlSeconds = Number(required("SESSION_TTL_SECONDS"));
 const repository = new PostgresPlatformRepository(databaseUrl);
 const identity = new IdentityService(repository, sessionTtlSeconds * 1000);
 const projects = new ProjectService(repository);
+const jobRepository = new PostgresGenerationJobRepository(databaseUrl);
 const assets = new AssetService(
   repository,
   createBlobStore(),
@@ -34,6 +37,9 @@ const app = createApp({
   workspaces: new WorkspaceService(repository),
   projects,
   assets,
+  jobs: new GenerationJobService(repository, jobRepository),
+  jobRepository,
+  workerToken: strongWorkerToken(),
   collaboration,
   secureCookies: process.env.NODE_ENV === "production",
 });
@@ -47,6 +53,13 @@ function required(name: string) {
   const value = process.env[name]?.trim();
   if (!value) throw new Error(`${name} is required`);
   return value;
+}
+
+function strongWorkerToken() {
+  const token = required("WORKER_TOKEN");
+  if (token.length < 32)
+    throw new Error("WORKER_TOKEN must contain at least 32 characters");
+  return token;
 }
 
 function createBlobStore() {

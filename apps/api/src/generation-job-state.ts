@@ -55,7 +55,7 @@ const STATUS_BY_PHASE: Record<GenerationJobPhase, GenerationJobStatus> = {
   needs_review: "needs_review",
 };
 
-type TransitionPatch = Partial<
+export type GenerationJobTransitionPatch = Partial<
   Pick<
     GenerationJob,
     | "upstreamTaskId"
@@ -74,7 +74,7 @@ type TransitionPatch = Partial<
 export function transitionGenerationJob(
   job: GenerationJob,
   phase: GenerationJobPhase,
-  patch: TransitionPatch = {},
+  patch: GenerationJobTransitionPatch = {},
   now = new Date().toISOString(),
 ): GenerationJob {
   if (!TRANSITIONS[job.phase].has(phase))

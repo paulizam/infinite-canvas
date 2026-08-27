@@ -3,6 +3,8 @@ import { createApp } from "./app.js";
 import { MemoryPlatformRepository } from "./memory-repository.js";
 import { AssetService } from "./asset-service.js";
 import { MemoryAssetBlobStore } from "./blob-store.js";
+import { MemoryGenerationJobRepository } from "./generation-job-repository.js";
+import { GenerationJobService } from "./generation-job-service.js";
 import {
   IdentityService,
   ProjectService,
@@ -12,6 +14,7 @@ import {
 let app: ReturnType<typeof createApp>;
 beforeEach(() => {
   const repository = new MemoryPlatformRepository();
+  const jobRepository = new MemoryGenerationJobRepository();
   app = createApp({
     identity: new IdentityService(repository, 60_000),
     workspaces: new WorkspaceService(repository),
@@ -21,6 +24,9 @@ beforeEach(() => {
       new MemoryAssetBlobStore(),
       1024 * 1024,
     ),
+    jobs: new GenerationJobService(repository, jobRepository),
+    jobRepository,
+    workerToken: "test-worker-token-32-characters-long",
     secureCookies: false,
   });
 });

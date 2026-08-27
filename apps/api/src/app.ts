@@ -1,9 +1,12 @@
 import { Hono, type Context } from "hono";
+import { timingSafeEqual } from "node:crypto";
 import { deleteCookie, getCookie, setCookie } from "hono/cookie";
 import { z } from "zod";
 import type { PublicUser } from "./domain.js";
 import { DomainError } from "./domain.js";
 import type { AssetService } from "./asset-service.js";
+import type { GenerationJobService } from "./generation-job-service.js";
+import type { GenerationJobRepository } from "./generation-job-repository.js";
 import {
   IdentityService,
   ProjectService,
@@ -18,6 +21,9 @@ export type AppServices = {
   workspaces: WorkspaceService;
   projects: ProjectService;
   assets: AssetService;
+  jobs: GenerationJobService;
+  jobRepository: GenerationJobRepository;
+  workerToken: string;
   secureCookies: boolean;
   collaboration?: {
     publishMutation: (
@@ -190,6 +196,47 @@ export function createApp(services: AppServices) {
     await services.assets.delete(c.get("user").id, c.req.param("assetId"));
     return c.json({ data: { ok: true }, requestId: requestId(c) });
   });
+  app.get("/api/v1/workspaces/:workspaceId/generation-jobs", async (c) =>
+    c.json({
+      data: await services.jobs.list(
+        c.get("user").id,
+        c.req.param("workspaceId"),
+      ),
+      requestId: requestId(c),
+    }),
+  );
+  app.post("/api/v1/workspaces/:workspaceId/generation-jobs", async (c) => {
+    const input = createGenerationJobSchema.parse(await c.req.json());
+    const result = await services.jobs.create(
+      c.get("user").id,
+      c.req.param("workspaceId"),
+      input,
+    );
+    return c.json(
+      { data: result, requestId: requestId(c) },
+      result.replayed ? 200 : 202,
+    );
+  });
+  app.get("/api/v1/generation-jobs/:jobId", async (c) => {
+    const job = await services.jobs.get(c.get("user").id, c.req.param("jobId"));
+    if (!job) throw new DomainError("JOB_NOT_FOUND", 404, "生成任务不存在");
+    return c.json({ data: job, requestId: requestId(c) });
+  });
+  app.post("/api/v1/generation-jobs/:jobId/cancel", async (c) =>
+    c.json({
+      data: await services.jobs.cancel(c.get("user").id, c.req.param("jobId")),
+      requestId: requestId(c),
+    }),
+  );
+  app.post("/api/v1/generation-jobs/:jobId/retry", async (c) =>
+    c.json(
+      {
+        data: await services.jobs.retry(c.get("user").id, c.req.param("jobId")),
+        requestId: requestId(c),
+      },
+      202,
+    ),
+  );
   app.get("/api/v1/projects/:projectId", async (c) => {
     const project = await services.projects.get(
       c.get("user").id,
@@ -216,7 +263,51 @@ export function createApp(services: AppServices) {
       requestId: requestId(c),
     });
   });
+  app.use("/internal/v1/*", async (c, next) => {
+    requireWorkerToken(c.req.header("authorization"), services.workerToken);
+    await next();
+  });
+  app.post("/internal/v1/generation/claim", async (c) => {
+    const input = workerClaimSchema.parse(await c.req.json());
+    const now = new Date();
+    const leaseMs = Math.max(30_000, Math.min(300_000, input.leaseMs));
+    const jobs = await services.jobRepository.claim({
+      workerId: input.workerId,
+      now: now.toISOString(),
+      leaseUntil: new Date(now.getTime() + leaseMs).toISOString(),
+      limit: input.limit,
+    });
+    return c.json({ data: jobs, requestId: requestId(c) });
+  });
+  app.post("/internal/v1/generation/heartbeat", async (c) => {
+    const input = workerHeartbeatSchema.parse(await c.req.json());
+    const now = new Date();
+    const renewed = await services.jobRepository.heartbeat(
+      input.workerId,
+      input.jobIds,
+      now.toISOString(),
+      new Date(now.getTime() + 90_000).toISOString(),
+    );
+    return c.json({ data: { renewed }, requestId: requestId(c) });
+  });
+  app.post("/internal/v1/generation/jobs/:jobId/transition", async (c) => {
+    const input = workerTransitionSchema.parse(await c.req.json());
+    const job = await services.jobRepository.transitionByWorker({
+      ...input,
+      jobId: c.req.param("jobId"),
+      now: new Date().toISOString(),
+    });
+    return c.json({ data: job, requestId: requestId(c) });
+  });
   return app;
+}
+
+function requireWorkerToken(header: string | undefined, expected: string) {
+  const supplied = header?.startsWith("Bearer ") ? header.slice(7) : "";
+  const left = Buffer.from(supplied);
+  const right = Buffer.from(expected);
+  if (left.length !== right.length || !timingSafeEqual(left, right))
+    throw new DomainError("UNAUTHENTICATED", 401, "Worker 凭据无效");
 }
 
 const idSchema = z.string().min(1).max(128);
@@ -330,6 +421,49 @@ const createProjectSchema = z.object({
   title: z.string().trim().min(1).max(10_000),
   projectId: idSchema.optional(),
   document: canvasDocumentSchema.optional(),
+});
+const createGenerationJobSchema = z.object({
+  capability: z.enum(["text", "image", "video", "audio", "agent"]),
+  logicalModelId: z.string().trim().min(1).max(160),
+  clientRequestId: z.string().trim().min(1).max(160),
+  parameters: z.record(z.string(), z.unknown()),
+});
+const workerClaimSchema = z.object({
+  workerId: z.string().trim().min(1).max(160),
+  limit: z.number().int().min(1).max(50).default(20),
+  leaseMs: z.number().int().default(90_000),
+});
+const workerHeartbeatSchema = z.object({
+  workerId: z.string().trim().min(1).max(160),
+  jobIds: z.array(z.uuid()).max(50),
+});
+const workerTransitionSchema = z.object({
+  workerId: z.string().trim().min(1).max(160),
+  phase: z.enum([
+    "queued",
+    "claimed",
+    "submitting",
+    "submitted",
+    "polling",
+    "result_ready",
+    "persisting",
+    "succeeded",
+    "failed",
+    "cancel_requested",
+    "cancelled",
+    "needs_review",
+  ]),
+  patch: z
+    .object({
+      upstreamTaskId: z.string().max(500).nullable().optional(),
+      provider: z.string().max(80).nullable().optional(),
+      channelId: z.string().max(160).nullable().optional(),
+      result: z.record(z.string(), z.unknown()).nullable().optional(),
+      nextRunAt: z.iso.datetime().optional(),
+      errorCode: z.string().max(160).nullable().optional(),
+      errorMessage: z.string().max(2000).nullable().optional(),
+    })
+    .strict(),
 });
 function writeSession(
   c: Parameters<typeof setCookie>[0],

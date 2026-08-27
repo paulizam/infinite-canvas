@@ -20,6 +20,18 @@ export class PostgresPlatformRepository implements PlatformRepository {
   constructor(databaseUrl: string) {
     this.pool = new pg.Pool({ connectionString: databaseUrl });
   }
+  requireWorkspaceRole(
+    userId: string,
+    workspaceId: string,
+    minimum: WorkspaceRole,
+  ) {
+    return this.requireWorkspaceRoleWithClient(
+      this.pool,
+      userId,
+      workspaceId,
+      minimum,
+    );
+  }
   async createUserWithWorkspace({
     user,
     workspace,
@@ -119,7 +131,12 @@ export class PostgresPlatformRepository implements PlatformRepository {
     }
   }
   async listProjects(userId: string, workspaceId: string) {
-    await this.requireRole(this.pool, userId, workspaceId, "viewer");
+    await this.requireWorkspaceRoleWithClient(
+      this.pool,
+      userId,
+      workspaceId,
+      "viewer",
+    );
     const r = await this.pool.query(
       "SELECT * FROM canvas_projects WHERE workspace_id=$1 ORDER BY updated_at DESC",
       [workspaceId],
@@ -130,7 +147,12 @@ export class PostgresPlatformRepository implements PlatformRepository {
     const client = await this.pool.connect();
     try {
       await client.query("BEGIN");
-      await this.requireRole(client, userId, p.workspaceId, "editor");
+      await this.requireWorkspaceRoleWithClient(
+        client,
+        userId,
+        p.workspaceId,
+        "editor",
+      );
       await client.query(
         "INSERT INTO canvas_projects(id,workspace_id,owner_id,document,revision,created_at,updated_at) VALUES($1,$2,$3,$4::jsonb,$5,$6,$7)",
         [
@@ -155,7 +177,12 @@ export class PostgresPlatformRepository implements PlatformRepository {
   async deleteProject(userId: string, id: string) {
     const project = await this.getProject(userId, id);
     if (!project) throw new DomainError("PROJECT_NOT_FOUND", 404, "项目不存在");
-    await this.requireRole(this.pool, userId, project.workspaceId, "editor");
+    await this.requireWorkspaceRoleWithClient(
+      this.pool,
+      userId,
+      project.workspaceId,
+      "editor",
+    );
     await this.pool.query("DELETE FROM canvas_projects WHERE id=$1", [id]);
   }
   async getProject(userId: string, id: string) {
@@ -179,7 +206,12 @@ export class PostgresPlatformRepository implements PlatformRepository {
       );
       if (!p.rows[0])
         throw new DomainError("PROJECT_NOT_FOUND", 404, "项目不存在");
-      await this.requireRole(c, userId, p.rows[0].workspace_id, "editor");
+      await this.requireWorkspaceRoleWithClient(
+        c,
+        userId,
+        p.rows[0].workspace_id,
+        "editor",
+      );
       const replay = await c.query(
         "SELECT revision FROM canvas_project_mutations WHERE project_id=$1 AND mutation_id=$2",
         [projectId, mutation.mutationId],
@@ -222,7 +254,12 @@ export class PostgresPlatformRepository implements PlatformRepository {
     }
   }
   async findAssetByHash(userId: string, workspaceId: string, sha256: string) {
-    await this.requireRole(this.pool, userId, workspaceId, "viewer");
+    await this.requireWorkspaceRoleWithClient(
+      this.pool,
+      userId,
+      workspaceId,
+      "viewer",
+    );
     const result = await this.pool.query(
       "SELECT * FROM media_assets WHERE workspace_id=$1 AND sha256=$2",
       [workspaceId, sha256],
@@ -230,7 +267,12 @@ export class PostgresPlatformRepository implements PlatformRepository {
     return result.rows[0] ? mapAsset(result.rows[0]) : null;
   }
   async createAsset(userId: string, asset: AssetRecord) {
-    await this.requireRole(this.pool, userId, asset.workspaceId, "editor");
+    await this.requireWorkspaceRoleWithClient(
+      this.pool,
+      userId,
+      asset.workspaceId,
+      "editor",
+    );
     const result = await this.pool.query(
       "INSERT INTO media_assets(id,workspace_id,owner_id,storage_key,sha256,bytes,mime_type,kind,original_name,created_at) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10) ON CONFLICT(workspace_id,sha256) DO UPDATE SET sha256=EXCLUDED.sha256 RETURNING *",
       [
@@ -256,7 +298,12 @@ export class PostgresPlatformRepository implements PlatformRepository {
     return result.rows[0] ? mapAsset(result.rows[0]) : null;
   }
   async listAssets(userId: string, workspaceId: string) {
-    await this.requireRole(this.pool, userId, workspaceId, "viewer");
+    await this.requireWorkspaceRoleWithClient(
+      this.pool,
+      userId,
+      workspaceId,
+      "viewer",
+    );
     const result = await this.pool.query(
       "SELECT * FROM media_assets WHERE workspace_id=$1 ORDER BY created_at DESC",
       [workspaceId],
@@ -274,7 +321,12 @@ export class PostgresPlatformRepository implements PlatformRepository {
       if (!result.rows[0])
         throw new DomainError("ASSET_NOT_FOUND", 404, "素材不存在");
       const asset = mapAsset(result.rows[0]);
-      await this.requireRole(client, userId, asset.workspaceId, "editor");
+      await this.requireWorkspaceRoleWithClient(
+        client,
+        userId,
+        asset.workspaceId,
+        "editor",
+      );
       const references = await client.query(
         "SELECT 1 FROM media_asset_references WHERE asset_id=$1 LIMIT 1",
         [assetId],
@@ -291,7 +343,7 @@ export class PostgresPlatformRepository implements PlatformRepository {
       client.release();
     }
   }
-  private async requireRole(
+  private async requireWorkspaceRoleWithClient(
     client: Pick<pg.Pool, "query"> | Pick<pg.PoolClient, "query">,
     userId: string,
     workspaceId: string,

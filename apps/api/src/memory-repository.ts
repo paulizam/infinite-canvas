@@ -75,13 +75,13 @@ export class MemoryPlatformRepository implements PlatformRepository {
     );
   }
   async listProjects(userId: string, workspaceId: string) {
-    this.requireRole(userId, workspaceId, "viewer");
+    await this.requireWorkspaceRole(userId, workspaceId, "viewer");
     return [...this.projects.values()]
       .filter((p) => p.workspaceId === workspaceId)
       .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
   }
   async createProject(userId: string, project: ProjectRecord) {
-    this.requireRole(userId, project.workspaceId, "editor");
+    await this.requireWorkspaceRole(userId, project.workspaceId, "editor");
     if (this.projects.has(project.id))
       throw new DomainError("PROJECT_EXISTS", 409, "项目已存在");
     this.projects.set(project.id, project);
@@ -89,7 +89,7 @@ export class MemoryPlatformRepository implements PlatformRepository {
   async deleteProject(userId: string, projectId: string) {
     const project = this.projects.get(projectId);
     if (!project) throw new DomainError("PROJECT_NOT_FOUND", 404, "项目不存在");
-    this.requireRole(userId, project.workspaceId, "editor");
+    await this.requireWorkspaceRole(userId, project.workspaceId, "editor");
     this.projects.delete(projectId);
     for (const key of this.mutations.keys())
       if (key.startsWith(`${projectId}:`)) this.mutations.delete(key);
@@ -110,7 +110,7 @@ export class MemoryPlatformRepository implements PlatformRepository {
   ): Promise<MutationResult> {
     const project = this.projects.get(projectId);
     if (!project) throw new DomainError("PROJECT_NOT_FOUND", 404, "项目不存在");
-    this.requireRole(userId, project.workspaceId, "editor");
+    await this.requireWorkspaceRole(userId, project.workspaceId, "editor");
     const key = `${projectId}:${mutation.mutationId}`;
     const replay = this.mutations.get(key);
     if (replay) return { ...replay, replayed: true };
@@ -127,7 +127,7 @@ export class MemoryPlatformRepository implements PlatformRepository {
     return result;
   }
   async findAssetByHash(userId: string, workspaceId: string, sha256: string) {
-    this.requireRole(userId, workspaceId, "viewer");
+    await this.requireWorkspaceRole(userId, workspaceId, "viewer");
     return (
       [...this.assets.values()].find(
         (asset) => asset.workspaceId === workspaceId && asset.sha256 === sha256,
@@ -135,7 +135,7 @@ export class MemoryPlatformRepository implements PlatformRepository {
     );
   }
   async createAsset(userId: string, asset: AssetRecord) {
-    this.requireRole(userId, asset.workspaceId, "editor");
+    await this.requireWorkspaceRole(userId, asset.workspaceId, "editor");
     const existing = [...this.assets.values()].find(
       (item) =>
         item.workspaceId === asset.workspaceId && item.sha256 === asset.sha256,
@@ -154,7 +154,7 @@ export class MemoryPlatformRepository implements PlatformRepository {
     return asset;
   }
   async listAssets(userId: string, workspaceId: string) {
-    this.requireRole(userId, workspaceId, "viewer");
+    await this.requireWorkspaceRole(userId, workspaceId, "viewer");
     return [...this.assets.values()]
       .filter((asset) => asset.workspaceId === workspaceId)
       .sort((a, b) => b.createdAt.localeCompare(a.createdAt));
@@ -162,7 +162,7 @@ export class MemoryPlatformRepository implements PlatformRepository {
   async deleteAsset(userId: string, assetId: string) {
     const asset = this.assets.get(assetId);
     if (!asset) throw new DomainError("ASSET_NOT_FOUND", 404, "素材不存在");
-    this.requireRole(userId, asset.workspaceId, "editor");
+    await this.requireWorkspaceRole(userId, asset.workspaceId, "editor");
     const referenced = [...this.projects.values()].some(
       (project) =>
         project.workspaceId === asset.workspaceId &&
@@ -176,7 +176,7 @@ export class MemoryPlatformRepository implements PlatformRepository {
   private memberKey(workspaceId: string, userId: string) {
     return `${workspaceId}:${userId}`;
   }
-  private requireRole(
+  async requireWorkspaceRole(
     userId: string,
     workspaceId: string,
     minimum: WorkspaceRole,

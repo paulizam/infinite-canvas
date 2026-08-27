@@ -7,6 +7,8 @@ Hono/Node API for Server mode identity, workspaces, RBAC, durable cloud canvas p
 Copy `.env.example` into your deployment secret/config system. `DATABASE_URL` and
 `SESSION_TTL_SECONDS` are required. The session TTL intentionally has no implicit default so each
 deployment must choose its own expiry policy.
+`WORKER_TOKEN` is also required, must contain at least 32 characters, and must only be shared with
+the isolated generation Worker process.
 
 Media uploads require `MAX_UPLOAD_BYTES` and `BLOB_STORAGE_DRIVER`. Use `local` with
 `ASSET_LOCAL_ROOT` for a single-node deployment, or `s3` with the `S3_*` settings for shared

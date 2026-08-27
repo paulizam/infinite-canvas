@@ -47,6 +47,11 @@ export type AssetRecord = {
 };
 
 export interface PlatformRepository {
+  requireWorkspaceRole(
+    userId: string,
+    workspaceId: string,
+    minimum: WorkspaceRole,
+  ): Promise<void>;
   createUserWithWorkspace(input: {
     user: UserRecord;
     workspace: WorkspaceRecord;

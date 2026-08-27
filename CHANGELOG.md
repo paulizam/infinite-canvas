@@ -2,6 +2,7 @@
 
 ## Unreleased
 
++ [新增] Generation Job API 支持 Workspace RBAC、`clientRequestId` 幂等、取消与显式新 attempt 重试；Worker 内部 API 使用独立强 Token、租约所有权和过期回收保护。
 + [新增] 建立 Generation Job 完整 phase/status contract、严格状态转换和同 attempt 上游任务标识不可变约束，并新增 lease/heartbeat 数据结构。
 + [优化] 数据库迁移升级为按编号执行的 SHA-256 ledger，已应用 migration 禁止静默改写。
 + [新增] 新增 Workspace 不可变媒体素材 API，支持 magic-byte 类型识别、SHA-256 去重、Local FS/S3 存储、短期签名读取与 Canvas AssetRef 删除保护。
