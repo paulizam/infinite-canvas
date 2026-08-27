@@ -24,6 +24,7 @@ import type { WorkflowLibraryService } from "./workflow-library-service.js";
 import type { WorkflowPublicApiService } from "./workflow-public-api-service.js";
 import type { AgentRunService } from "./agent-run-service.js";
 import type { DramaService } from "./drama-service.js";
+import type { DramaProductionService } from "./drama-production-service.js";
 import { ModelDiscoveryService } from "./model-discovery.js";
 import { createModelDiscoveryApi } from "./model-discovery-api.js";
 import {
@@ -54,6 +55,7 @@ export type AppServices = {
   workflowPublicApi?: WorkflowPublicApiService;
   agentRuns?: AgentRunService;
   drama?: DramaService;
+  dramaProduction?: DramaProductionService;
   maintenanceToken: string;
   secureCookies: boolean;
   modelDiscovery?: ModelDiscoveryService;
@@ -334,6 +336,68 @@ export function createApp(services: AppServices) {
             c.get("user").id,
             c.req.param("dramaId"),
             dramaShotSchema.parse(await c.req.json()),
+          ),
+          requestId: requestId(c),
+        },
+        201,
+      ),
+    );
+  }
+  if (services.dramaProduction) {
+    app.get("/api/v1/drama-projects/:dramaId/production", async (c) =>
+      c.json({
+        data: await services.dramaProduction!.get(
+          c.get("user").id,
+          c.req.param("dramaId"),
+        ),
+        requestId: requestId(c),
+      }),
+    );
+    app.post("/api/v1/drama-projects/:dramaId/generations", async (c) =>
+      c.json(
+        {
+          data: await services.dramaProduction!.generate(
+            c.get("user").id,
+            c.req.param("dramaId"),
+            dramaGenerationSchema.parse(await c.req.json()),
+          ),
+          requestId: requestId(c),
+        },
+        202,
+      ),
+    );
+    app.post(
+      "/api/v1/drama-projects/:dramaId/generation-selection",
+      async (c) =>
+        c.json({
+          data: await services.dramaProduction!.select(
+            c.get("user").id,
+            c.req.param("dramaId"),
+            dramaSelectionSchema.parse(await c.req.json()),
+          ),
+          requestId: requestId(c),
+        }),
+    );
+    app.post("/api/v1/drama-projects/:dramaId/timeline", async (c) =>
+      c.json(
+        {
+          data: await services.dramaProduction!.timeline(
+            c.get("user").id,
+            c.req.param("dramaId"),
+            dramaTimelineSchema.parse(await c.req.json()),
+          ),
+          requestId: requestId(c),
+        },
+        201,
+      ),
+    );
+    app.post("/api/v1/drama-projects/:dramaId/reviews", async (c) =>
+      c.json(
+        {
+          data: await services.dramaProduction!.review(
+            c.get("user").id,
+            c.req.param("dramaId"),
+            dramaReviewSchema.parse(await c.req.json()),
           ),
           requestId: requestId(c),
         },
@@ -2466,6 +2530,40 @@ const dramaShotSchema = z
     cameraMovement: z.string().max(120).optional(),
     durationMs: z.number().int().min(100).max(3_600_000),
     sortOrder: z.number().int().nonnegative(),
+  })
+  .strict();
+const dramaGenerationSchema = z
+  .object({
+    ...dramaMutationBase,
+    shotId: z.uuid(),
+    capability: z.enum(["image", "video"]),
+    logicalModelId: z.string().trim().min(1).max(160),
+    parameters: z.record(z.string(), z.unknown()),
+  })
+  .strict();
+const dramaSelectionSchema = z
+  .object({ ...dramaMutationBase, generationId: z.uuid(), assetId: z.uuid() })
+  .strict();
+const dramaTimelineSchema = z
+  .object({
+    ...dramaMutationBase,
+    shotId: z.uuid().optional(),
+    kind: z.enum(["dialogue", "voice", "bgm", "subtitle"]),
+    textContent: z.string().max(20_000).optional(),
+    voice: z.string().max(160).optional(),
+    assetId: z.uuid().optional(),
+    startMs: z.number().int().nonnegative(),
+    endMs: z.number().int().positive(),
+    sortOrder: z.number().int().nonnegative(),
+  })
+  .strict()
+  .refine((x) => x.endMs > x.startMs, { message: "endMs 必须大于 startMs" });
+const dramaReviewSchema = z
+  .object({
+    ...dramaMutationBase,
+    shotId: z.uuid(),
+    status: z.enum(["pending", "approved", "changes_requested"]),
+    comment: z.string().max(4000).optional(),
   })
   .strict();
 function writeSession(

@@ -13,25 +13,40 @@ import {
 import { GenerationJobService } from "./generation-job-service.js";
 import { MemoryGenerationJobRepository } from "./generation-job-repository.js";
 import { MemoryModelGatewayRepository } from "./model-gateway-repository.js";
+import { MemoryDramaProductionRepository } from "./drama-production-repository.js";
+import { DramaProductionService } from "./drama-production-service.js";
 let app: ReturnType<typeof createApp>;
 beforeEach(() => {
   const p = new MemoryPlatformRepository(),
     j = new MemoryGenerationJobRepository();
+  const dramaRepository = new MemoryDramaRepository((...x) =>
+    p.requireWorkspaceRole(...x),
+  );
+  const drama = new DramaService(p, dramaRepository);
+  const jobs = new GenerationJobService(p, j);
   app = createApp({
     identity: new IdentityService(p, 60_000),
     workspaces: new WorkspaceService(p),
     projects: new ProjectService(p),
     assets: new AssetService(p, new MemoryAssetBlobStore(), 1024),
-    jobs: new GenerationJobService(p, j),
+    jobs,
     jobRepository: j,
     workerToken: "worker-token-at-least-32-characters",
     workerStaleMs: 1000,
     modelGateway: new MemoryModelGatewayRepository(),
     maintenanceToken: "maintenance-token-at-least-32-chars",
     secureCookies: false,
-    drama: new DramaService(
+    drama,
+    dramaProduction: new DramaProductionService(
       p,
-      new MemoryDramaRepository((...x) => p.requireWorkspaceRole(...x)),
+      drama,
+      new MemoryDramaProductionRepository(
+        async (userId, projectId) =>
+          (await dramaRepository.get(userId, projectId))?.project || null,
+        (...x) => p.requireWorkspaceRole(...x),
+        (id, revision) => dramaRepository.bumpRevision(id, revision),
+      ),
+      jobs,
     ),
   });
 });
@@ -126,6 +141,51 @@ describe("Drama API", () => {
     expect(d.project.revision).toBe(3);
     expect(d.entities[0].name).toBe("女主");
     expect(d.shots[0]).toMatchObject({ title: "开场", currentVersion: 1 });
+    const shotId = d.shots[0].id;
+    r = await app.request(`/api/v1/drama-projects/${id}/generations`, {
+      method: "POST",
+      headers: headers(s.cookie),
+      body: JSON.stringify({
+        expectedRevision: 3,
+        mutationId: "generation-mutation-001",
+        shotId,
+        capability: "video",
+        logicalModelId: "video.default",
+        parameters: { prompt: "夜景 wide pan" },
+      }),
+    });
+    expect(r.status).toBe(202);
+    const generation = ((await r.json()) as any).data;
+    expect(generation.revision).toBe(4);
+    expect(generation.state.generations[0]).toMatchObject({ shotId });
+    r = await app.request(`/api/v1/drama-projects/${id}/timeline`, {
+      method: "POST",
+      headers: headers(s.cookie),
+      body: JSON.stringify({
+        expectedRevision: 4,
+        mutationId: "timeline-mutation-0001",
+        shotId,
+        kind: "subtitle",
+        textContent: "故事开始",
+        startMs: 0,
+        endMs: 2800,
+        sortOrder: 0,
+      }),
+    });
+    expect(r.status).toBe(201);
+    r = await app.request(`/api/v1/drama-projects/${id}/reviews`, {
+      method: "POST",
+      headers: headers(s.cookie),
+      body: JSON.stringify({
+        expectedRevision: 5,
+        mutationId: "review-mutation-00001",
+        shotId,
+        status: "approved",
+        comment: "通过",
+      }),
+    });
+    expect(r.status).toBe(201);
+    expect(((await r.json()) as any).data.revision).toBe(6);
     const stale = await app.request(`/api/v1/drama-projects/${id}`, {
       method: "PATCH",
       headers: headers(s.cookie),

@@ -151,6 +151,13 @@ export class MemoryDramaRepository implements DramaRepository {
     this.mutations.set(key, { hash, revision: p.revision });
     return { detail: this.detail(p), replayed: false };
   }
+  bumpRevision(id: string, expected: number) {
+    const project = this.projects.get(id);
+    if (!project || project.revision !== expected)
+      throw conflict("REVISION_CONFLICT", "短剧项目版本冲突");
+    project.revision++;
+    project.updatedAt = new Date().toISOString();
+  }
   private detail(p: DramaProject): DramaDetail {
     return {
       project: { ...p },

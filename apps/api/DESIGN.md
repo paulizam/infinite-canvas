@@ -88,3 +88,7 @@ pnpm --filter @infinite-canvas/api build
 - Every mutation requires `expectedRevision` and `mutationId`; request hashes reject idempotency drift.
 - Script/shot version tables are immutable. Media foreign keys include `workspace_id` to prevent cross-tenant references.
 - API coverage lives in `drama-api.test.ts`.
+
+### Drama media production
+
+`DramaProductionService` binds image/video Generation Jobs to shots, records selected outputs, maintains dialogue/voice/BGM/subtitle timeline items, and appends immutable shot review decisions. Production mutations share the Drama aggregate revision and mutation hash. Generation creation uses a stable `drama:<project>:<mutation>` client request ID, so a failed binding can be retried without duplicate billing.

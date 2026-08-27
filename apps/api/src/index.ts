@@ -24,6 +24,8 @@ import { PostgresAgentRunRepository } from "./postgres-agent-run-repository.js";
 import { AgentRunService } from "./agent-run-service.js";
 import { PostgresDramaRepository } from "./postgres-drama-repository.js";
 import { DramaService } from "./drama-service.js";
+import { DramaProductionService } from "./drama-production-service.js";
+import { PostgresDramaProductionRepository } from "./postgres-drama-production-repository.js";
 import {
   IdentityService,
   ProjectService,
@@ -68,6 +70,10 @@ const assets = new AssetService(
   createBlobStore(),
   Number(required("MAX_UPLOAD_BYTES")),
 );
+const drama = new DramaService(
+  repository,
+  new PostgresDramaRepository(databaseUrl),
+);
 const collaboration = new CollaborationHub(
   identity,
   projects,
@@ -111,7 +117,13 @@ const app = createApp({
     workflowPublicApiRepository,
   ),
   agentRuns: new AgentRunService(repository, agentRunRepository),
-  drama: new DramaService(repository, new PostgresDramaRepository(databaseUrl)),
+  drama,
+  dramaProduction: new DramaProductionService(
+    repository,
+    drama,
+    new PostgresDramaProductionRepository(databaseUrl),
+    new GenerationJobService(repository, jobRepository),
+  ),
   maintenanceToken,
   collaboration,
   secureCookies: process.env.NODE_ENV === "production",

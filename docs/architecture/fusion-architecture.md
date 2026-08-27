@@ -370,3 +370,7 @@ PR 门禁：format、lint、typecheck、unit/integration tests、production buil
 ## R3 Drama Production 基座（2026-08-28）
 
 已实现 DRM-001～DRM-004 的后端领域边界：`drama_projects` 聚合以 revision + mutationId 提供乐观并发与幂等；剧本与镜头版本不可变；角色/场景/道具及来源媒体使用 Workspace 复合外键隔离。API 只允许 editor 写入、viewer 读取，所有 Asset 在 Service 与数据库双层校验同 Workspace。后续 DRM-005～010 在该聚合上接入生成、音轨、合成、导出与审批。
+
+### R3 媒体生产增量（2026-08-28）
+
+DRM-005/006/010 后端基座复用统一 Generation Job、Wallet 与 Asset：镜头生成任务使用稳定 clientRequestId 防重复计费，结果选择、对白/配音/BGM/字幕时间轴与镜头审核共用 Drama revision/mutationId 并发边界。跨 Workspace Asset 在 Service 与复合外键双重拒绝。FFmpeg 合成、剪映导出及 Canvas 双向发送继续作为 DRM-007～009 独立执行链落地。
