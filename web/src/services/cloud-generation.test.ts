@@ -24,6 +24,26 @@ describe("cloud generation orchestration", () => {
         expect(client.createGenerationJob).toHaveBeenCalledWith("workspace-1", expect.objectContaining({ clientRequestId: "request-1" }), undefined);
     });
 
+    it("streams text deltas and then reads the authoritative terminal job", async () => {
+        const succeeded = { ...queued, phase: "succeeded", status: "succeeded", result: { text: "hello" } } as GenerationJob;
+        const stream = new ReadableStream({
+            start(controller) {
+                controller.enqueue(
+                    new TextEncoder().encode(
+                        'id: 1\nevent: text.delta\ndata: {"type":"text.delta","payload":{"delta":"hel"}}\n\nid: 2\nevent: text.delta\ndata: {"type":"text.delta","payload":{"delta":"lo"}}\n\nid: 3\nevent: job.terminal\ndata: {"type":"job.terminal","payload":{"phase":"succeeded"}}\n\n',
+                    ),
+                );
+                controller.close();
+            },
+        });
+        const client = { createGenerationJob: vi.fn(async () => ({ job: queued, replayed: false })), openGenerationEvents: vi.fn(async () => new Response(stream)), getGenerationJob: vi.fn(async () => succeeded) };
+        const updates: string[] = [];
+        await expect(
+            createAndWaitForGeneration(client as never, { workspaceId: "workspace-1", capability: "text", logicalModelId: "text.default", clientRequestId: "request-stream", parameters: {} }, { onTextDelta: (text) => updates.push(text) }),
+        ).resolves.toBe(succeeded);
+        expect(updates).toEqual(["hel", "hello"]);
+    });
+
     it("requests provider cancellation when the browser operation is aborted", async () => {
         const controller = new AbortController();
         const client = { getGenerationJob: vi.fn(), cancelGenerationJob: vi.fn(async () => queued) };

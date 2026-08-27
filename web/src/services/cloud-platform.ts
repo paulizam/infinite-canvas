@@ -144,6 +144,16 @@ export class CloudPlatformClient {
         return this.request<GenerationJob>(`/api/v1/generation-jobs/${encodeURIComponent(jobId)}`, { signal });
     }
 
+    async openGenerationEvents(jobId: string, afterId = 0, signal?: AbortSignal) {
+        const response = await this.fetcher(`${this.baseUrl}/api/v1/generation-jobs/${encodeURIComponent(jobId)}/events?after=${afterId}`, {
+            credentials: "include",
+            signal,
+            headers: { accept: "text/event-stream" },
+        });
+        if (!response.ok) throw new CloudApiError(response.status, "GENERATION_EVENTS_FAILED", response.statusText);
+        return response;
+    }
+
     cancelGenerationJob(jobId: string, signal?: AbortSignal) {
         return this.request<GenerationJob>(`/api/v1/generation-jobs/${encodeURIComponent(jobId)}/cancel`, { method: "POST", signal });
     }

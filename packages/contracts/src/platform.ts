@@ -23,6 +23,15 @@ export type GenerationJobPhase =
   | "needs_review";
 export type GenerationJobStatus =
   "queued" | "running" | "succeeded" | "failed" | "cancelled" | "needs_review";
+export type GenerationEventType =
+  "job.snapshot" | "text.delta" | "text.reasoning.delta" | "job.terminal";
+export type GenerationEvent = {
+  id: number;
+  jobId: string;
+  type: GenerationEventType;
+  payload: Record<string, unknown>;
+  createdAt: string;
+};
 export type GenerationJob = {
   id: string;
   workspaceId: string;

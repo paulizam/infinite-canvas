@@ -8,14 +8,19 @@ import { WorkerApiClient } from "./client.js";
 import {
   buildOperationRequest,
   buildSubmitRequest,
+  buildStreamingSubmitRequest,
+  binaryMediaResponse,
+  extensionFor,
   isPending,
   normalizePayload,
   redactProviderError,
   safeJson,
+  safeRemoteName,
   taskId,
   upstreamStatus,
 } from "./provider-runtime.js";
 import { materializeInputAssets } from "./input-asset-materializer.js";
+import { consumeAndPersistTextStream } from "./provider-sse.js";
 
 export function createModelGatewayHandler(fetcher: typeof fetch = fetch) {
   return async (
@@ -115,7 +120,12 @@ async function submit(
     job.phase === "claimed"
       ? await client.transition(workerId, job.id, "submitting", {}, signal)
       : job;
-  const request = buildSubmitRequest(resolved, capability, parameters);
+  const streamingRequest =
+    capability === "text"
+      ? buildStreamingSubmitRequest(resolved, parameters)
+      : null;
+  const request =
+    streamingRequest || buildSubmitRequest(resolved, capability, parameters);
   let response: Response;
   try {
     response = await fetcher(request.url, { ...request.init, signal });
@@ -126,6 +136,41 @@ async function submit(
   if (!response.ok) {
     await reportHealth(client, resolved.upstreamModel.id, "failure", signal);
     throw new Error(`Provider submit failed with HTTP ${response.status}`);
+  }
+  if (
+    streamingRequest &&
+    (resolved.protocol.adapter === "openai-compatible" ||
+      resolved.protocol.adapter === "gemini")
+  ) {
+    const submitted = await client.transition(
+      workerId,
+      submitting.id,
+      "submitted",
+      {
+        provider: resolved.protocol.adapter,
+        channelId: resolved.channel.id,
+      },
+      signal,
+    );
+    const payload = await consumeAndPersistTextStream({
+      response,
+      adapter: resolved.protocol.adapter,
+      client,
+      workerId,
+      jobId: job.id,
+      signal,
+    });
+    await complete(
+      submitted,
+      payload,
+      capability,
+      client,
+      workerId,
+      fetcher,
+      signal,
+    );
+    await reportHealth(client, resolved.upstreamModel.id, "success", signal);
+    return;
   }
   const binary = await binaryMediaResponse(response, capability);
   const rawPayload = binary ? {} : await safeJson(response);
@@ -449,33 +494,6 @@ function publicMediaUrl(value: string) {
   return url;
 }
 
-async function binaryMediaResponse(
-  response: Response,
-  capability: ModelCapability,
-) {
-  if (capability !== "audio") return undefined;
-  const type = response.headers.get("content-type")?.toLowerCase() || "";
-  if (type.includes("json")) return undefined;
-  return new Uint8Array(await response.arrayBuffer());
-}
-
-function extensionFor(capability: Exclude<ModelCapability, "text">) {
-  return capability === "image"
-    ? "png"
-    : capability === "video"
-      ? "mp4"
-      : "mp3";
-}
-function safeRemoteName(
-  value: string,
-  capability: Exclude<ModelCapability, "text">,
-  index: number,
-) {
-  const name = new URL(value).pathname.split("/").at(-1);
-  return name && /^[a-zA-Z0-9._-]{1,160}$/.test(name)
-    ? name
-    : `${capability}-${index + 1}.${extensionFor(capability)}`;
-}
 function providerUsage(payload: Record<string, unknown>) {
   const usage = payload.usage ?? payload.usageMetadata;
   return usage && typeof usage === "object" && !Array.isArray(usage)

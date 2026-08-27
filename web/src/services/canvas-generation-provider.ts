@@ -20,9 +20,13 @@ export async function generateCanvasImage(config: AiConfig, prompt: string, refe
     const workspaceId = requireWorkspace(options.workspaceId);
     const images = await uploadCloudReferenceImages(workspaceId, references, options.signal);
     const masks = mask ? await uploadCloudReferenceImages(workspaceId, [mask], options.signal) : [];
-    return runCloudMediaGeneration({ workspaceId, capability: "image", requestedModel: config.model, parameters: { prompt, images, ...(masks[0] ? { mask: masks[0] } : {}), count: 1, size: config.size, resolution: config.size, quality: config.quality }, signal: options.signal }).then(
-        (items) => items[0],
-    );
+    return runCloudMediaGeneration({
+        workspaceId,
+        capability: "image",
+        requestedModel: config.model,
+        parameters: { prompt, images, ...(masks[0] ? { mask: masks[0] } : {}), count: 1, size: config.size, resolution: config.size, quality: config.quality },
+        signal: options.signal,
+    }).then((items) => items[0]);
 }
 
 export async function generateCanvasVideo(config: AiConfig, prompt: string, references: { images: ReferenceImage[]; videos?: ReferenceVideo[]; audios?: ReferenceAudio[] }, options: GenerationOptions): Promise<VideoGenerationResult> {
@@ -70,8 +74,22 @@ export async function generateCanvasText(config: AiConfig, prompt: string, messa
     if (!cloudModeEnabled) return requestImageQuestion(config, messages, onDelta, { signal: options.signal });
     const workspaceId = requireWorkspace(options.workspaceId);
     const assets = await uploadCloudReferenceImages(workspaceId, references, options.signal);
-    const cloudMessages = assets.length ? [{ role: "user", content: [{ type: "text", text: prompt }, ...assets.map((asset) => ({ type: "image_url", image_url: { url: asset } }))] }] : [{ role: "user", content: prompt }];
-    return runCloudTextGeneration({ workspaceId, capability: "text", requestedModel: config.model, parameters: { prompt, messages: cloudMessages, reasoning_effort: config.reasoningEffort }, signal: options.signal });
+    const systemPrompt = (config.systemPrompt || "").trim();
+    const userMessage = assets.length ? { role: "user", content: [{ type: "text", text: prompt }, ...assets.map((asset) => ({ type: "image_url", image_url: { url: asset } }))] } : { role: "user", content: prompt };
+    const cloudMessages = [...(systemPrompt ? [{ role: "system", content: systemPrompt }] : []), userMessage];
+    return runCloudTextGeneration({
+        workspaceId,
+        capability: "text",
+        requestedModel: config.model,
+        parameters: {
+            prompt,
+            messages: cloudMessages,
+            ...(systemPrompt ? { systemInstruction: { parts: [{ text: systemPrompt }] } } : {}),
+            reasoning_effort: config.reasoningEffort,
+        },
+        signal: options.signal,
+        onTextDelta: onDelta,
+    });
 }
 
 function requireWorkspace(workspaceId: string | null) {

@@ -31,6 +31,36 @@ export function buildSubmitRequest(
   return buildOpenAiCompatibleRequest(input);
 }
 
+export function buildStreamingSubmitRequest(
+  resolved: WorkerResolvedModel,
+  parameters: Record<string, unknown>,
+) {
+  if (resolved.protocol.adapter === "custom") return null;
+  const normalized = { ...parameters };
+  if (normalized.reasoning_effort === "auto")
+    delete normalized.reasoning_effort;
+  const request = buildSubmitRequest(resolved, "text", normalized);
+  if (resolved.protocol.adapter === "gemini") {
+    const url = new URL(
+      request.url.replace(":generateContent", ":streamGenerateContent"),
+    );
+    url.searchParams.set("alt", "sse");
+    return { ...request, url: url.toString() };
+  }
+  const body = JSON.parse(String(request.init.body)) as Record<string, unknown>;
+  return {
+    ...request,
+    init: {
+      ...request.init,
+      body: JSON.stringify({
+        ...body,
+        stream: true,
+        stream_options: { include_usage: true },
+      }),
+    },
+  };
+}
+
 export function buildOperationRequest(
   resolved: WorkerResolvedModel,
   capability: ModelCapability,
@@ -143,6 +173,33 @@ export function redactProviderError(value: string) {
       /\b(api[-_ ]?key|token|authorization)\s*[:=]\s*[^\s,;]+/gi,
       "$1=[REDACTED]",
     );
+}
+
+export async function binaryMediaResponse(
+  response: Response,
+  capability: ModelCapability,
+) {
+  if (capability !== "audio") return undefined;
+  const type = response.headers.get("content-type")?.toLowerCase() || "";
+  if (type.includes("json")) return undefined;
+  return new Uint8Array(await response.arrayBuffer());
+}
+export function extensionFor(capability: Exclude<ModelCapability, "text">) {
+  return capability === "image"
+    ? "png"
+    : capability === "video"
+      ? "mp4"
+      : "mp3";
+}
+export function safeRemoteName(
+  value: string,
+  capability: Exclude<ModelCapability, "text">,
+  index: number,
+) {
+  const name = new URL(value).pathname.split("/").at(-1);
+  return name && /^[a-zA-Z0-9._-]{1,160}$/.test(name)
+    ? name
+    : `${capability}-${index + 1}.${extensionFor(capability)}`;
 }
 
 function openAiOperationUrl(

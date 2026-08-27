@@ -1,6 +1,7 @@
 import { Hono, type Context } from "hono";
 import { timingSafeEqual } from "node:crypto";
 import { deleteCookie, getCookie, setCookie } from "hono/cookie";
+import { streamSSE } from "hono/streaming";
 import { z } from "zod";
 import { parseCustomProtocolConfig } from "@infinite-canvas/model-gateway";
 import type { PublicUser } from "./domain.js";
@@ -8,6 +9,10 @@ import { DomainError } from "./domain.js";
 import type { AssetService } from "./asset-service.js";
 import type { GenerationJobService } from "./generation-job-service.js";
 import type { GenerationJobRepository } from "./generation-job-repository.js";
+import {
+  MemoryGenerationEventRepository,
+  type GenerationEventRepository,
+} from "./generation-event-repository.js";
 import type { ModelGatewayRepository } from "./model-gateway-repository.js";
 import { ModelDiscoveryService } from "./model-discovery.js";
 import { createModelDiscoveryApi } from "./model-discovery-api.js";
@@ -27,6 +32,7 @@ export type AppServices = {
   assets: AssetService;
   jobs: GenerationJobService;
   jobRepository: GenerationJobRepository;
+  eventRepository?: GenerationEventRepository;
   workerToken: string;
   workerStaleMs: number;
   modelGateway: ModelGatewayRepository;
@@ -43,6 +49,8 @@ export type AppServices = {
 
 export function createApp(services: AppServices) {
   const app = new Hono<ApiEnv>();
+  const eventRepository =
+    services.eventRepository || new MemoryGenerationEventRepository();
   const modelDiscovery =
     services.modelDiscovery || new ModelDiscoveryService(services.modelGateway);
   app.onError((error, c) => {
@@ -251,6 +259,60 @@ export function createApp(services: AppServices) {
     if (!job) throw new DomainError("JOB_NOT_FOUND", 404, "生成任务不存在");
     return c.json({ data: job, requestId: requestId(c) });
   });
+  app.get("/api/v1/generation-jobs/:jobId/events", async (c) => {
+    const userId = c.get("user").id;
+    const jobId = c.req.param("jobId");
+    const job = await services.jobs.get(userId, jobId);
+    if (!job) throw new DomainError("JOB_NOT_FOUND", 404, "生成任务不存在");
+    const rawCursor =
+      c.req.header("last-event-id") || c.req.query("after") || "0";
+    const cursor = Number(rawCursor);
+    if (!Number.isSafeInteger(cursor) || cursor < 0)
+      throw new DomainError("INVALID_EVENT_CURSOR", 400, "事件游标无效");
+    c.header("cache-control", "private, no-cache, no-store");
+    c.header("x-accel-buffering", "no");
+    return streamSSE(c, async (stream) => {
+      let afterId = cursor;
+      const deadline = Date.now() + 5 * 60_000;
+      while (!stream.aborted && Date.now() < deadline) {
+        const events = await eventRepository.listForUser(
+          userId,
+          jobId,
+          afterId,
+          100,
+        );
+        for (const event of events) {
+          await stream.writeSSE({
+            id: String(event.id),
+            event: event.type,
+            data: JSON.stringify(event),
+          });
+          afterId = event.id;
+          if (event.type === "job.terminal") return;
+        }
+        if (!events.length) {
+          const current = await services.jobs.get(userId, jobId);
+          if (!current) return;
+          if (isTerminalPhase(current.phase)) {
+            await eventRepository.append(
+              current.id,
+              "job.terminal",
+              {
+                phase: current.phase,
+                status: current.status,
+                errorCode: current.errorCode,
+                errorMessage: current.errorMessage,
+              },
+              new Date().toISOString(),
+            );
+            continue;
+          }
+          await stream.write(": heartbeat\n\n");
+          await stream.sleep(750);
+        }
+      }
+    });
+  });
   app.post("/api/v1/generation-jobs/:jobId/cancel", async (c) =>
     c.json({
       data: await services.jobs.cancel(c.get("user").id, c.req.param("jobId")),
@@ -380,7 +442,50 @@ export function createApp(services: AppServices) {
       jobId: c.req.param("jobId"),
       now: new Date().toISOString(),
     });
+    if (isTerminalPhase(job.phase))
+      await eventRepository
+        .append(
+          job.id,
+          "job.terminal",
+          {
+            phase: job.phase,
+            status: job.status,
+            errorCode: job.errorCode,
+            errorMessage: job.errorMessage,
+          },
+          new Date().toISOString(),
+        )
+        .catch((error) =>
+          console.error("generation terminal event append failed", error),
+        );
     return c.json({ data: job, requestId: requestId(c) });
+  });
+  app.post("/internal/v1/generation/jobs/:jobId/events", async (c) => {
+    const input = workerEventSchema.parse(await c.req.json());
+    const job = await services.jobRepository.getForWorker(
+      input.workerId,
+      c.req.param("jobId"),
+      new Date().toISOString(),
+    );
+    if (!job) throw new DomainError("JOB_LEASE_LOST", 409, "任务租约已失效");
+    if (job.capability !== "text" && job.capability !== "agent")
+      throw new DomainError(
+        "JOB_EVENT_UNSUPPORTED",
+        409,
+        "仅文本任务支持增量事件",
+      );
+    return c.json(
+      {
+        data: await eventRepository.append(
+          job.id,
+          input.type,
+          { delta: input.delta },
+          new Date().toISOString(),
+        ),
+        requestId: requestId(c),
+      },
+      201,
+    );
   });
   app.post("/internal/v1/generation/jobs/:jobId/assets", async (c) => {
     const workerId = c.req.header("x-worker-id")?.trim();
@@ -702,6 +807,13 @@ const workerTransitionSchema = z.object({
     })
     .strict(),
 });
+const workerEventSchema = z
+  .object({
+    workerId: z.string().trim().min(1).max(160),
+    type: z.enum(["text.delta", "text.reasoning.delta"]),
+    delta: z.string().min(1).max(16_384),
+  })
+  .strict();
 const modelCapabilitySchema = z.enum(["text", "image", "video", "audio"]);
 const generationCapabilitySchema = z.enum([
   "text",
@@ -875,4 +987,7 @@ function writeSession(
 }
 function requestId(c: Context<ApiEnv>) {
   return c.get("requestId");
+}
+function isTerminalPhase(phase: string) {
+  return ["succeeded", "failed", "cancelled", "needs_review"].includes(phase);
 }

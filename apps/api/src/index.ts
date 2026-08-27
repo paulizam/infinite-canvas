@@ -5,6 +5,7 @@ import { CollaborationHub } from "./collaboration.js";
 import { AssetService } from "./asset-service.js";
 import { LocalAssetBlobStore, S3AssetBlobStore } from "./blob-store.js";
 import { PostgresGenerationJobRepository } from "./postgres-generation-job-repository.js";
+import { PostgresGenerationEventRepository } from "./postgres-generation-event-repository.js";
 import { GenerationJobService } from "./generation-job-service.js";
 import { PostgresModelGatewayRepository } from "./postgres-model-gateway-repository.js";
 import { SecretCipher } from "./secret-cipher.js";
@@ -49,6 +50,7 @@ const app = createApp({
   assets,
   jobs: new GenerationJobService(repository, jobRepository),
   jobRepository,
+  eventRepository: new PostgresGenerationEventRepository(databaseUrl),
   workerToken,
   workerStaleMs: positiveInteger("WORKER_STALE_MS"),
   modelGateway,

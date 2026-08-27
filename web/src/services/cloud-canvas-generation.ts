@@ -13,6 +13,7 @@ type CloudCanvasRequest = {
     parameters: Record<string, unknown>;
     signal?: AbortSignal;
     client?: CloudPlatformClient;
+    onTextDelta?: (text: string) => void;
 };
 
 export async function runCloudCanvasGeneration(request: CloudCanvasRequest) {
@@ -29,7 +30,7 @@ export async function runCloudCanvasGeneration(request: CloudCanvasRequest) {
             clientRequestId: nanoid(),
             parameters: request.parameters,
         },
-        { signal: request.signal },
+        { signal: request.signal, onTextDelta: request.onTextDelta },
     );
 }
 

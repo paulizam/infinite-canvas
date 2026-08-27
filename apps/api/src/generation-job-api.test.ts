@@ -322,4 +322,90 @@ describe("generation job API", () => {
     expect(read.headers.get("content-type")).toBe("image/png");
     expect(Buffer.from(await read.arrayBuffer())).toEqual(png);
   });
+
+  it("accepts leased text deltas, replays SSE and hides the stream across users", async () => {
+    const owner = await register("stream-owner@example.com");
+    const created = await app.request(
+      `/api/v1/workspaces/${owner.body.data.workspace.id}/generation-jobs`,
+      {
+        method: "POST",
+        headers: { cookie: owner.cookie, "content-type": "application/json" },
+        body: JSON.stringify({
+          capability: "text",
+          logicalModelId: "text.default",
+          clientRequestId: "stream-1",
+          parameters: { prompt: "hello" },
+        }),
+      },
+    );
+    const jobId = ((await created.json()) as { data: { job: { id: string } } })
+      .data.job.id;
+    const headers = {
+      authorization: "Bearer test-worker-token-32-characters-long",
+      "content-type": "application/json",
+    };
+    await app.request("/internal/v1/generation/claim", {
+      method: "POST",
+      headers,
+      body: JSON.stringify({
+        workerId: "stream-worker",
+        limit: 1,
+        leaseMs: 90_000,
+      }),
+    });
+    const transition = (phase: string, patch: Record<string, unknown> = {}) =>
+      app.request(`/internal/v1/generation/jobs/${jobId}/transition`, {
+        method: "POST",
+        headers,
+        body: JSON.stringify({ workerId: "stream-worker", phase, patch }),
+      });
+    await transition("submitting");
+    await transition("submitted");
+    const eventPath = `/internal/v1/generation/jobs/${jobId}/events`;
+    expect(
+      (
+        await app.request(eventPath, {
+          method: "POST",
+          headers,
+          body: JSON.stringify({
+            workerId: "intruder",
+            type: "text.delta",
+            delta: "no",
+          }),
+        })
+      ).status,
+    ).toBe(409);
+    expect(
+      (
+        await app.request(eventPath, {
+          method: "POST",
+          headers,
+          body: JSON.stringify({
+            workerId: "stream-worker",
+            type: "text.delta",
+            delta: "hello",
+          }),
+        })
+      ).status,
+    ).toBe(201);
+    await transition("result_ready", { result: { text: "hello" } });
+    await transition("persisting");
+    await transition("succeeded");
+    const stream = await app.request(
+      `/api/v1/generation-jobs/${jobId}/events`,
+      { headers: { cookie: owner.cookie, "last-event-id": "0" } },
+    );
+    expect(stream.status).toBe(200);
+    const body = await stream.text();
+    expect(body).toContain("event: text.delta");
+    expect(body).toContain("event: job.terminal");
+    const outsider = await register("stream-outsider@example.com");
+    expect(
+      (
+        await app.request(`/api/v1/generation-jobs/${jobId}/events`, {
+          headers: { cookie: outsider.cookie },
+        })
+      ).status,
+    ).toBe(404);
+  });
 });

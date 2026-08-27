@@ -15,6 +15,7 @@ type WaitOptions = {
     pollIntervalMs?: number;
     timeoutMs?: number;
     onUpdate?: (job: GenerationJob) => void;
+    onTextDelta?: (text: string) => void;
     sleep?: (milliseconds: number, signal?: AbortSignal) => Promise<void>;
 };
 
@@ -40,10 +41,59 @@ export async function createAndWaitForGeneration(client: CloudPlatformClient, re
         options.signal,
     );
     try {
+        if (request.capability === "text" && options.onTextDelta && "openGenerationEvents" in client) {
+            try {
+                await consumeGenerationEvents(client, created.job.id, options.onTextDelta, options.signal);
+                const finalJob = await client.getGenerationJob(created.job.id, options.signal);
+                if (isTerminal(finalJob)) return ensureSucceeded(finalJob);
+            } catch (error) {
+                if (isAbortError(error) || options.signal?.aborted) {
+                    await client.cancelGenerationJob(created.job.id).catch(() => undefined);
+                    throw abortError();
+                }
+                // Event delivery is an optimization; authoritative polling remains the fallback.
+            }
+        }
         return await waitForGeneration(client, created.job, options);
     } finally {
         if (typeof window !== "undefined") window.dispatchEvent(new Event("cloud-billing-changed"));
     }
+}
+
+async function consumeGenerationEvents(client: CloudPlatformClient, jobId: string, onTextDelta: (text: string) => void, signal?: AbortSignal) {
+    const response = await client.openGenerationEvents(jobId, 0, signal);
+    if (!response.body) throw new Error("Generation event stream has no body");
+    const reader = response.body.getReader();
+    const decoder = new TextDecoder();
+    let buffer = "",
+        fullText = "";
+    while (true) {
+        const { done, value } = await reader.read();
+        buffer += decoder.decode(value, { stream: !done }).replace(/\r\n/g, "\n");
+        let boundary: number;
+        while ((boundary = buffer.indexOf("\n\n")) >= 0) {
+            const frame = buffer.slice(0, boundary);
+            buffer = buffer.slice(boundary + 2);
+            const data = frame
+                .split("\n")
+                .filter((line) => line.startsWith("data:"))
+                .map((line) => line.slice(5).trimStart())
+                .join("\n");
+            if (!data) continue;
+            const event = JSON.parse(data) as { type?: string; payload?: { delta?: unknown } };
+            if (event.type === "text.delta" && typeof event.payload?.delta === "string") {
+                fullText += event.payload.delta;
+                onTextDelta(fullText);
+            }
+            if (event.type === "job.terminal") return;
+        }
+        if (done) return;
+    }
+}
+
+function ensureSucceeded(job: GenerationJob) {
+    if (job.phase !== "succeeded") throw new CloudGenerationError(job.errorMessage || `Cloud generation ended as ${job.phase}`, job);
+    return job;
 }
 
 export async function waitForGeneration(client: CloudPlatformClient, initial: GenerationJob, options: WaitOptions = {}) {

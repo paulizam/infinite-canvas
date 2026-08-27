@@ -59,6 +59,19 @@ export class WorkerApiClient {
       signal,
     );
   }
+  appendEvent(
+    workerId: string,
+    jobId: string,
+    type: "text.delta" | "text.reasoning.delta",
+    delta: string,
+    signal?: AbortSignal,
+  ) {
+    return this.request(
+      `/internal/v1/generation/jobs/${encodeURIComponent(jobId)}/events`,
+      { workerId, type, delta },
+      signal,
+    );
+  }
   resolveModel(
     capability: "text" | "image" | "video" | "audio",
     logicalModelId: string,
