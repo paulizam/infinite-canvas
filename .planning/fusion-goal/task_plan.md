@@ -19,7 +19,7 @@
 - [x] WebSocket collaboration hub
 - [x] Asset storage（magic-byte、SHA-256、Local/S3、RBAC、AssetRef 保护）
 - [x] Generation Job Worker（contract/state/schema/repository/API、独立 runtime、heartbeat/lease recovery）
-- [▶] Model Gateway（OpenAI-compatible、Gemini、声明式 Custom runtime、媒体 Asset、health/cooldown、provider cancel 已完成；streaming、连接测试/模型发现、provider-specific adapter 待完成）、Billing ledger
+- [▶] Model Gateway（OpenAI-compatible、Gemini、声明式 Custom runtime、媒体 Asset、health/cooldown、provider cancel 已完成；streaming、连接测试/模型发现、provider-specific adapter 待完成）；Billing ledger 基础、原子预留/结算/退款与预估已完成，运营对账待完成
 
 ## 错误账本
 
@@ -31,3 +31,4 @@
 | AssetRef 递归未处理循环对象 | 1 | 增加 WeakSet 防环并补回归测试 |
 | Worker fetch Body 的 Uint8Array 泛型不兼容 DOM BodyInit | 1 | 复制为确定的 ArrayBuffer 后上传，typecheck 通过 |
 | Custom adapter 的 union `flatMap` 推断过窄 | 1 | 改为显式判别数组累积，保持 inline/file 两类结果 |
+| Cancel test 使用创建时间早于 cancel 的 nextRunAt | 1 | 以 cancel 响应的权威 nextRunAt claim，消除毫秒竞态 |

@@ -1,7 +1,11 @@
 import type {
+  BillingEstimate,
+  BillingLedgerEntry,
+  BillingWallet,
   GenerationJob,
   GenerationJobPhase,
 } from "@infinite-canvas/contracts";
+import { randomUUID } from "node:crypto";
 import { DomainError } from "./domain.js";
 import {
   isTerminalGenerationPhase,
@@ -32,7 +36,7 @@ export interface GenerationJobRepository {
     workerId: string;
     jobId: string;
     phase: GenerationJobPhase;
-    patch: GenerationJobTransitionPatch;
+    patch: GenerationJobTransitionPatch & { billingActualUnits?: number };
     now: string;
   }): Promise<GenerationJob>;
   getForWorker(
@@ -48,11 +52,38 @@ export interface GenerationJobRepository {
   ): Promise<number>;
   recordWorkerHeartbeat(workerId: string, now: string): Promise<void>;
   latestWorkerHeartbeat(): Promise<string | null>;
+  estimate(
+    logicalModelId: string,
+    capability: GenerationJob["capability"],
+    parameters: Record<string, unknown>,
+  ): Promise<BillingEstimate>;
+  getWallet(userId: string): Promise<BillingWallet>;
+  listLedger(userId: string, limit: number): Promise<BillingLedgerEntry[]>;
+  adjustWallet(input: {
+    userId: string;
+    amountUnits: number;
+    idempotencyKey: string;
+    note: string;
+    now: string;
+  }): Promise<BillingWallet>;
+  savePriceRule(rule: BillingPriceRule): Promise<BillingPriceRule>;
 }
+
+export type BillingPriceRule = {
+  logicalModelId: string;
+  capability: GenerationJob["capability"];
+  baseUnits: number;
+  multiplierConfig: Record<string, unknown>;
+  enabled: boolean;
+  updatedAt: string;
+};
 
 export class MemoryGenerationJobRepository implements GenerationJobRepository {
   private jobs = new Map<string, GenerationJob>();
   readonly workerHeartbeats = new Map<string, string>();
+  readonly priceRules = new Map<string, BillingPriceRule>();
+  readonly wallets = new Map<string, BillingWallet>();
+  readonly ledger: BillingLedgerEntry[] = [];
 
   async create(job: GenerationJob) {
     const existing = [...this.jobs.values()].find(
@@ -63,8 +94,9 @@ export class MemoryGenerationJobRepository implements GenerationJobRepository {
         item.attempt === job.attempt,
     );
     if (existing) return { job: existing, replayed: true };
-    this.jobs.set(job.id, job);
-    return { job, replayed: false };
+    const charged = await this.reserve(job);
+    this.jobs.set(job.id, charged);
+    return { job: charged, replayed: false };
   }
   async getForUser(userId: string, jobId: string) {
     const job = this.jobs.get(jobId);
@@ -121,6 +153,12 @@ export class MemoryGenerationJobRepository implements GenerationJobRepository {
       nextRunAt: now,
       errorCode: null,
       errorMessage: null,
+      billing: {
+        state: "free",
+        estimatedUnits: 0,
+        reservedUnits: 0,
+        actualUnits: null,
+      },
       createdAt: now,
       updatedAt: now,
     };
@@ -182,7 +220,7 @@ export class MemoryGenerationJobRepository implements GenerationJobRepository {
     workerId: string;
     jobId: string;
     phase: GenerationJobPhase;
-    patch: GenerationJobTransitionPatch;
+    patch: GenerationJobTransitionPatch & { billingActualUnits?: number };
     now: string;
   }) {
     const job = this.jobs.get(input.jobId);
@@ -193,12 +231,14 @@ export class MemoryGenerationJobRepository implements GenerationJobRepository {
       job.leaseUntil <= input.now
     )
       throw new DomainError("JOB_LEASE_LOST", 409, "任务租约已失效");
+    const { billingActualUnits, ...statePatch } = input.patch;
     const updated = transitionGenerationJob(
       job,
       input.phase,
-      input.patch,
+      statePatch,
       input.now,
     );
+    this.settleTerminal(updated, input.now, billingActualUnits);
     this.jobs.set(job.id, updated);
     return updated;
   }
@@ -240,10 +280,263 @@ export class MemoryGenerationJobRepository implements GenerationJobRepository {
   async latestWorkerHeartbeat() {
     return [...this.workerHeartbeats.values()].sort().at(-1) || null;
   }
+  async estimate(
+    logicalModelId: string,
+    capability: GenerationJob["capability"],
+    parameters: Record<string, unknown>,
+  ) {
+    return estimatePrice(
+      logicalModelId,
+      capability,
+      parameters,
+      this.priceRules.get(priceKey(logicalModelId, capability)),
+    );
+  }
+  async getWallet(userId: string) {
+    return (
+      this.wallets.get(userId) || {
+        userId,
+        balanceUnits: 0,
+        updatedAt: new Date(0).toISOString(),
+      }
+    );
+  }
+  async listLedger(userId: string, limit: number) {
+    return this.ledger
+      .filter((entry) => entry.userId === userId)
+      .slice(-limit)
+      .reverse();
+  }
+  async adjustWallet(input: {
+    userId: string;
+    amountUnits: number;
+    idempotencyKey: string;
+    note: string;
+    now: string;
+  }) {
+    if (
+      this.ledger.some((entry) => entry.idempotencyKey === input.idempotencyKey)
+    )
+      return this.getWallet(input.userId);
+    const current = await this.getWallet(input.userId);
+    const balance = current.balanceUnits + input.amountUnits;
+    if (balance < 0)
+      throw new DomainError("INSUFFICIENT_POINTS", 409, "积分余额不足");
+    const wallet = {
+      userId: input.userId,
+      balanceUnits: balance,
+      updatedAt: input.now,
+    };
+    this.wallets.set(input.userId, wallet);
+    this.ledger.push({
+      id: randomUUID(),
+      userId: input.userId,
+      jobId: null,
+      type: "adjustment",
+      amountUnits: input.amountUnits,
+      balanceAfterUnits: balance,
+      idempotencyKey: input.idempotencyKey,
+      metadata: { note: input.note },
+      createdAt: input.now,
+    });
+    return wallet;
+  }
+  async savePriceRule(rule: BillingPriceRule) {
+    this.priceRules.set(priceKey(rule.logicalModelId, rule.capability), rule);
+    return rule;
+  }
+  private async reserve(job: GenerationJob) {
+    const estimate = await this.estimate(
+      job.logicalModelId,
+      job.capability,
+      job.input,
+    );
+    if (!estimate.estimatedUnits)
+      return {
+        ...job,
+        billing: {
+          state: "free" as const,
+          estimatedUnits: 0,
+          reservedUnits: 0,
+          actualUnits: null,
+        },
+      };
+    const wallet = await this.getWallet(job.ownerId);
+    if (wallet.balanceUnits < estimate.estimatedUnits)
+      throw new DomainError("INSUFFICIENT_POINTS", 409, "积分余额不足");
+    const balance = wallet.balanceUnits - estimate.estimatedUnits;
+    this.wallets.set(job.ownerId, {
+      ...wallet,
+      balanceUnits: balance,
+      updatedAt: job.createdAt,
+    });
+    this.ledger.push({
+      id: randomUUID(),
+      userId: job.ownerId,
+      jobId: job.id,
+      type: "reserve",
+      amountUnits: -estimate.estimatedUnits,
+      balanceAfterUnits: balance,
+      idempotencyKey: `job:${job.id}:reserve`,
+      metadata: { estimate },
+      createdAt: job.createdAt,
+    });
+    return {
+      ...job,
+      billing: {
+        state: "reserved" as const,
+        estimatedUnits: estimate.estimatedUnits,
+        reservedUnits: estimate.estimatedUnits,
+        actualUnits: null,
+      },
+    };
+  }
+  private settleTerminal(
+    job: GenerationJob,
+    now: string,
+    actualInput?: number,
+  ) {
+    if (job.billing.state !== "reserved") return;
+    if (job.phase === "succeeded") {
+      const actual =
+        actualInput === undefined
+          ? job.billing.reservedUnits
+          : safeUnits(actualInput);
+      const delta = job.billing.reservedUnits - actual;
+      const wallet = this.wallets.get(job.ownerId)!;
+      const balance = wallet.balanceUnits + delta;
+      if (balance < 0)
+        throw new DomainError(
+          "INSUFFICIENT_POINTS_AT_SETTLEMENT",
+          409,
+          "实际用量超过预留且余额不足",
+        );
+      this.wallets.set(job.ownerId, {
+        ...wallet,
+        balanceUnits: balance,
+        updatedAt: now,
+      });
+      job.billing = {
+        ...job.billing,
+        state: "settled",
+        actualUnits: actual,
+      };
+      this.ledger.push({
+        id: randomUUID(),
+        userId: job.ownerId,
+        jobId: job.id,
+        type: "settle",
+        amountUnits: delta,
+        balanceAfterUnits: balance,
+        idempotencyKey: `job:${job.id}:settle`,
+        metadata: {},
+        createdAt: now,
+      });
+    } else if (job.phase === "failed" || job.phase === "cancelled") {
+      const wallet = this.wallets.get(job.ownerId)!;
+      const balance = wallet.balanceUnits + job.billing.reservedUnits;
+      this.wallets.set(job.ownerId, {
+        ...wallet,
+        balanceUnits: balance,
+        updatedAt: now,
+      });
+      job.billing = { ...job.billing, state: "refunded", actualUnits: 0 };
+      this.ledger.push({
+        id: randomUUID(),
+        userId: job.ownerId,
+        jobId: job.id,
+        type: "refund",
+        amountUnits: job.billing.reservedUnits,
+        balanceAfterUnits: balance,
+        idempotencyKey: `job:${job.id}:refund`,
+        metadata: {},
+        createdAt: now,
+      });
+    } else if (job.phase === "needs_review")
+      job.billing = { ...job.billing, state: "needs_review" };
+  }
   private requireUserJob(userId: string, jobId: string) {
     const job = this.jobs.get(jobId);
     if (!job || job.ownerId !== userId)
       throw new DomainError("JOB_NOT_FOUND", 404, "生成任务不存在");
     return job;
   }
+}
+
+export function estimatePrice(
+  logicalModelId: string,
+  capability: GenerationJob["capability"],
+  parameters: Record<string, unknown>,
+  rule?: BillingPriceRule,
+): BillingEstimate {
+  const baseUnits = rule?.enabled ? safeUnits(rule.baseUnits) : 0;
+  const config = rule?.multiplierConfig || {};
+  const count = boundedNumber(parameters.count, 1, 1, 100);
+  const resolution = String(parameters.resolution || "");
+  const resolutionMap = objectValue(config.resolutionPermille);
+  const resolutionPermille = boundedNumber(
+    resolutionMap[resolution],
+    1000,
+    1,
+    100_000,
+  );
+  const duration = boundedNumber(parameters.durationSeconds, 0, 0, 86_400);
+  const durationPerSecond = boundedNumber(
+    config.durationPermillePerSecond,
+    0,
+    0,
+    100_000,
+  );
+  const multiplierPermille = Math.ceil(
+    (count *
+      resolutionPermille *
+      (duration ? Math.max(1000, duration * durationPerSecond) : 1000)) /
+      1000,
+  );
+  const estimatedUnits = Math.ceil((baseUnits * multiplierPermille) / 1000);
+  if (!Number.isSafeInteger(estimatedUnits))
+    throw new DomainError(
+      "BILLING_ESTIMATE_INVALID",
+      400,
+      "计费预估超出安全范围",
+    );
+  return {
+    logicalModelId,
+    capability,
+    estimatedUnits,
+    baseUnits,
+    multiplierPermille,
+    currency: "points",
+  };
+}
+function priceKey(
+  logicalModelId: string,
+  capability: GenerationJob["capability"],
+) {
+  return `${logicalModelId.trim().toLowerCase()}\u0000${capability}`;
+}
+function safeUnits(value: number) {
+  if (!Number.isSafeInteger(value) || value < 0)
+    throw new DomainError(
+      "BILLING_PRICE_INVALID",
+      400,
+      "积分价格必须为非负安全整数",
+    );
+  return value;
+}
+function boundedNumber(
+  value: unknown,
+  fallback: number,
+  min: number,
+  max: number,
+) {
+  const number = Number(value);
+  return Number.isFinite(number)
+    ? Math.min(max, Math.max(min, number))
+    : fallback;
+}
+function objectValue(value: unknown): Record<string, unknown> {
+  return value && typeof value === "object" && !Array.isArray(value)
+    ? (value as Record<string, unknown>)
+    : {};
 }

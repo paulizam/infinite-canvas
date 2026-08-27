@@ -268,6 +268,29 @@ export function createApp(services: AppServices) {
       requestId: requestId(c),
     });
   });
+  app.post("/api/v1/models/:logicalModelId/estimate", async (c) => {
+    const input = billingEstimateSchema.parse(await c.req.json());
+    return c.json({
+      data: await services.jobs.estimate(
+        c.req.param("logicalModelId"),
+        input.capability,
+        input.parameters,
+      ),
+      requestId: requestId(c),
+    });
+  });
+  app.get("/api/v1/billing/wallet", async (c) =>
+    c.json({
+      data: await services.jobs.wallet(c.get("user").id),
+      requestId: requestId(c),
+    }),
+  );
+  app.get("/api/v1/billing/ledger", async (c) =>
+    c.json({
+      data: await services.jobs.ledger(c.get("user").id, 100),
+      requestId: requestId(c),
+    }),
+  );
   app.get("/api/v1/projects/:projectId", async (c) => {
     const project = await services.projects.get(
       c.get("user").id,
@@ -453,6 +476,30 @@ export function createApp(services: AppServices) {
       requestId: requestId(c),
     });
   });
+  app.put(
+    "/internal/v1/maintenance/billing/price-rules/:logicalModelId",
+    async (c) => {
+      const input = billingPriceRuleSchema.parse(await c.req.json());
+      return c.json({
+        data: await services.jobRepository.savePriceRule({
+          ...input,
+          logicalModelId: c.req.param("logicalModelId"),
+          updatedAt: new Date().toISOString(),
+        }),
+        requestId: requestId(c),
+      });
+    },
+  );
+  app.post("/internal/v1/maintenance/billing/wallet-adjustments", async (c) => {
+    const input = walletAdjustmentSchema.parse(await c.req.json());
+    return c.json({
+      data: await services.jobRepository.adjustWallet({
+        ...input,
+        now: new Date().toISOString(),
+      }),
+      requestId: requestId(c),
+    });
+  });
   return app;
 }
 
@@ -620,10 +667,60 @@ const workerTransitionSchema = z.object({
       nextRunAt: z.iso.datetime().optional(),
       errorCode: z.string().max(160).nullable().optional(),
       errorMessage: z.string().max(2000).nullable().optional(),
+      billingActualUnits: z.number().int().nonnegative().safe().optional(),
     })
     .strict(),
 });
 const modelCapabilitySchema = z.enum(["text", "image", "video", "audio"]);
+const generationCapabilitySchema = z.enum([
+  "text",
+  "image",
+  "video",
+  "audio",
+  "agent",
+]);
+const billingEstimateSchema = z
+  .object({
+    capability: generationCapabilitySchema,
+    parameters: z.record(z.string(), z.unknown()).default({}),
+  })
+  .strict();
+const billingPriceRuleSchema = z
+  .object({
+    capability: generationCapabilitySchema,
+    baseUnits: z.number().int().nonnegative().max(Number.MAX_SAFE_INTEGER),
+    multiplierConfig: z
+      .object({
+        resolutionPermille: z
+          .record(
+            z.string().trim().min(1).max(40),
+            z.number().int().min(1).max(100_000),
+          )
+          .optional(),
+        durationPermillePerSecond: z
+          .number()
+          .int()
+          .min(0)
+          .max(100_000)
+          .optional(),
+      })
+      .strict()
+      .default({}),
+    enabled: z.boolean(),
+  })
+  .strict();
+const walletAdjustmentSchema = z
+  .object({
+    userId: z.uuid(),
+    amountUnits: z
+      .number()
+      .int()
+      .safe()
+      .refine((value) => value !== 0, "adjustment must be non-zero"),
+    idempotencyKey: z.string().trim().min(8).max(200),
+    note: z.string().trim().min(1).max(500),
+  })
+  .strict();
 const resolveModelSchema = z.object({
   capability: modelCapabilitySchema,
   logicalModelId: z.string().trim().min(1).max(160),

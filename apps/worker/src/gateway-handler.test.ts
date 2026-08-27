@@ -57,7 +57,10 @@ describe("model gateway worker handler", () => {
     const fetcher = vi.fn(
       async () =>
         new Response(
-          JSON.stringify({ data: [{ url: "https://cdn.example/result.png" }] }),
+          JSON.stringify({
+            billing_units: 3,
+            data: [{ url: "https://cdn.example/result.png" }],
+          }),
           { status: 200 },
         ),
     );
@@ -78,6 +81,13 @@ describe("model gateway worker handler", () => {
       expect.objectContaining({ method: "POST" }),
     );
     expect(client.persistAsset).toHaveBeenCalledOnce();
+    expect(client.transition).toHaveBeenLastCalledWith(
+      "worker-a",
+      "job-1",
+      "succeeded",
+      { billingActualUnits: 3 },
+      undefined,
+    );
   });
 
   it("persists a binary audio response without parsing it as JSON", async () => {

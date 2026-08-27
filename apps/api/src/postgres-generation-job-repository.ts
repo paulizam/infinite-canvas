@@ -1,10 +1,15 @@
 import pg from "pg";
+import { randomUUID } from "node:crypto";
 import type {
   GenerationJob,
   GenerationJobPhase,
 } from "@infinite-canvas/contracts";
 import { DomainError } from "./domain.js";
-import type { GenerationJobRepository } from "./generation-job-repository.js";
+import {
+  estimatePrice,
+  type BillingPriceRule,
+  type GenerationJobRepository,
+} from "./generation-job-repository.js";
 import {
   isTerminalGenerationPhase,
   transitionGenerationJob,
@@ -18,17 +23,38 @@ export class PostgresGenerationJobRepository implements GenerationJobRepository 
   }
 
   async create(job: GenerationJob) {
-    const inserted = await this.pool.query(
-      `${insertJobSql()} ON CONFLICT(workspace_id,owner_id,client_request_id,attempt) DO NOTHING RETURNING *`,
-      jobValues(job),
-    );
-    if (inserted.rows[0])
+    const client = await this.pool.connect();
+    try {
+      await client.query("BEGIN");
+      const existing = await client.query(
+        "SELECT * FROM generation_jobs WHERE workspace_id=$1 AND owner_id=$2 AND client_request_id=$3 AND attempt=$4 FOR UPDATE",
+        [job.workspaceId, job.ownerId, job.clientRequestId, job.attempt],
+      );
+      if (existing.rows[0]) {
+        await client.query("COMMIT");
+        return { job: mapJob(existing.rows[0]), replayed: true };
+      }
+      const billed = await this.reserveWithClient(client, job);
+      const inserted = await client.query(
+        `${insertJobSql()} RETURNING *`,
+        jobValues(billed),
+      );
+      await client.query("COMMIT");
       return { job: mapJob(inserted.rows[0]), replayed: false };
-    const existing = await this.pool.query(
-      "SELECT * FROM generation_jobs WHERE workspace_id=$1 AND owner_id=$2 AND client_request_id=$3 AND attempt=$4",
-      [job.workspaceId, job.ownerId, job.clientRequestId, job.attempt],
-    );
-    return { job: mapJob(existing.rows[0]), replayed: true };
+    } catch (error) {
+      await client.query("ROLLBACK");
+      if ((error as { code?: string }).code === "23505") {
+        const existing = await this.pool.query(
+          "SELECT * FROM generation_jobs WHERE workspace_id=$1 AND owner_id=$2 AND client_request_id=$3 AND attempt=$4",
+          [job.workspaceId, job.ownerId, job.clientRequestId, job.attempt],
+        );
+        if (existing.rows[0])
+          return { job: mapJob(existing.rows[0]), replayed: true };
+      }
+      throw error;
+    } finally {
+      client.release();
+    }
   }
   async getForUser(userId: string, jobId: string) {
     const result = await this.pool.query(
@@ -96,12 +122,19 @@ export class PostgresGenerationJobRepository implements GenerationJobRepository 
         nextRunAt: now,
         errorCode: null,
         errorMessage: null,
+        billing: {
+          state: "free",
+          estimatedUnits: 0,
+          reservedUnits: 0,
+          actualUnits: null,
+        },
         createdAt: now,
         updatedAt: now,
       };
+      const billed = await this.reserveWithClient(client, next);
       const inserted = await client.query(
         `${insertJobSql()} RETURNING *`,
-        jobValues(next),
+        jobValues(billed),
       );
       await client.query("COMMIT");
       return mapJob(inserted.rows[0]);
@@ -143,7 +176,7 @@ export class PostgresGenerationJobRepository implements GenerationJobRepository 
     workerId: string;
     jobId: string;
     phase: GenerationJobPhase;
-    patch: GenerationJobTransitionPatch;
+    patch: GenerationJobTransitionPatch & { billingActualUnits?: number };
     now: string;
   }) {
     const client = await this.pool.connect();
@@ -155,12 +188,14 @@ export class PostgresGenerationJobRepository implements GenerationJobRepository 
       );
       if (!result.rows[0])
         throw new DomainError("JOB_LEASE_LOST", 409, "任务租约已失效");
+      const { billingActualUnits, ...statePatch } = input.patch;
       const updated = transitionGenerationJob(
         mapJob(result.rows[0]),
         input.phase,
-        input.patch,
+        statePatch,
         input.now,
       );
+      await this.settleTerminal(client, updated, input.now, billingActualUnits);
       await updateJob(client, updated);
       await client.query("COMMIT");
       return updated;
@@ -209,6 +244,275 @@ export class PostgresGenerationJobRepository implements GenerationJobRepository 
         : String(value)
       : null;
   }
+  async estimate(
+    logicalModelId: string,
+    capability: GenerationJob["capability"],
+    parameters: Record<string, unknown>,
+  ) {
+    const rule = await this.priceRule(this.pool, logicalModelId, capability);
+    return estimatePrice(
+      logicalModelId,
+      capability,
+      parameters,
+      rule || undefined,
+    );
+  }
+  async getWallet(userId: string) {
+    const result = await this.pool.query(
+      "SELECT * FROM billing_wallets WHERE user_id=$1",
+      [userId],
+    );
+    return result.rows[0]
+      ? mapWallet(result.rows[0])
+      : { userId, balanceUnits: 0, updatedAt: new Date(0).toISOString() };
+  }
+  async listLedger(userId: string, limit: number) {
+    const result = await this.pool.query(
+      "SELECT * FROM billing_ledger_entries WHERE user_id=$1 ORDER BY created_at DESC,id DESC LIMIT $2",
+      [userId, limit],
+    );
+    return result.rows.map(mapLedger);
+  }
+  async adjustWallet(input: {
+    userId: string;
+    amountUnits: number;
+    idempotencyKey: string;
+    note: string;
+    now: string;
+  }) {
+    const client = await this.pool.connect();
+    try {
+      await client.query("BEGIN");
+      const replay = await client.query(
+        "SELECT 1 FROM billing_ledger_entries WHERE idempotency_key=$1",
+        [input.idempotencyKey],
+      );
+      if (replay.rows[0]) {
+        const wallet = await this.walletWithClient(
+          client,
+          input.userId,
+          input.now,
+        );
+        await client.query("COMMIT");
+        return wallet;
+      }
+      const wallet = await this.walletWithClient(
+        client,
+        input.userId,
+        input.now,
+      );
+      const racedReplay = await client.query(
+        "SELECT 1 FROM billing_ledger_entries WHERE idempotency_key=$1",
+        [input.idempotencyKey],
+      );
+      if (racedReplay.rows[0]) {
+        await client.query("COMMIT");
+        return wallet;
+      }
+      const balance = wallet.balanceUnits + input.amountUnits;
+      if (balance < 0)
+        throw new DomainError("INSUFFICIENT_POINTS", 409, "积分余额不足");
+      await this.writeWalletAndLedger(client, {
+        userId: input.userId,
+        jobId: null,
+        type: "adjustment",
+        amountUnits: input.amountUnits,
+        balanceUnits: balance,
+        idempotencyKey: input.idempotencyKey,
+        metadata: { note: input.note },
+        now: input.now,
+      });
+      await client.query("COMMIT");
+      return {
+        userId: input.userId,
+        balanceUnits: balance,
+        updatedAt: input.now,
+      };
+    } catch (error) {
+      await client.query("ROLLBACK");
+      throw error;
+    } finally {
+      client.release();
+    }
+  }
+  async savePriceRule(rule: BillingPriceRule) {
+    const result = await this.pool.query(
+      `INSERT INTO billing_price_rules(logical_model_id,capability,base_units,multiplier_config,enabled,updated_at)
+       VALUES($1,$2,$3,$4::jsonb,$5,$6)
+       ON CONFLICT(logical_model_id,capability) DO UPDATE SET base_units=$3,multiplier_config=$4::jsonb,enabled=$5,updated_at=$6 RETURNING *`,
+      [
+        rule.logicalModelId,
+        rule.capability,
+        rule.baseUnits,
+        JSON.stringify(rule.multiplierConfig),
+        rule.enabled,
+        rule.updatedAt,
+      ],
+    );
+    return mapPriceRule(result.rows[0]);
+  }
+  private async reserveWithClient(client: pg.PoolClient, job: GenerationJob) {
+    const rule = await this.priceRule(
+      client,
+      job.logicalModelId,
+      job.capability,
+    );
+    const estimate = estimatePrice(
+      job.logicalModelId,
+      job.capability,
+      job.input,
+      rule || undefined,
+    );
+    if (!estimate.estimatedUnits)
+      return {
+        ...job,
+        billing: {
+          state: "free" as const,
+          estimatedUnits: 0,
+          reservedUnits: 0,
+          actualUnits: null,
+        },
+      };
+    const wallet = await this.walletWithClient(
+      client,
+      job.ownerId,
+      job.createdAt,
+    );
+    if (wallet.balanceUnits < estimate.estimatedUnits)
+      throw new DomainError("INSUFFICIENT_POINTS", 409, "积分余额不足");
+    const balance = wallet.balanceUnits - estimate.estimatedUnits;
+    await this.writeWalletAndLedger(client, {
+      userId: job.ownerId,
+      jobId: job.id,
+      type: "reserve",
+      amountUnits: -estimate.estimatedUnits,
+      balanceUnits: balance,
+      idempotencyKey: `job:${job.id}:reserve`,
+      metadata: { estimate },
+      now: job.createdAt,
+    });
+    return {
+      ...job,
+      billing: {
+        state: "reserved" as const,
+        estimatedUnits: estimate.estimatedUnits,
+        reservedUnits: estimate.estimatedUnits,
+        actualUnits: null,
+      },
+    };
+  }
+  private async settleTerminal(
+    client: pg.PoolClient,
+    job: GenerationJob,
+    now: string,
+    actualInput?: number,
+  ) {
+    if (job.billing.state !== "reserved") return;
+    if (job.phase === "succeeded") {
+      const wallet = await this.walletWithClient(client, job.ownerId, now);
+      const actual =
+        actualInput === undefined
+          ? job.billing.reservedUnits
+          : checkedUnits(actualInput);
+      const delta = job.billing.reservedUnits - actual;
+      const balance = wallet.balanceUnits + delta;
+      if (balance < 0)
+        throw new DomainError(
+          "INSUFFICIENT_POINTS_AT_SETTLEMENT",
+          409,
+          "实际用量超过预留且余额不足",
+        );
+      if (delta)
+        await client.query(
+          "UPDATE billing_wallets SET balance_units=$2,updated_at=$3 WHERE user_id=$1",
+          [job.ownerId, balance, now],
+        );
+      await this.insertLedger(client, {
+        userId: job.ownerId,
+        jobId: job.id,
+        type: "settle",
+        amountUnits: delta,
+        balanceUnits: balance,
+        idempotencyKey: `job:${job.id}:settle`,
+        metadata: {},
+        now,
+      });
+      job.billing = {
+        ...job.billing,
+        state: "settled",
+        actualUnits: actual,
+      };
+    } else if (job.phase === "failed" || job.phase === "cancelled") {
+      const wallet = await this.walletWithClient(client, job.ownerId, now);
+      const balance = wallet.balanceUnits + job.billing.reservedUnits;
+      await this.writeWalletAndLedger(client, {
+        userId: job.ownerId,
+        jobId: job.id,
+        type: "refund",
+        amountUnits: job.billing.reservedUnits,
+        balanceUnits: balance,
+        idempotencyKey: `job:${job.id}:refund`,
+        metadata: {},
+        now,
+      });
+      job.billing = { ...job.billing, state: "refunded", actualUnits: 0 };
+    } else if (job.phase === "needs_review")
+      job.billing = { ...job.billing, state: "needs_review" };
+  }
+  private async priceRule(
+    client: pg.Pool | pg.PoolClient,
+    logicalModelId: string,
+    capability: GenerationJob["capability"],
+  ) {
+    const result = await client.query(
+      "SELECT * FROM billing_price_rules WHERE lower(logical_model_id)=lower($1) AND capability=$2 AND enabled",
+      [logicalModelId, capability],
+    );
+    return result.rows[0] ? mapPriceRule(result.rows[0]) : null;
+  }
+  private async walletWithClient(
+    client: pg.PoolClient,
+    userId: string,
+    now: string,
+  ) {
+    await client.query(
+      `INSERT INTO billing_wallets(user_id,balance_units,created_at,updated_at)
+       VALUES($1,0,$2,$2) ON CONFLICT(user_id) DO NOTHING`,
+      [userId, now],
+    );
+    const result = await client.query(
+      "SELECT * FROM billing_wallets WHERE user_id=$1 FOR UPDATE",
+      [userId],
+    );
+    return mapWallet(result.rows[0]);
+  }
+  private async writeWalletAndLedger(
+    client: pg.PoolClient,
+    input: LedgerWrite,
+  ) {
+    await client.query(
+      "UPDATE billing_wallets SET balance_units=$2,updated_at=$3 WHERE user_id=$1",
+      [input.userId, input.balanceUnits, input.now],
+    );
+    await this.insertLedger(client, input);
+  }
+  private async insertLedger(client: pg.PoolClient, input: LedgerWrite) {
+    await client.query(
+      `INSERT INTO billing_ledger_entries(id,user_id,job_id,entry_type,amount_units,balance_after_units,idempotency_key,metadata,created_at)
+       VALUES($1,$2,$3,$4,$5,$6,$7,$8::jsonb,$9) ON CONFLICT(idempotency_key) DO NOTHING`,
+      [
+        randomUUID(),
+        input.userId,
+        input.jobId,
+        input.type,
+        input.amountUnits,
+        input.balanceUnits,
+        input.idempotencyKey,
+        JSON.stringify(input.metadata),
+        input.now,
+      ],
+    );
+  }
   private async userTransition(
     userId: string,
     jobId: string,
@@ -247,9 +551,19 @@ const claimablePhases: GenerationJobPhase[] = [
   "persisting",
   "cancel_requested",
 ];
+type LedgerWrite = {
+  userId: string;
+  jobId: string | null;
+  type: "reserve" | "settle" | "refund" | "adjustment";
+  amountUnits: number;
+  balanceUnits: number;
+  idempotencyKey: string;
+  metadata: Record<string, unknown>;
+  now: string;
+};
 function insertJobSql() {
-  return `INSERT INTO generation_jobs(id,workspace_id,owner_id,capability,logical_model_id,client_request_id,attempt,retry_of,status,phase,input,result,upstream_task_id,provider,channel_id,worker_id,lease_until,last_heartbeat_at,next_run_at,error_code,error_message,created_at,updated_at)
-    VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11::jsonb,$12::jsonb,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23)`;
+  return `INSERT INTO generation_jobs(id,workspace_id,owner_id,capability,logical_model_id,client_request_id,attempt,retry_of,status,phase,input,result,upstream_task_id,provider,channel_id,worker_id,lease_until,last_heartbeat_at,next_run_at,error_code,error_message,created_at,updated_at,billing_state,estimated_units,reserved_units,actual_units)
+    VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11::jsonb,$12::jsonb,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24,$25,$26,$27)`;
 }
 function jobValues(j: GenerationJob) {
   return [
@@ -276,11 +590,15 @@ function jobValues(j: GenerationJob) {
     j.errorMessage,
     j.createdAt,
     j.updatedAt,
+    j.billing.state,
+    j.billing.estimatedUnits,
+    j.billing.reservedUnits,
+    j.billing.actualUnits,
   ];
 }
 async function updateJob(client: pg.PoolClient, j: GenerationJob) {
   await client.query(
-    `UPDATE generation_jobs SET status=$2,phase=$3,result=$4::jsonb,upstream_task_id=$5,provider=$6,channel_id=$7,worker_id=$8,lease_until=$9,last_heartbeat_at=$10,next_run_at=$11,error_code=$12,error_message=$13,updated_at=$14 WHERE id=$1`,
+    `UPDATE generation_jobs SET status=$2,phase=$3,result=$4::jsonb,upstream_task_id=$5,provider=$6,channel_id=$7,worker_id=$8,lease_until=$9,last_heartbeat_at=$10,next_run_at=$11,error_code=$12,error_message=$13,updated_at=$14,billing_state=$15,estimated_units=$16,reserved_units=$17,actual_units=$18 WHERE id=$1`,
     [
       j.id,
       j.status,
@@ -296,6 +614,10 @@ async function updateJob(client: pg.PoolClient, j: GenerationJob) {
       j.errorCode,
       j.errorMessage,
       j.updatedAt,
+      j.billing.state,
+      j.billing.estimatedUnits,
+      j.billing.reservedUnits,
+      j.billing.actualUnits,
     ],
   );
 }
@@ -324,7 +646,54 @@ function mapJob(row: Record<string, unknown>): GenerationJob {
     nextRunAt: iso(row.next_run_at),
     errorCode: row.error_code ? String(row.error_code) : null,
     errorMessage: row.error_message ? String(row.error_message) : null,
+    billing: {
+      state: (row.billing_state || "free") as GenerationJob["billing"]["state"],
+      estimatedUnits: Number(row.estimated_units || 0),
+      reservedUnits: Number(row.reserved_units || 0),
+      actualUnits:
+        row.actual_units === null || row.actual_units === undefined
+          ? null
+          : Number(row.actual_units),
+    },
     createdAt: iso(row.created_at),
     updatedAt: iso(row.updated_at),
   };
+}
+function mapWallet(row: Record<string, unknown>) {
+  return {
+    userId: String(row.user_id),
+    balanceUnits: Number(row.balance_units),
+    updatedAt: toIso(row.updated_at),
+  };
+}
+function mapLedger(row: Record<string, unknown>) {
+  return {
+    id: String(row.id),
+    userId: String(row.user_id),
+    jobId: row.job_id ? String(row.job_id) : null,
+    type: row.entry_type as "reserve" | "settle" | "refund" | "adjustment",
+    amountUnits: Number(row.amount_units),
+    balanceAfterUnits: Number(row.balance_after_units),
+    idempotencyKey: String(row.idempotency_key),
+    metadata: row.metadata as Record<string, unknown>,
+    createdAt: toIso(row.created_at),
+  };
+}
+function mapPriceRule(row: Record<string, unknown>): BillingPriceRule {
+  return {
+    logicalModelId: String(row.logical_model_id),
+    capability: row.capability as GenerationJob["capability"],
+    baseUnits: Number(row.base_units),
+    multiplierConfig: row.multiplier_config as Record<string, unknown>,
+    enabled: Boolean(row.enabled),
+    updatedAt: toIso(row.updated_at),
+  };
+}
+function toIso(value: unknown) {
+  return value instanceof Date ? value.toISOString() : String(value);
+}
+function checkedUnits(value: number) {
+  if (!Number.isSafeInteger(value) || value < 0)
+    throw new DomainError("BILLING_ACTUAL_INVALID", 400, "实际积分用量无效");
+  return value;
 }

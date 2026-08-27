@@ -311,6 +311,9 @@ async function complete(
             signal,
             binary,
           ),
+          ...(providerUsage(payload)
+            ? { providerUsage: providerUsage(payload) }
+            : {}),
         };
   const ready = await client.transition(
     workerId,
@@ -326,7 +329,14 @@ async function complete(
     {},
     signal,
   );
-  await client.transition(workerId, persisting.id, "succeeded", {}, signal);
+  const actualUnits = billingActualUnits(payload);
+  await client.transition(
+    workerId,
+    persisting.id,
+    "succeeded",
+    actualUnits === undefined ? {} : { billingActualUnits: actualUnits },
+    signal,
+  );
 }
 
 async function persistMediaResult(
@@ -457,4 +467,16 @@ function safeRemoteName(
   return name && /^[a-zA-Z0-9._-]{1,160}$/.test(name)
     ? name
     : `${capability}-${index + 1}.${extensionFor(capability)}`;
+}
+function providerUsage(payload: Record<string, unknown>) {
+  const usage = payload.usage ?? payload.usageMetadata;
+  return usage && typeof usage === "object" && !Array.isArray(usage)
+    ? (usage as Record<string, unknown>)
+    : undefined;
+}
+function billingActualUnits(payload: Record<string, unknown>) {
+  const usage = providerUsage(payload);
+  const value = payload.billing_units ?? usage?.billing_units;
+  const units = Number(value);
+  return Number.isSafeInteger(units) && units >= 0 ? units : undefined;
 }

@@ -9,6 +9,8 @@
 + [新增] Model Gateway 增加 Gemini 与无脚本声明式 Custom runtime adapter，支持安全字段映射及 adapter-specific poll/cancel。
 + [修复] 已提交异步任务的取消会调用原 provider；无法确认上游取消时进入 needs_review，不再直接标记 cancelled。
 + [安全] Custom path/field 配置拒绝路径穿越和 prototype 保留字段，持久化 provider 错误前统一脱敏常见凭据。
++ [新增] 新增整数积分钱包、逻辑模型价格规则、参数倍率预估与不可变 Billing ledger；付费 Job 原子预留，成功结算，失败/取消幂等退款。
++ [安全] Ledger 数据库触发器禁止 UPDATE/DELETE；金额限定 JavaScript safe integer，needs_review 不自动退款，避免上游状态不明时透支。
 + [新增] 新增独立 Generation Worker 进程：空闲指数退避、全局 heartbeat、批次租约续期、过期恢复、取消收敛、SIGINT/SIGTERM 优雅退出及容器构建入口。
 + [新增] Generation Job API 支持 Workspace RBAC、`clientRequestId` 幂等、取消与显式新 attempt 重试；Worker 内部 API 使用独立强 Token、租约所有权和过期回收保护。
 + [新增] 建立 Generation Job 完整 phase/status contract、严格状态转换和同 attempt 上游任务标识不可变约束，并新增 lease/heartbeat 数据结构。

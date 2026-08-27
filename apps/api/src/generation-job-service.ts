@@ -46,6 +46,12 @@ export class GenerationJobService {
       nextRunAt: now,
       errorCode: null,
       errorMessage: null,
+      billing: {
+        state: "free",
+        estimatedUnits: 0,
+        reservedUnits: 0,
+        actualUnits: null,
+      },
       createdAt: now,
       updatedAt: now,
     };
@@ -68,5 +74,18 @@ export class GenerationJobService {
       randomUUID(),
       new Date().toISOString(),
     );
+  }
+  estimate(
+    logicalModelId: string,
+    capability: GenerationCapability,
+    parameters: Record<string, unknown>,
+  ) {
+    return this.jobs.estimate(logicalModelId, capability, parameters);
+  }
+  wallet(userId: string) {
+    return this.jobs.getWallet(userId);
+  }
+  ledger(userId: string, limit = 100) {
+    return this.jobs.listLedger(userId, limit);
   }
 }

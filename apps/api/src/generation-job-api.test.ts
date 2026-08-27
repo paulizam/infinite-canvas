@@ -13,9 +13,11 @@ import {
 } from "./services.js";
 
 let app: ReturnType<typeof createApp>;
+let jobRepository: MemoryGenerationJobRepository;
 beforeEach(() => {
   const platform = new MemoryPlatformRepository();
   const jobs = new MemoryGenerationJobRepository();
+  jobRepository = jobs;
   app = createApp({
     identity: new IdentityService(platform, 60_000),
     workspaces: new WorkspaceService(platform),
@@ -37,12 +39,157 @@ async function register(email: string) {
     body: JSON.stringify({ email, password: "test-password", name: "Jobs" }),
   });
   const body = (await response.json()) as {
-    data: { workspace: { id: string } };
+    data: { user: { id: string }; workspace: { id: string } };
   };
   return { body, cookie: response.headers.get("set-cookie")!.split(";")[0]! };
 }
 
 describe("generation job API", () => {
+  it("estimates, reserves and idempotently refunds integer points", async () => {
+    const owner = await register("billing-owner@example.com");
+    const maintenanceHeaders = {
+      authorization: "Bearer test-maintenance-token-32-characters",
+      "content-type": "application/json",
+    };
+    await app.request(
+      "/internal/v1/maintenance/billing/price-rules/image.default",
+      {
+        method: "PUT",
+        headers: maintenanceHeaders,
+        body: JSON.stringify({
+          capability: "image",
+          baseUnits: 10,
+          multiplierConfig: { resolutionPermille: { hd: 2000 } },
+          enabled: true,
+        }),
+      },
+    );
+    await app.request("/internal/v1/maintenance/billing/wallet-adjustments", {
+      method: "POST",
+      headers: maintenanceHeaders,
+      body: JSON.stringify({
+        userId: owner.body.data.user.id,
+        amountUnits: 100,
+        idempotencyKey: "initial-credit-billing-owner",
+        note: "test credit",
+      }),
+    });
+    const parameters = { count: 2, resolution: "hd" };
+    const estimate = await app.request(
+      "/api/v1/models/image.default/estimate",
+      {
+        method: "POST",
+        headers: { cookie: owner.cookie, "content-type": "application/json" },
+        body: JSON.stringify({ capability: "image", parameters }),
+      },
+    );
+    expect(
+      ((await estimate.json()) as { data: { estimatedUnits: number } }).data
+        .estimatedUnits,
+    ).toBe(40);
+    const url = `/api/v1/workspaces/${owner.body.data.workspace.id}/generation-jobs`;
+    const create = () =>
+      app.request(url, {
+        method: "POST",
+        headers: { cookie: owner.cookie, "content-type": "application/json" },
+        body: JSON.stringify({
+          capability: "image",
+          logicalModelId: "image.default",
+          clientRequestId: "billing-request-1",
+          parameters,
+        }),
+      });
+    const created = await create();
+    const job = ((await created.json()) as { data: { job: { id: string } } })
+      .data.job;
+    expect((await create()).status).toBe(200);
+    expect(
+      (await jobRepository.getWallet(owner.body.data.user.id)).balanceUnits,
+    ).toBe(60);
+    const [claimed] = await jobRepository.claim({
+      workerId: "billing-worker",
+      now: new Date().toISOString(),
+      leaseUntil: new Date(Date.now() + 60_000).toISOString(),
+      limit: 1,
+    });
+    await jobRepository.transitionByWorker({
+      workerId: "billing-worker",
+      jobId: claimed!.id,
+      phase: "submitting",
+      patch: {},
+      now: new Date().toISOString(),
+    });
+    await jobRepository.transitionByWorker({
+      workerId: "billing-worker",
+      jobId: claimed!.id,
+      phase: "failed",
+      patch: { errorCode: "TEST" },
+      now: new Date().toISOString(),
+    });
+    expect(
+      (await jobRepository.getWallet(owner.body.data.user.id)).balanceUnits,
+    ).toBe(100);
+    expect(
+      (await jobRepository.listLedger(owner.body.data.user.id, 10)).map(
+        (x) => x.type,
+      ),
+    ).toEqual(["refund", "reserve", "adjustment"]);
+    expect(job.id).toBe(claimed!.id);
+
+    const settledResponse = await app.request(url, {
+      method: "POST",
+      headers: { cookie: owner.cookie, "content-type": "application/json" },
+      body: JSON.stringify({
+        capability: "image",
+        logicalModelId: "image.default",
+        clientRequestId: "billing-request-2",
+        parameters,
+      }),
+    });
+    const settledId = (
+      (await settledResponse.json()) as { data: { job: { id: string } } }
+    ).data.job.id;
+    const [settledClaim] = await jobRepository.claim({
+      workerId: "settle-worker",
+      now: new Date().toISOString(),
+      leaseUntil: new Date(Date.now() + 60_000).toISOString(),
+      limit: 1,
+    });
+    expect(settledClaim!.id).toBe(settledId);
+    for (const phase of [
+      "submitting",
+      "submitted",
+      "result_ready",
+      "persisting",
+    ] as const)
+      await jobRepository.transitionByWorker({
+        workerId: "settle-worker",
+        jobId: settledId,
+        phase,
+        patch: {},
+        now: new Date().toISOString(),
+      });
+    const settled = await jobRepository.transitionByWorker({
+      workerId: "settle-worker",
+      jobId: settledId,
+      phase: "succeeded",
+      patch: { billingActualUnits: 30 },
+      now: new Date().toISOString(),
+    });
+    expect(settled.billing).toMatchObject({
+      state: "settled",
+      actualUnits: 30,
+    });
+    expect(
+      (await jobRepository.getWallet(owner.body.data.user.id)).balanceUnits,
+    ).toBe(70);
+    expect(
+      (await jobRepository.listLedger(owner.body.data.user.id, 1))[0],
+    ).toMatchObject({
+      type: "settle",
+      amountUnits: 10,
+    });
+  });
   it("creates idempotently and hides jobs across users", async () => {
     const owner = await register("job-owner@example.com");
     const url = `/api/v1/workspaces/${owner.body.data.workspace.id}/generation-jobs`;

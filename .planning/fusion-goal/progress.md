@@ -25,3 +25,5 @@
 - 打通 Model Gateway 运行态健康反馈：Worker 上报 submit/poll 成败，连续失败依次进入 degraded/cooldown，60 秒冷却期间 Router 自动排除，成功后恢复 healthy。
 - 新增 Gemini `generateContent` 与无脚本声明式 Custom runtime adapter；Custom 仅允许安全相对路径、固定鉴权模式、静态 JSON 与字段映射。
 - cancel_requested 在存在上游任务且 capability 声明支持时调用原渠道 cancel endpoint；不支持或渠道身份不确定时转 needs_review，避免虚假取消与错误退款依据。
+- 新增整数积分钱包、价格规则与数据库不可变流水；Job 创建和预留同事务，成功按 provider 明示实际积分补扣/返还，失败/取消幂等退款，needs_review 保留预留等待对账。
+- 新增余额、流水、参数倍率预估 API，以及 Maintenance price rule/钱包调整接口；Memory contract 覆盖重复创建不重复扣费、失败退款和实际用量结算。

@@ -20,6 +20,11 @@ Media uploads require `MAX_UPLOAD_BYTES` and `BLOB_STORAGE_DRIVER`. Use `local` 
 `ASSET_LOCAL_ROOT` for a single-node deployment, or `s3` with the `S3_*` settings for shared
 object storage. File types are derived from magic bytes rather than request headers.
 
+Billing uses integer point units. Maintenance configures per-logical-model price rules and audited
+wallet adjustments. Job creation, point reservation, wallet update, and immutable ledger insertion
+share one PostgreSQL transaction; terminal settlement or refund shares the Job transition
+transaction. Never update or delete ledger rows—the database trigger rejects both operations.
+
 ## Run
 
 ```bash
@@ -47,5 +52,7 @@ Development uses `pnpm --filter @infinite-canvas/api dev`. The API listens on po
   assets cannot be deleted. S3 content is served through short-lived signed URLs.
 - Provider endpoints default to HTTPS-only, reject URL credentials/query/fragment components, and
   channel secrets are decrypted only while resolving a Worker request.
+- Paid Job retries create a new reservation for a new attempt. Failed/cancelled attempts refund
+  once; uncertain `needs_review` attempts retain their reservation for explicit reconciliation.
 
 The in-memory repository exists only for contract tests. Production startup always uses PostgreSQL.

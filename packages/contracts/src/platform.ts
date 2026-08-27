@@ -45,8 +45,38 @@ export type GenerationJob = {
   nextRunAt: string;
   errorCode: string | null;
   errorMessage: string | null;
+  billing: {
+    state: "free" | "reserved" | "settled" | "refunded" | "needs_review";
+    estimatedUnits: number;
+    reservedUnits: number;
+    actualUnits: number | null;
+  };
   createdAt: string;
   updatedAt: string;
+};
+export type BillingEstimate = {
+  logicalModelId: string;
+  capability: GenerationCapability;
+  estimatedUnits: number;
+  baseUnits: number;
+  multiplierPermille: number;
+  currency: "points";
+};
+export type BillingWallet = {
+  userId: string;
+  balanceUnits: number;
+  updatedAt: string;
+};
+export type BillingLedgerEntry = {
+  id: string;
+  userId: string;
+  jobId: string | null;
+  type: "reserve" | "settle" | "refund" | "adjustment";
+  amountUnits: number;
+  balanceAfterUnits: number;
+  idempotencyKey: string;
+  metadata: Record<string, unknown>;
+  createdAt: string;
 };
 export type PluginPermission =
   | "canvas:read"

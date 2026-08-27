@@ -85,16 +85,17 @@ describe("generation job repository", () => {
       clientRequestId: "cancel-1",
       parameters: {},
     });
-    expect((await service.cancel(userId, job.id)).phase).toBe(
-      "cancel_requested",
-    );
+    const cancelRequested = await service.cancel(userId, job.id);
+    expect(cancelRequested.phase).toBe("cancel_requested");
     expect((await service.cancel(userId, job.id)).phase).toBe(
       "cancel_requested",
     );
     const claimed = await repository.claim({
       workerId: "worker-cancel",
-      now: job.createdAt,
-      leaseUntil: new Date(Date.parse(job.createdAt) + 90_000).toISOString(),
+      now: cancelRequested.nextRunAt,
+      leaseUntil: new Date(
+        Date.parse(cancelRequested.nextRunAt) + 90_000,
+      ).toISOString(),
       limit: 1,
     });
     await repository.transitionByWorker({
