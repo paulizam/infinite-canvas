@@ -2,7 +2,7 @@
 
 ## 目标与边界
 
-本模块解决业务发布图能否安全执行以及节点以何顺序执行的问题。它不访问数据库、Provider、凭据明文或网络，不负责 Worker lease、step persistence 和 UI；这些由 API/Worker adapter 消费本模块输出实现。
+本模块解决业务发布图能否安全执行、节点以何顺序执行以及持久状态如何合法跃迁的问题。它不访问数据库、Provider、凭据明文或网络；API/Worker adapter 负责 transaction、lease 和实际 I/O，并持久化本模块输出。
 
 ## 架构
 
@@ -13,6 +13,7 @@ WorkflowDefinition
   └─ Kahn topological scheduler ─────> deterministic parallel layers
                                          └─ selection planner / skip reasons
 CanvasDocument ── declarative CompileRule ──> WorkflowDefinition + source mapping + diagnostics
+Execution state ── pure transitions ──> NodeExecution snapshots + monotonic Events + durable Steps
 ```
 
 跨端 contract 位于 `@infinite-canvas/contracts`：`WorkflowNodeSchema` 描述注册节点，`WorkflowNodeDefinition` 是发布版本中的可执行快照。定义携带 ports，避免节点插件升级后静默改变既有 Workflow 语义。
@@ -26,6 +27,8 @@ CanvasDocument ── declarative CompileRule ──> WorkflowDefinition + sourc
 5. 可用集合由调用方从已鉴权 Workspace 上下文提供；Runtime 只比较 capability/credential opaque ID。
 6. 拓扑层与部分执行计划确定性排序，可被持久执行器幂等重建。
 7. Canvas generic handle 只有在 rule 指定默认 port 或 schema 恰有一个 port 时才可映射；多 port 禁止猜测。
+8. Execution transition 是纯函数；state 可 JSON round-trip，event sequence 单调，terminal state 不被普通 refresh 复活。
+9. 成功的 durable step 按 key 回放已存结果而不重复执行；sleep/event wait 不消耗 attempt，failure retry 才递增。
 
 ## 类型规则
 
