@@ -130,12 +130,67 @@ export class PostgresWorkflowRepository implements WorkflowRepository {
         }
       : null;
   }
+  async importVersion(
+    input: Parameters<WorkflowRepository["importVersion"]>[0],
+  ) {
+    const client = await this.pool.connect();
+    try {
+      await client.query("BEGIN");
+      const access = await client.query(
+        "SELECT 1 FROM workspace_members WHERE workspace_id=$1 AND user_id=$2 AND role IN ('owner','admin','editor')",
+        [input.workspaceId, input.userId],
+      );
+      if (!access.rows[0])
+        throw new DomainError("WORKSPACE_NOT_FOUND", 404, "工作区不存在");
+      const workflow = await client.query(
+        `INSERT INTO workflows(id,workspace_id,project_id,name,current_version,created_by,created_at,updated_at)
+         VALUES($1,$2,NULL,$3,1,$4,$5,$5) RETURNING *`,
+        [
+          input.workflowId,
+          input.workspaceId,
+          input.name,
+          input.userId,
+          input.now,
+        ],
+      );
+      const version = await client.query(
+        `INSERT INTO workflow_versions(workflow_id,version,project_revision,publication_id,definition,source_mapping,warnings,published_by,created_at)
+         VALUES($1,1,0,$2,$3::jsonb,'{"nodes":{},"edges":{}}'::jsonb,'[]'::jsonb,$4,$5) RETURNING *`,
+        [
+          input.workflowId,
+          input.publicationId,
+          JSON.stringify(input.definition),
+          input.userId,
+          input.now,
+        ],
+      );
+      await client.query("COMMIT");
+      return {
+        workflow: mapWorkflow(workflow.rows[0]),
+        version: mapVersion(version.rows[0]),
+        replayed: false,
+      };
+    } catch (error) {
+      await client.query("ROLLBACK");
+      throw error;
+    } finally {
+      client.release();
+    }
+  }
+  async listByWorkspace(userId: string, workspaceId: string) {
+    const result = await this.pool.query(
+      `SELECT w.* FROM workflows w JOIN workspace_members m ON m.workspace_id=w.workspace_id
+       WHERE w.workspace_id=$1 AND m.user_id=$2 ORDER BY w.updated_at DESC`,
+      [workspaceId, userId],
+    );
+    return result.rows.map((row) => mapWorkflow(row));
+  }
 }
 function mapWorkflow(row: Record<string, unknown>, timestampPrefix = "") {
   return {
     id: String(row.id ?? row.workflow_id),
     workspaceId: String(row.workspace_id),
-    projectId: String(row.project_id),
+    projectId: row.project_id === null ? null : String(row.project_id),
     name: String(row.name),
     currentVersion: Number(row.current_version),
     createdBy: String(row.created_by),

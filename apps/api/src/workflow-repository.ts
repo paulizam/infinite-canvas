@@ -7,7 +7,7 @@ import type {
 export type WorkflowRecord = {
   id: string;
   workspaceId: string;
-  projectId: string;
+  projectId: string | null;
   name: string;
   currentVersion: number;
   createdBy: string;
@@ -57,6 +57,19 @@ export interface WorkflowRepository {
     userId: string,
     workflowId: string,
   ): Promise<WorkflowPublication | null>;
+  importVersion(input: {
+    workflowId: string;
+    userId: string;
+    workspaceId: string;
+    name: string;
+    definition: WorkflowDefinition;
+    publicationId: string;
+    now: string;
+  }): Promise<WorkflowPublication>;
+  listByWorkspace(
+    userId: string,
+    workspaceId: string,
+  ): Promise<WorkflowRecord[]>;
 }
 
 export class MemoryWorkflowRepository implements WorkflowRepository {
@@ -141,5 +154,45 @@ export class MemoryWorkflowRepository implements WorkflowRepository {
     await this.authorize(userId, workflow.workspaceId, "viewer");
     const version = this.versions.get(workflowId)?.at(-1);
     return version ? { workflow, version, replayed: false } : null;
+  }
+  async importVersion(
+    input: Parameters<WorkflowRepository["importVersion"]>[0],
+  ) {
+    await this.authorize(input.userId, input.workspaceId, "editor");
+    const workflow: WorkflowRecord = {
+      id: input.workflowId,
+      workspaceId: input.workspaceId,
+      projectId: null,
+      name: input.name,
+      currentVersion: 1,
+      createdBy: input.userId,
+      createdAt: input.now,
+      updatedAt: input.now,
+    };
+    const version: WorkflowVersionRecord = {
+      workflowId: input.workflowId,
+      version: 1,
+      projectRevision: 0,
+      publicationId: input.publicationId,
+      definition: structuredClone(input.definition),
+      sourceMapping: { nodes: {}, edges: {} },
+      warnings: [],
+      publishedBy: input.userId,
+      createdAt: input.now,
+    };
+    this.workflows.set(workflow.id, workflow);
+    this.versions.set(workflow.id, [version]);
+    return {
+      workflow: structuredClone(workflow),
+      version: structuredClone(version),
+      replayed: false,
+    };
+  }
+  async listByWorkspace(userId: string, workspaceId: string) {
+    await this.authorize(userId, workspaceId, "viewer");
+    return [...this.workflows.values()]
+      .filter((workflow) => workflow.workspaceId === workspaceId)
+      .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt))
+      .map((workflow) => structuredClone(workflow));
   }
 }

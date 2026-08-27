@@ -19,6 +19,7 @@ import type { WorkflowExecutionService } from "./workflow-execution-service.js";
 import type { WorkflowExecutionWorkerService } from "./workflow-execution-worker-service.js";
 import type { WorkflowExecutionRecord } from "./workflow-execution-repository.js";
 import type { WorkflowTriggerService } from "./workflow-trigger-service.js";
+import type { WorkflowLibraryService } from "./workflow-library-service.js";
 import { ModelDiscoveryService } from "./model-discovery.js";
 import { createModelDiscoveryApi } from "./model-discovery-api.js";
 import {
@@ -45,6 +46,7 @@ export type AppServices = {
   workflowExecutions?: WorkflowExecutionService;
   workflowWorker?: WorkflowExecutionWorkerService;
   workflowTriggers?: WorkflowTriggerService;
+  workflowLibrary?: WorkflowLibraryService;
   maintenanceToken: string;
   secureCookies: boolean;
   modelDiscovery?: ModelDiscoveryService;
@@ -558,6 +560,117 @@ export function createApp(services: AppServices) {
         ),
         requestId: requestId(c),
       }),
+    );
+  }
+  if (services.workflowLibrary) {
+    app.get("/api/v1/workspaces/:workspaceId/workflow-library", async (c) =>
+      c.json({
+        data: await services.workflowLibrary!.list(
+          c.get("user").id,
+          c.req.param("workspaceId"),
+        ),
+        requestId: requestId(c),
+      }),
+    );
+    app.post("/api/v1/workspaces/:workspaceId/workflow-folders", async (c) => {
+      const input = z
+        .object({ name: z.string().trim().min(1).max(120) })
+        .strict()
+        .parse(await c.req.json());
+      return c.json(
+        {
+          data: await services.workflowLibrary!.createFolder(
+            c.get("user").id,
+            c.req.param("workspaceId"),
+            input.name,
+          ),
+          requestId: requestId(c),
+        },
+        201,
+      );
+    });
+    app.delete("/api/v1/workflow-folders/:folderId", async (c) => {
+      await services.workflowLibrary!.deleteFolder(
+        c.get("user").id,
+        c.req.param("folderId"),
+      );
+      return c.json({ data: { ok: true }, requestId: requestId(c) });
+    });
+    app.patch("/api/v1/workflows/:workflowId/library", async (c) => {
+      const input = workflowLibraryPatchSchema.parse(await c.req.json());
+      return c.json({
+        data: await services.workflowLibrary!.updateMetadata(
+          c.get("user").id,
+          c.req.param("workflowId"),
+          input,
+        ),
+        requestId: requestId(c),
+      });
+    });
+    app.get("/api/v1/workflows/:workflowId/export", async (c) => {
+      const version = c.req.query("version")
+        ? z.coerce.number().int().positive().parse(c.req.query("version"))
+        : undefined;
+      return c.json({
+        data: await services.workflowLibrary!.export(
+          c.get("user").id,
+          c.req.param("workflowId"),
+          version,
+        ),
+        requestId: requestId(c),
+      });
+    });
+    app.post("/api/v1/workspaces/:workspaceId/workflows/import", async (c) => {
+      const raw = await c.req.text();
+      if (Buffer.byteLength(raw) > 2 * 1024 * 1024)
+        throw new DomainError(
+          "WORKFLOW_BUNDLE_TOO_LARGE",
+          422,
+          "Workflow bundle 超过 2 MiB",
+        );
+      let parsed: unknown;
+      try {
+        parsed = JSON.parse(raw);
+      } catch {
+        throw new DomainError(
+          "WORKFLOW_BUNDLE_INVALID",
+          422,
+          "Workflow bundle 不是合法 JSON",
+        );
+      }
+      const input = workflowImportSchema.parse(parsed);
+      return c.json(
+        {
+          data: await services.workflowLibrary!.import(
+            c.get("user").id,
+            c.req.param("workspaceId"),
+            input.bundle,
+            input.name,
+          ),
+          requestId: requestId(c),
+        },
+        201,
+      );
+    });
+    app.post(
+      "/api/v1/workflow-templates/:workflowId/instantiate",
+      async (c) => {
+        const input = z
+          .object({ name: z.string().trim().min(1).max(200).optional() })
+          .strict()
+          .parse(await c.req.json());
+        return c.json(
+          {
+            data: await services.workflowLibrary!.instantiateTemplate(
+              c.get("user").id,
+              c.req.param("workflowId"),
+              input.name,
+            ),
+            requestId: requestId(c),
+          },
+          201,
+        );
+      },
     );
   }
   app.delete("/api/v1/projects/:projectId", async (c) => {
@@ -1163,6 +1276,94 @@ const workflowTriggerCreateSchema = z
         });
     }
   });
+const workflowPortImportSchema = z
+  .object({
+    id: z.string().min(1).max(160),
+    valueType: z.string().min(1).max(160),
+    required: z.boolean().optional(),
+    multiple: z.boolean().optional(),
+  })
+  .strict();
+const workflowDefinitionImportSchema = z
+  .object({
+    id: z.string().min(1).max(160),
+    schemaVersion: z.number().int().positive(),
+    name: z.string().trim().min(1).max(200),
+    nodes: z
+      .array(
+        z
+          .object({
+            id: z.string().min(1).max(160),
+            type: z.string().min(1).max(160),
+            inputs: z.array(workflowPortImportSchema).max(100),
+            outputs: z.array(workflowPortImportSchema).max(100),
+            config: z.unknown(),
+            requiredCapabilities: z
+              .array(z.string().max(160))
+              .max(100)
+              .optional(),
+            credentialRefs: z.array(z.string().max(160)).max(100).optional(),
+          })
+          .strict(),
+      )
+      .min(1)
+      .max(1_000),
+    edges: z
+      .array(
+        z
+          .object({
+            id: z.string().min(1).max(160),
+            fromNodeId: z.string().min(1).max(160),
+            fromPortId: z.string().min(1).max(160),
+            toNodeId: z.string().min(1).max(160),
+            toPortId: z.string().min(1).max(160),
+          })
+          .strict(),
+      )
+      .max(5_000),
+    entryNodeIds: z.array(z.string().min(1).max(160)).max(1_000).optional(),
+  })
+  .strict();
+const workflowBundleSchema = z
+  .object({
+    format: z.literal("infinite-canvas.workflow"),
+    formatVersion: z.literal(1),
+    exportedAt: z.iso.datetime(),
+    workflow: z
+      .object({
+        name: z.string().trim().min(1).max(200),
+        description: z.string().max(2_000),
+        tags: z.array(z.string().trim().min(1).max(80)).max(20),
+      })
+      .strict(),
+    version: z
+      .object({
+        number: z.number().int().positive(),
+        definition: workflowDefinitionImportSchema,
+      })
+      .strict(),
+    checksum: z.string().regex(/^[a-f0-9]{64}$/),
+  })
+  .strict();
+const workflowImportSchema = z
+  .object({
+    bundle: workflowBundleSchema,
+    name: z.string().trim().min(1).max(200).optional(),
+  })
+  .strict();
+const workflowLibraryPatchSchema = z
+  .object({
+    folderId: z.uuid().nullable().optional(),
+    coverAssetId: z.uuid().nullable().optional(),
+    description: z.string().max(2_000).optional(),
+    tags: z.array(z.string().trim().min(1).max(80)).max(20).optional(),
+    isTemplate: z.boolean().optional(),
+  })
+  .strict()
+  .refine(
+    (value) => Object.keys(value).length > 0,
+    "At least one field is required",
+  );
 const workerClaimSchema = z.object({
   workerId: z.string().trim().min(1).max(160),
   limit: z.number().int().min(1).max(50).default(20),

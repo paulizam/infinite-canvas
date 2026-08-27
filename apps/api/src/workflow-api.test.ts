@@ -18,6 +18,8 @@ import { WorkflowExecutionService } from "./workflow-execution-service.js";
 import { WorkflowExecutionWorkerService } from "./workflow-execution-worker-service.js";
 import { MemoryWorkflowTriggerRepository } from "./workflow-trigger-repository.js";
 import { WorkflowTriggerService } from "./workflow-trigger-service.js";
+import { MemoryWorkflowLibraryRepository } from "./workflow-library-repository.js";
+import { WorkflowLibraryService } from "./workflow-library-service.js";
 
 let app: ReturnType<typeof createApp>;
 beforeEach(() => {
@@ -35,6 +37,13 @@ beforeEach(() => {
     platform,
     workflowRepository,
     executionRepository,
+  );
+  const workflowLibrary = new WorkflowLibraryService(
+    platform,
+    workflowRepository,
+    new MemoryWorkflowLibraryRepository((userId, workspaceId, minimum) =>
+      platform.requireWorkspaceRole(userId, workspaceId, minimum),
+    ),
   );
   app = createApp({
     identity: new IdentityService(platform, 60_000),
@@ -54,6 +63,7 @@ beforeEach(() => {
         platform.requireWorkspaceRole(userId, workspaceId, minimum),
       ),
     ),
+    workflowLibrary,
     workerToken: "test-worker-token-32-characters-long",
     workerStaleMs: 120_000,
     modelGateway: new MemoryModelGatewayRepository(),
@@ -614,6 +624,109 @@ describe("Workflow publication API", () => {
       ).status,
     ).toBe(200);
     expect((await invoke("webhook-event-0003")).status).toBe(404);
+    const folderResponse = await app.request(
+      `/api/v1/workspaces/${owner.workspaceId}/workflow-folders`,
+      {
+        method: "POST",
+        headers: { cookie: owner.cookie, "content-type": "application/json" },
+        body: JSON.stringify({ name: "Reusable" }),
+      },
+    );
+    expect(folderResponse.status).toBe(201);
+    const folderId = ((await folderResponse.json()) as { data: { id: string } })
+      .data.id;
+    expect(
+      (
+        await app.request(
+          `/api/v1/workflows/${firstData.workflow.id}/library`,
+          {
+            method: "PATCH",
+            headers: {
+              cookie: owner.cookie,
+              "content-type": "application/json",
+            },
+            body: JSON.stringify({
+              folderId,
+              description: "Reusable flow",
+              tags: ["demo"],
+              isTemplate: true,
+            }),
+          },
+        )
+      ).status,
+    ).toBe(200);
+    const exported = await app.request(
+      `/api/v1/workflows/${firstData.workflow.id}/export`,
+      { headers: { cookie: owner.cookie } },
+    );
+    const bundle = (
+      (await exported.json()) as { data: Record<string, unknown> }
+    ).data;
+    const importBundle = (value: unknown, name?: string) =>
+      app.request(`/api/v1/workspaces/${owner.workspaceId}/workflows/import`, {
+        method: "POST",
+        headers: { cookie: owner.cookie, "content-type": "application/json" },
+        body: JSON.stringify({ bundle: value, ...(name ? { name } : {}) }),
+      });
+    const imported = await importBundle(bundle, "Imported flow");
+    expect(imported.status).toBe(201);
+    expect(
+      (
+        (await imported.json()) as {
+          data: {
+            workflow: { id: string; projectId: null };
+            version: { definition: { id: string } };
+          };
+        }
+      ).data,
+    ).toMatchObject({
+      workflow: { projectId: null },
+      version: { definition: { id: expect.any(String) } },
+    });
+    const tampered = structuredClone(bundle) as { workflow: { name: string } };
+    tampered.workflow.name = "Tampered";
+    expect((await importBundle(tampered)).status).toBe(422);
+    expect(
+      (
+        await app.request(
+          `/api/v1/workflow-templates/${firstData.workflow.id}/instantiate`,
+          {
+            method: "POST",
+            headers: {
+              cookie: owner.cookie,
+              "content-type": "application/json",
+            },
+            body: JSON.stringify({ name: "From template" }),
+          },
+        )
+      ).status,
+    ).toBe(201);
+    const library = await app.request(
+      `/api/v1/workspaces/${owner.workspaceId}/workflow-library`,
+      { headers: { cookie: owner.cookie } },
+    );
+    expect(
+      (
+        (await library.json()) as {
+          data: { folders: unknown[]; workflows: unknown[] };
+        }
+      ).data,
+    ).toMatchObject({
+      folders: [{ id: folderId }],
+      workflows: expect.arrayContaining([
+        expect.objectContaining({
+          metadata: expect.objectContaining({ isTemplate: true }),
+        }),
+      ]),
+    });
+    expect(
+      (
+        await app.request(`/api/v1/workflow-folders/${folderId}`, {
+          method: "DELETE",
+          headers: { cookie: owner.cookie },
+        })
+      ).status,
+    ).toBe(200);
   });
 
   it("returns compile diagnostics without persisting an invalid Canvas", async () => {
