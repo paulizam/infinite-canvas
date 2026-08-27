@@ -23,4 +23,29 @@ describe("CloudPlatformClient", () => {
         );
         await expect(client.me()).rejects.toMatchObject({ code: "INVALID_RESPONSE" });
     });
+
+    it("encodes model ids and sends billing estimate parameters", async () => {
+        const fetcher = vi.fn(async () => Response.json({ data: { estimatedUnits: 12 }, requestId: "r4" }));
+        const client = new CloudPlatformClient("", fetcher);
+        await client.estimateGeneration("image/default", "image", { count: 2 });
+        expect(fetcher).toHaveBeenCalledWith("/api/v1/models/image%2Fdefault/estimate", expect.objectContaining({ method: "POST", body: JSON.stringify({ capability: "image", parameters: { count: 2 } }) }));
+    });
+
+    it("uses the generation job endpoints without leaking raw resource ids", async () => {
+        const fetcher = vi.fn(async () => Response.json({ data: [], requestId: "r5" }));
+        const client = new CloudPlatformClient("https://api.example", fetcher);
+        await client.listGenerationJobs("team/a");
+        await client.getGenerationJob("job/a");
+        expect(fetcher).toHaveBeenNthCalledWith(1, "https://api.example/api/v1/workspaces/team%2Fa/generation-jobs", expect.any(Object));
+        expect(fetcher).toHaveBeenNthCalledWith(2, "https://api.example/api/v1/generation-jobs/job%2Fa", expect.any(Object));
+    });
+
+    it("loads wallet and immutable ledger through authenticated requests", async () => {
+        const fetcher = vi.fn(async () => Response.json({ data: [], requestId: "r6" }));
+        const client = new CloudPlatformClient("", fetcher);
+        await client.getBillingWallet();
+        await client.listBillingLedger();
+        expect(fetcher).toHaveBeenNthCalledWith(1, "/api/v1/billing/wallet", expect.objectContaining({ credentials: "include" }));
+        expect(fetcher).toHaveBeenNthCalledWith(2, "/api/v1/billing/ledger", expect.objectContaining({ credentials: "include" }));
+    });
 });

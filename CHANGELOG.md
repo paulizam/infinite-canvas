@@ -2,6 +2,7 @@
 
 ## Unreleased
 
++ [新增] Web Server mode 接入逻辑模型目录、Generation Job 与 Billing typed client；生成配置节点以防竞态的 debounce 预估展示预计积分、余额及余额不足状态，Local mode 保持零云请求。
 + [新增] 新增 Model Gateway：Protocol/Channel/Upstream/Logical Model 分层、能力校验、健康路由、AES-GCM 凭据、Maintenance control-plane 与 Worker OpenAI-compatible submit/poll。
 + [新增] Generation Worker 将 URL/Base64/binary audio 结果写入不可变 Asset BlobStore，Job result 仅保存 AssetRef；内部上传受 Worker Token、有效租约和 phase 约束。
 + [安全] Provider 媒体下载仅允许无凭据 HTTPS URL，限制手动重定向并拒绝显式 local/private host。

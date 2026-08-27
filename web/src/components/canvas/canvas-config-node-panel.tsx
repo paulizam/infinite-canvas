@@ -12,6 +12,7 @@ import { CanvasAudioSettingsPopover, type CanvasAudioSettingKey } from "./canvas
 import { CanvasVideoSettingsPopover } from "./canvas-video-settings-popover";
 import { CanvasTextSettingsPopover } from "./canvas-text-settings-popover";
 import type { CanvasGenerationMode, CanvasNodeData, CanvasNodeMetadata } from "@/types/canvas";
+import { useCloudBillingPreview } from "@/hooks/use-cloud-billing-preview";
 
 type CanvasConfigNodePanelProps = {
     node: CanvasNodeData;
@@ -30,6 +31,7 @@ export function CanvasConfigNodePanel({ node, isRunning, inputSummary, onConfigC
     const theme = canvasThemes[useThemeStore((state) => state.theme)];
     const mode = node.metadata?.generationMode || "image";
     const config = buildNodeConfig(globalConfig, node, mode);
+    const billing = useCloudBillingPreview(config.model, mode, config);
     const chipStyle = { background: theme.node.fill, borderColor: theme.node.stroke, color: theme.node.text };
     const hasAnyInput = Boolean(inputSummary.textCount || inputSummary.imageCount || inputSummary.videoCount || inputSummary.audioCount);
     const hasComposerContent = Boolean((node.metadata?.composerContent ?? node.metadata?.prompt ?? "").trim());
@@ -101,21 +103,63 @@ export function CanvasConfigNodePanel({ node, isRunning, inputSummary, onConfigC
             <div className="mb-2 grid min-w-0 cursor-default grid-cols-[minmax(0,1fr)_148px] items-center gap-2" onMouseDown={(event) => event.stopPropagation()}>
                 <ModelPicker className="canvas-compact-control h-10" config={config} value={config.model} onChange={(model) => onConfigChange(node.id, { model })} capability={mode} onMissingConfig={() => openConfigDialog(true)} fullWidth />
                 {mode === "video" ? (
-                    <CanvasVideoSettingsPopover config={config} placement="topRight" buttonClassName="canvas-compact-control !h-10 !w-full !justify-start !rounded-lg !px-2" onConfigChange={(key, value) => onConfigChange(node.id, videoConfigPatch(key, value))} />
+                    <CanvasVideoSettingsPopover
+                        config={config}
+                        placement="topRight"
+                        buttonClassName="canvas-compact-control !h-10 !w-full !justify-start !rounded-lg !px-2"
+                        onConfigChange={(key, value) => onConfigChange(node.id, videoConfigPatch(key, value))}
+                    />
                 ) : mode === "image" ? (
-                    <CanvasImageSettingsPopover config={config} placement="topRight" autoAdjustOverflow={false} buttonClassName="canvas-compact-control !h-10 !w-full !justify-start !rounded-lg !px-2" onConfigChange={(key, value) => onConfigChange(node.id, key === "count" ? { count: Number(value) || 1 } : { [key]: value })} />
+                    <CanvasImageSettingsPopover
+                        config={config}
+                        placement="topRight"
+                        autoAdjustOverflow={false}
+                        buttonClassName="canvas-compact-control !h-10 !w-full !justify-start !rounded-lg !px-2"
+                        onConfigChange={(key, value) => onConfigChange(node.id, key === "count" ? { count: Number(value) || 1 } : { [key]: value })}
+                    />
                 ) : mode === "audio" ? (
-                    <CanvasAudioSettingsPopover config={config} placement="topRight" buttonClassName="canvas-compact-control !h-10 !w-full !justify-start !rounded-lg !px-2" onConfigChange={(key, value) => onConfigChange(node.id, audioConfigPatch(key, value))} />
+                    <CanvasAudioSettingsPopover
+                        config={config}
+                        placement="topRight"
+                        buttonClassName="canvas-compact-control !h-10 !w-full !justify-start !rounded-lg !px-2"
+                        onConfigChange={(key, value) => onConfigChange(node.id, audioConfigPatch(key, value))}
+                    />
                 ) : (
-                    <CanvasTextSettingsPopover config={config} count={node.metadata?.textCount || 1} placement="topRight" buttonClassName="canvas-compact-control !h-10 !w-full !justify-start !rounded-lg !px-2" onConfigChange={(_, value) => onConfigChange(node.id, { reasoningEffort: value })} onCountChange={(textCount) => onConfigChange(node.id, { textCount })} />
+                    <CanvasTextSettingsPopover
+                        config={config}
+                        count={node.metadata?.textCount || 1}
+                        placement="topRight"
+                        buttonClassName="canvas-compact-control !h-10 !w-full !justify-start !rounded-lg !px-2"
+                        onConfigChange={(_, value) => onConfigChange(node.id, { reasoningEffort: value })}
+                        onCountChange={(textCount) => onConfigChange(node.id, { textCount })}
+                    />
                 )}
             </div>
+
+            {billing.enabled ? (
+                <div className="mb-1.5 flex min-h-5 items-center justify-between gap-2 text-[11px]" onMouseDown={(event) => event.stopPropagation()}>
+                    <span className="truncate opacity-70">
+                        {billing.status === "loading"
+                            ? t("canvas.configNode.billingLoading")
+                            : billing.status === "error"
+                              ? t("canvas.configNode.billingUnavailable")
+                              : billing.status === "ready"
+                                ? t("canvas.configNode.billingEstimate", { points: billing.estimate.estimatedUnits })
+                                : ""}
+                    </span>
+                    {billing.status === "ready" ? (
+                        <span className={billing.insufficient ? "shrink-0 font-semibold text-red-500" : "shrink-0 opacity-70"}>
+                            {billing.insufficient ? t("canvas.configNode.insufficientPoints") : t("canvas.configNode.billingBalance", { points: billing.wallet.balanceUnits })}
+                        </span>
+                    ) : null}
+                </div>
+            ) : null}
 
             <Button
                 type="primary"
                 className="mt-auto !h-9 !w-full !cursor-pointer !rounded-lg"
                 danger={isRunning}
-                disabled={!isRunning && !canGenerate}
+                disabled={!isRunning && (!canGenerate || billing.insufficient)}
                 onMouseDown={(event) => event.stopPropagation()}
                 onClick={() => (isRunning ? onStop(node.id) : onGenerate(node.id))}
             >

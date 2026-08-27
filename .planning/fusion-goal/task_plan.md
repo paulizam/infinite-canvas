@@ -19,7 +19,7 @@
 - [x] WebSocket collaboration hub
 - [x] Asset storage（magic-byte、SHA-256、Local/S3、RBAC、AssetRef 保护）
 - [x] Generation Job Worker（contract/state/schema/repository/API、独立 runtime、heartbeat/lease recovery）
-- [▶] Model Gateway（OpenAI-compatible、Gemini、声明式 Custom runtime、媒体 Asset、health/cooldown、provider cancel 已完成；streaming、连接测试/模型发现、provider-specific adapter 待完成）；Billing ledger 基础、原子预留/结算/退款与预估已完成，运营对账待完成
+- [▶] Model Gateway（OpenAI-compatible、Gemini、声明式 Custom runtime、媒体 Asset、health/cooldown、provider cancel 已完成；streaming、连接测试/模型发现、provider-specific adapter 待完成）；Billing ledger 基础、原子预留/结算/退款、Web Server mode 预估/余额提示已完成，Cloud Job 结果回填与运营对账待完成
 
 ## 错误账本
 
@@ -32,3 +32,5 @@
 | Worker fetch Body 的 Uint8Array 泛型不兼容 DOM BodyInit | 1 | 复制为确定的 ArrayBuffer 后上传，typecheck 通过 |
 | Custom adapter 的 union `flatMap` 推断过窄 | 1 | 改为显式判别数组累积，保持 inline/file 两类结果 |
 | Cancel test 使用创建时间早于 cancel 的 nextRunAt | 1 | 以 cancel 响应的权威 nextRunAt claim，消除毫秒竞态 |
+| 对历史单行 i18n 文件显式运行 Prettier 导致千行无关展开 | 1 | 回滚两文件后使用精确单行替换，仅保留新增 key |
+| PowerShell `Get-ChildItem -Filter` 误传数组 | 1 | 改用单次枚举后按 Name 过滤 |

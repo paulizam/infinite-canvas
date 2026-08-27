@@ -27,3 +27,5 @@
 - cancel_requested 在存在上游任务且 capability 声明支持时调用原渠道 cancel endpoint；不支持或渠道身份不确定时转 needs_review，避免虚假取消与错误退款依据。
 - 新增整数积分钱包、价格规则与数据库不可变流水；Job 创建和预留同事务，成功按 provider 明示实际积分补扣/返还，失败/取消幂等退款，needs_review 保留预留等待对账。
 - 新增余额、流水、参数倍率预估 API，以及 Maintenance price rule/钱包调整接口；Memory contract 覆盖重复创建不重复扣费、失败退款和实际用量结算。
+- Web Cloud Platform client 新增逻辑模型、Generation Job、Billing estimate/wallet/ledger 全套 typed endpoint。
+- 生成配置节点在 Server mode 登录态 debounce 获取服务端权威预估与余额，展示预计积分/余额并阻止已知余额不足提交；controller 丢弃过期响应，Local mode 经测试不触发任何 Cloud API。

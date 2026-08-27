@@ -1,4 +1,4 @@
-import type { CanvasDocument, CanvasMutation } from "@infinite-canvas/contracts";
+import type { BillingEstimate, BillingLedgerEntry, BillingWallet, CanvasDocument, CanvasMutation, GenerationCapability, GenerationJob, LogicalModel } from "@infinite-canvas/contracts";
 
 export type CloudUser = { id: string; email: string; name: string; createdAt: string };
 export type CloudWorkspace = { id: string; name: string; createdAt: string; role: "owner" | "admin" | "editor" | "viewer" };
@@ -76,6 +76,56 @@ export class CloudPlatformClient {
             method: "POST",
             body: JSON.stringify(mutation),
         });
+    }
+
+    listModels() {
+        return this.request<LogicalModel[]>("/api/v1/models");
+    }
+
+    estimateGeneration(logicalModelId: string, capability: GenerationCapability, parameters: Record<string, unknown>) {
+        return this.request<BillingEstimate>(`/api/v1/models/${encodeURIComponent(logicalModelId)}/estimate`, {
+            method: "POST",
+            body: JSON.stringify({ capability, parameters }),
+        });
+    }
+
+    getBillingWallet() {
+        return this.request<BillingWallet>("/api/v1/billing/wallet");
+    }
+
+    listBillingLedger() {
+        return this.request<BillingLedgerEntry[]>("/api/v1/billing/ledger");
+    }
+
+    listGenerationJobs(workspaceId: string) {
+        return this.request<GenerationJob[]>(`/api/v1/workspaces/${encodeURIComponent(workspaceId)}/generation-jobs`);
+    }
+
+    createGenerationJob(
+        workspaceId: string,
+        input: {
+            capability: GenerationCapability;
+            logicalModelId: string;
+            clientRequestId: string;
+            parameters: Record<string, unknown>;
+        },
+    ) {
+        return this.request<{ job: GenerationJob; replayed: boolean }>(`/api/v1/workspaces/${encodeURIComponent(workspaceId)}/generation-jobs`, {
+            method: "POST",
+            body: JSON.stringify(input),
+        });
+    }
+
+    getGenerationJob(jobId: string) {
+        return this.request<GenerationJob>(`/api/v1/generation-jobs/${encodeURIComponent(jobId)}`);
+    }
+
+    cancelGenerationJob(jobId: string) {
+        return this.request<GenerationJob>(`/api/v1/generation-jobs/${encodeURIComponent(jobId)}/cancel`, { method: "POST" });
+    }
+
+    retryGenerationJob(jobId: string) {
+        return this.request<GenerationJob>(`/api/v1/generation-jobs/${encodeURIComponent(jobId)}/retry`, { method: "POST" });
     }
 
     private async request<T>(path: string, init: RequestInit = {}): Promise<T> {
