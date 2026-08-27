@@ -80,4 +80,29 @@ describe("CloudPlatformClient", () => {
         expect(fetcher).toHaveBeenNthCalledWith(4, "/api/v1/workflow-executions/run%2Fa/cancel", expect.objectContaining({ method: "POST" }));
         expect(fetcher).toHaveBeenNthCalledWith(5, "/api/v1/workflow-executions/run%2Fa/nodes/node%2Fa/retry", expect.objectContaining({ method: "POST" }));
     });
+
+    it("uses encoded workflow library and folder endpoints", async () => {
+        const fetcher = vi.fn(async () => Response.json({ data: [], requestId: "r10" }));
+        const client = new CloudPlatformClient("", fetcher);
+        await client.getWorkflowLibrary("team/a");
+        await client.createWorkflowFolder("team/a", "Ideas");
+        await client.deleteWorkflowFolder("folder/a");
+        await client.updateWorkflowLibrary("workflow/a", { folderId: "folder/a", tags: ["featured"], isTemplate: true });
+        expect(fetcher).toHaveBeenNthCalledWith(1, "/api/v1/workspaces/team%2Fa/workflow-library", expect.any(Object));
+        expect(fetcher).toHaveBeenNthCalledWith(2, "/api/v1/workspaces/team%2Fa/workflow-folders", expect.objectContaining({ method: "POST", body: JSON.stringify({ name: "Ideas" }) }));
+        expect(fetcher).toHaveBeenNthCalledWith(3, "/api/v1/workflow-folders/folder%2Fa", expect.objectContaining({ method: "DELETE" }));
+        expect(fetcher).toHaveBeenNthCalledWith(4, "/api/v1/workflows/workflow%2Fa/library", expect.objectContaining({ method: "PATCH", body: JSON.stringify({ folderId: "folder/a", tags: ["featured"], isTemplate: true }) }));
+    });
+
+    it("exports, imports and instantiates portable workflow bundles", async () => {
+        const fetcher = vi.fn(async () => Response.json({ data: {}, requestId: "r11" }));
+        const client = new CloudPlatformClient("", fetcher);
+        const bundle = { format: "infinite-canvas.workflow", schemaVersion: 1 } as never;
+        await client.exportWorkflow("workflow/a", 7);
+        await client.importWorkflow("team/a", bundle, "Imported");
+        await client.instantiateWorkflowTemplate("template/a", "Copy");
+        expect(fetcher).toHaveBeenNthCalledWith(1, "/api/v1/workflows/workflow%2Fa/export?version=7", expect.any(Object));
+        expect(fetcher).toHaveBeenNthCalledWith(2, "/api/v1/workspaces/team%2Fa/workflows/import", expect.objectContaining({ method: "POST", body: JSON.stringify({ bundle, name: "Imported" }) }));
+        expect(fetcher).toHaveBeenNthCalledWith(3, "/api/v1/workflow-templates/template%2Fa/instantiate", expect.objectContaining({ method: "POST", body: JSON.stringify({ name: "Copy" }) }));
+    });
 });

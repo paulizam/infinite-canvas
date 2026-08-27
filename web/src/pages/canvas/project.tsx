@@ -2932,7 +2932,7 @@ function InfiniteCanvasPage() {
                     agentOpen={agentPanelOpen}
                     compactAgentStatus={{ connected: localAgentConnected, enabled: localAgentEnabled, activity: localAgentActivity }}
                     onToggleAgent={toggleAgentPanel}
-                    workflowControl={currentProject ? <CanvasWorkflowPublisher projectId={projectId} projectRevision={currentProject.revision} projectName={currentProject.title} onFocusNode={focusNode} /> : null}
+                    workflowControl={currentProject ? <CanvasWorkflowPublisher projectId={projectId} projectRevision={currentProject.revision} projectName={currentProject.title} workspaceId={cloudWorkspaceId} onFocusNode={focusNode} /> : null}
                 />
 
                 <InfiniteCanvas

@@ -32,7 +32,7 @@ export type WorkflowCompileIssue = {
 export type CloudWorkflow = {
     id: string;
     workspaceId: string;
-    projectId: string;
+    projectId: string | null;
     name: string;
     currentVersion: number;
     createdBy: string;
@@ -88,6 +88,29 @@ export type CloudWorkflowExecutionRecord = {
     workspaceId: string;
     createdBy: string;
     definition: WorkflowDefinition;
+};
+export type CloudWorkflowFolder = { id: string; workspaceId: string; name: string; createdAt: string; updatedAt: string };
+export type CloudWorkflowLibraryMetadata = {
+    workflowId: string;
+    workspaceId: string;
+    folderId: string | null;
+    coverAssetId: string | null;
+    description: string;
+    tags: string[];
+    isTemplate: boolean;
+    updatedAt: string;
+};
+export type CloudWorkflowLibrary = {
+    folders: CloudWorkflowFolder[];
+    workflows: Array<{ workflow: CloudWorkflow; metadata: CloudWorkflowLibraryMetadata }>;
+};
+export type CloudWorkflowBundle = {
+    format: "infinite-canvas.workflow";
+    formatVersion: 1;
+    exportedAt: string;
+    workflow: { name: string; description: string; tags: string[] };
+    version: { number: number; definition: WorkflowDefinition };
+    checksum: string;
 };
 
 type FetchLike = (input: RequestInfo | URL, init?: RequestInit) => Promise<Response>;
@@ -189,6 +212,47 @@ export class CloudPlatformClient {
 
     retryWorkflowNode(executionId: string, nodeId: string) {
         return this.request<CloudWorkflowExecutionRecord>(`/api/v1/workflow-executions/${encodeURIComponent(executionId)}/nodes/${encodeURIComponent(nodeId)}/retry`, { method: "POST" });
+    }
+
+    getWorkflowLibrary(workspaceId: string) {
+        return this.request<CloudWorkflowLibrary>(`/api/v1/workspaces/${encodeURIComponent(workspaceId)}/workflow-library`);
+    }
+
+    createWorkflowFolder(workspaceId: string, name: string) {
+        return this.request<CloudWorkflowFolder>(`/api/v1/workspaces/${encodeURIComponent(workspaceId)}/workflow-folders`, {
+            method: "POST",
+            body: JSON.stringify({ name }),
+        });
+    }
+
+    deleteWorkflowFolder(folderId: string) {
+        return this.request<{ ok: true }>(`/api/v1/workflow-folders/${encodeURIComponent(folderId)}`, { method: "DELETE" });
+    }
+
+    updateWorkflowLibrary(workflowId: string, patch: Partial<Pick<CloudWorkflowLibraryMetadata, "folderId" | "coverAssetId" | "description" | "tags" | "isTemplate">>) {
+        return this.request<CloudWorkflowLibraryMetadata>(`/api/v1/workflows/${encodeURIComponent(workflowId)}/library`, {
+            method: "PATCH",
+            body: JSON.stringify(patch),
+        });
+    }
+
+    exportWorkflow(workflowId: string, version?: number) {
+        const query = version ? `?version=${version}` : "";
+        return this.request<CloudWorkflowBundle>(`/api/v1/workflows/${encodeURIComponent(workflowId)}/export${query}`);
+    }
+
+    importWorkflow(workspaceId: string, bundle: CloudWorkflowBundle, name?: string) {
+        return this.request<CloudWorkflowPublication>(`/api/v1/workspaces/${encodeURIComponent(workspaceId)}/workflows/import`, {
+            method: "POST",
+            body: JSON.stringify({ bundle, ...(name ? { name } : {}) }),
+        });
+    }
+
+    instantiateWorkflowTemplate(workflowId: string, name?: string) {
+        return this.request<CloudWorkflowPublication>(`/api/v1/workflow-templates/${encodeURIComponent(workflowId)}/instantiate`, {
+            method: "POST",
+            body: JSON.stringify(name ? { name } : {}),
+        });
     }
 
     listModels() {
