@@ -15,12 +15,17 @@ import { MemoryWorkflowRepository } from "./workflow-repository.js";
 import { WorkflowPublicationService } from "./workflow-service.js";
 import { MemoryWorkflowExecutionRepository } from "./workflow-execution-repository.js";
 import { WorkflowExecutionService } from "./workflow-execution-service.js";
+import { WorkflowExecutionWorkerService } from "./workflow-execution-worker-service.js";
 
 let app: ReturnType<typeof createApp>;
 beforeEach(() => {
   const platform = new MemoryPlatformRepository();
   const jobs = new MemoryGenerationJobRepository();
   const workflowRepository = new MemoryWorkflowRepository(
+    (userId, workspaceId, minimum) =>
+      platform.requireWorkspaceRole(userId, workspaceId, minimum),
+  );
+  const executionRepository = new MemoryWorkflowExecutionRepository(
     (userId, workspaceId, minimum) =>
       platform.requireWorkspaceRole(userId, workspaceId, minimum),
   );
@@ -35,10 +40,9 @@ beforeEach(() => {
     workflowExecutions: new WorkflowExecutionService(
       platform,
       workflowRepository,
-      new MemoryWorkflowExecutionRepository((userId, workspaceId, minimum) =>
-        platform.requireWorkspaceRole(userId, workspaceId, minimum),
-      ),
+      executionRepository,
     ),
+    workflowWorker: new WorkflowExecutionWorkerService(executionRepository),
     workerToken: "test-worker-token-32-characters-long",
     workerStaleMs: 120_000,
     modelGateway: new MemoryModelGatewayRepository(),
@@ -318,6 +322,128 @@ describe("Workflow publication API", () => {
       ((await cancelledReplay.json()) as { data: { revision: number } }).data
         .revision,
     ).toBe(1);
+    const workerExecutionId = "22222222-2222-4222-8222-222222222222";
+    expect(
+      (
+        await app.request(
+          `/api/v1/workflows/${firstData.workflow.id}/executions`,
+          {
+            method: "POST",
+            headers: {
+              cookie: owner.cookie,
+              "content-type": "application/json",
+            },
+            body: JSON.stringify({
+              executionId: workerExecutionId,
+              startNodeIds: ["generate"],
+            }),
+          },
+        )
+      ).status,
+    ).toBe(201);
+    expect(
+      (
+        await app.request("/internal/v1/workflow/claim", {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({ workerId: "worker", limit: 1 }),
+        })
+      ).status,
+    ).toBe(401);
+    const workerHeaders = {
+      authorization: "Bearer test-worker-token-32-characters-long",
+      "content-type": "application/json",
+    };
+    const claim = await app.request("/internal/v1/workflow/claim", {
+      method: "POST",
+      headers: workerHeaders,
+      body: JSON.stringify({ workerId: "worker", limit: 1 }),
+    });
+    expect(claim.status).toBe(200);
+    expect(
+      (
+        (await claim.json()) as { data: Array<{ state: { id: string } }> }
+      ).data.at(0)?.state.id,
+    ).toBe(workerExecutionId);
+    const transition = (revision: number, operation: unknown) =>
+      app.request(
+        `/internal/v1/workflow/executions/${workerExecutionId}/transition`,
+        {
+          method: "POST",
+          headers: workerHeaders,
+          body: JSON.stringify({ workerId: "worker", revision, operation }),
+        },
+      );
+    expect(
+      (await transition(0, { type: "node.start", nodeId: "generate" })).status,
+    ).toBe(200);
+    const completed = await transition(1, {
+      type: "node.complete",
+      nodeId: "generate",
+      output: { text: "done" },
+    });
+    expect(
+      ((await completed.json()) as { data: { state: { status: string } } }).data
+        .state.status,
+    ).toBe("succeeded");
+    const waitingExecutionId = "33333333-3333-4333-8333-333333333333";
+    await app.request(`/api/v1/workflows/${firstData.workflow.id}/executions`, {
+      method: "POST",
+      headers: { cookie: owner.cookie, "content-type": "application/json" },
+      body: JSON.stringify({
+        executionId: waitingExecutionId,
+        startNodeIds: ["generate"],
+      }),
+    });
+    await app.request("/internal/v1/workflow/claim", {
+      method: "POST",
+      headers: workerHeaders,
+      body: JSON.stringify({ workerId: "waiter", limit: 1 }),
+    });
+    const waitingTransition = (revision: number, operation: unknown) =>
+      app.request(
+        `/internal/v1/workflow/executions/${waitingExecutionId}/transition`,
+        {
+          method: "POST",
+          headers: workerHeaders,
+          body: JSON.stringify({ workerId: "waiter", revision, operation }),
+        },
+      );
+    expect(
+      (
+        await waitingTransition(0, {
+          type: "node.start",
+          nodeId: "generate",
+        })
+      ).status,
+    ).toBe(200);
+    expect(
+      (
+        await waitingTransition(1, {
+          type: "node.wait",
+          nodeId: "generate",
+          eventKey: "approved",
+        })
+      ).status,
+    ).toBe(200);
+    expect(
+      (
+        await app.request(
+          `/api/v1/workflow-executions/${waitingExecutionId}/signals/approved`,
+          { method: "POST", headers: { cookie: owner.cookie } },
+        )
+      ).status,
+    ).toBe(200);
+    const reclaimed = await app.request("/internal/v1/workflow/claim", {
+      method: "POST",
+      headers: workerHeaders,
+      body: JSON.stringify({ workerId: "rescuer", limit: 1 }),
+    });
+    expect(
+      (
+        (await reclaimed.json()) as { data: Array<{ state: { id: string } }> }
+      ).data.at(0)?.state.id,
+    ).toBe(waitingExecutionId);
     const outsider = await register("workflow-execution-outsider@example.com");
     expect(
       (

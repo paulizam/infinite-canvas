@@ -195,6 +195,11 @@ export class MemoryWorkflowExecutionRepository implements WorkflowExecutionRepos
       ...structuredClone(record),
       revision: expectedRevision + 1,
       nextRunAt,
+      ...(["waiting", "succeeded", "failed", "cancelled"].includes(
+        record.state.status,
+      )
+        ? { workerId: null, leaseUntil: null }
+        : {}),
     };
     this.records.set(saved.state.id, saved);
     return structuredClone(saved);

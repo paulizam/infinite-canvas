@@ -175,9 +175,18 @@ export class PostgresWorkflowExecutionRepository implements WorkflowExecutionRep
           409,
           "执行身份或初始快照不可修改",
         );
-      const next = { ...record, revision: expectedRevision + 1, nextRunAt };
+      const next = {
+        ...record,
+        revision: expectedRevision + 1,
+        nextRunAt,
+        ...(["waiting", "succeeded", "failed", "cancelled"].includes(
+          record.state.status,
+        )
+          ? { workerId: null, leaseUntil: null }
+          : {}),
+      };
       await client.query(
-        "UPDATE workflow_executions SET status=$2,revision=$3,updated_at=$4,completed_at=$5,next_run_at=$6 WHERE id=$1",
+        "UPDATE workflow_executions SET status=$2,revision=$3,updated_at=$4,completed_at=$5,next_run_at=$6,worker_id=$7,lease_until=$8 WHERE id=$1",
         [
           record.state.id,
           record.state.status,
@@ -185,6 +194,8 @@ export class PostgresWorkflowExecutionRepository implements WorkflowExecutionRep
           record.state.updatedAt,
           record.state.completedAt || null,
           nextRunAt,
+          next.workerId,
+          next.leaseUntil,
         ],
       );
       await writeChildren(client, next);

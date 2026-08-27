@@ -13,6 +13,7 @@ import { PostgresWorkflowRepository } from "./postgres-workflow-repository.js";
 import { WorkflowPublicationService } from "./workflow-service.js";
 import { WorkflowExecutionService } from "./workflow-execution-service.js";
 import { PostgresWorkflowExecutionRepository } from "./postgres-workflow-execution-repository.js";
+import { WorkflowExecutionWorkerService } from "./workflow-execution-worker-service.js";
 import {
   IdentityService,
   ProjectService,
@@ -34,6 +35,9 @@ const modelGateway = new PostgresModelGatewayRepository(
   new SecretCipher(required("MODEL_SECRET_KEY")),
 );
 const workflowRepository = new PostgresWorkflowRepository(databaseUrl);
+const workflowExecutionRepository = new PostgresWorkflowExecutionRepository(
+  databaseUrl,
+);
 const assets = new AssetService(
   repository,
   createBlobStore(),
@@ -63,7 +67,10 @@ const app = createApp({
   workflowExecutions: new WorkflowExecutionService(
     repository,
     workflowRepository,
-    new PostgresWorkflowExecutionRepository(databaseUrl),
+    workflowExecutionRepository,
+  ),
+  workflowWorker: new WorkflowExecutionWorkerService(
+    workflowExecutionRepository,
   ),
   maintenanceToken,
   collaboration,

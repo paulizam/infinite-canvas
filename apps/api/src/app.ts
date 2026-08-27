@@ -16,6 +16,7 @@ import {
 import type { ModelGatewayRepository } from "./model-gateway-repository.js";
 import type { WorkflowPublicationService } from "./workflow-service.js";
 import type { WorkflowExecutionService } from "./workflow-execution-service.js";
+import type { WorkflowExecutionWorkerService } from "./workflow-execution-worker-service.js";
 import { ModelDiscoveryService } from "./model-discovery.js";
 import { createModelDiscoveryApi } from "./model-discovery-api.js";
 import {
@@ -40,6 +41,7 @@ export type AppServices = {
   modelGateway: ModelGatewayRepository;
   workflows?: WorkflowPublicationService;
   workflowExecutions?: WorkflowExecutionService;
+  workflowWorker?: WorkflowExecutionWorkerService;
   maintenanceToken: string;
   secureCookies: boolean;
   modelDiscovery?: ModelDiscoveryService;
@@ -445,6 +447,18 @@ export function createApp(services: AppServices) {
           requestId: requestId(c),
         }),
     );
+    app.post(
+      "/api/v1/workflow-executions/:executionId/signals/:eventKey",
+      async (c) =>
+        c.json({
+          data: await services.workflowExecutions!.signal(
+            c.get("user").id,
+            c.req.param("executionId"),
+            workflowStepKeySchema.parse(c.req.param("eventKey")),
+          ),
+          requestId: requestId(c),
+        }),
+    );
   }
   app.delete("/api/v1/projects/:projectId", async (c) => {
     await services.projects.delete(c.get("user").id, c.req.param("projectId"));
@@ -465,6 +479,14 @@ export function createApp(services: AppServices) {
     });
   });
   app.use("/internal/v1/generation/*", async (c, next) => {
+    requireBearerToken(
+      c.req.header("authorization"),
+      services.workerToken,
+      "Worker",
+    );
+    await next();
+  });
+  app.use("/internal/v1/workflow/*", async (c, next) => {
     requireBearerToken(
       c.req.header("authorization"),
       services.workerToken,
@@ -500,6 +522,47 @@ export function createApp(services: AppServices) {
     });
     return c.json({ data: jobs, requestId: requestId(c) });
   });
+  if (services.workflowWorker) {
+    app.post("/internal/v1/workflow/claim", async (c) => {
+      const input = workflowWorkerClaimSchema.parse(await c.req.json());
+      const now = new Date();
+      const leaseMs = Math.max(30_000, Math.min(300_000, input.leaseMs));
+      return c.json({
+        data: await services.workflowWorker!.claim({
+          workerId: input.workerId,
+          now: now.toISOString(),
+          leaseUntil: new Date(now.getTime() + leaseMs).toISOString(),
+          limit: input.limit,
+        }),
+        requestId: requestId(c),
+      });
+    });
+    app.post("/internal/v1/workflow/heartbeat", async (c) => {
+      const input = workflowWorkerHeartbeatSchema.parse(await c.req.json());
+      const now = new Date();
+      const renewed = await services.workflowWorker!.heartbeat(
+        input.workerId,
+        input.executionIds,
+        now.toISOString(),
+        new Date(now.getTime() + 90_000).toISOString(),
+      );
+      return c.json({ data: { renewed }, requestId: requestId(c) });
+    });
+    app.post(
+      "/internal/v1/workflow/executions/:executionId/transition",
+      async (c) => {
+        const input = workflowWorkerTransitionSchema.parse(await c.req.json());
+        return c.json({
+          data: await services.workflowWorker!.transition({
+            ...input,
+            executionId: c.req.param("executionId"),
+            now: new Date().toISOString(),
+          }),
+          requestId: requestId(c),
+        });
+      },
+    );
+  }
   app.post("/internal/v1/generation/heartbeat", async (c) => {
     const input = workerHeartbeatSchema.parse(await c.req.json());
     const now = new Date();
@@ -882,6 +945,108 @@ const workerHeartbeatSchema = z.object({
   workerId: z.string().trim().min(1).max(160),
   jobIds: z.array(z.uuid()).max(50),
 });
+const workflowWorkerClaimSchema = z.object({
+  workerId: z.string().trim().min(1).max(160),
+  limit: z.number().int().min(1).max(50).default(20),
+  leaseMs: z.number().int().min(1).max(300_000).default(90_000),
+});
+const workflowWorkerHeartbeatSchema = z.object({
+  workerId: z.string().trim().min(1).max(160),
+  executionIds: z.array(z.uuid()).max(50),
+});
+const workflowErrorSchema = z.object({
+  code: z.string().trim().min(1).max(160),
+  message: z.string().max(2_000),
+});
+const workflowNodeIdSchema = z.string().trim().min(1).max(160);
+const workflowStepKeySchema = z.string().trim().min(1).max(160);
+const workflowWorkerOperationSchema = z.discriminatedUnion("type", [
+  z
+    .object({
+      type: z.literal("node.start"),
+      nodeId: workflowNodeIdSchema,
+      input: z.unknown().optional(),
+    })
+    .strict(),
+  z
+    .object({
+      type: z.literal("node.complete"),
+      nodeId: workflowNodeIdSchema,
+      output: z.unknown().optional(),
+    })
+    .strict(),
+  z
+    .object({
+      type: z.literal("node.fail"),
+      nodeId: workflowNodeIdSchema,
+      error: workflowErrorSchema,
+      retryAt: z.iso.datetime().optional(),
+    })
+    .strict(),
+  z
+    .object({
+      type: z.literal("node.wait"),
+      nodeId: workflowNodeIdSchema,
+      wakeAt: z.iso.datetime().optional(),
+      eventKey: z.string().trim().min(1).max(160).optional(),
+    })
+    .strict(),
+  z
+    .object({
+      type: z.literal("node.skip"),
+      nodeId: workflowNodeIdSchema,
+      reason: z.enum(["condition_false", "upstream_skipped"]),
+    })
+    .strict(),
+  z
+    .object({
+      type: z.literal("step.start"),
+      nodeId: workflowNodeIdSchema,
+      key: workflowStepKeySchema,
+      input: z.unknown().optional(),
+      maxAttempts: z.number().int().min(1).max(100).optional(),
+    })
+    .strict(),
+  z
+    .object({
+      type: z.literal("step.complete"),
+      nodeId: workflowNodeIdSchema,
+      key: workflowStepKeySchema,
+      output: z.unknown().optional(),
+    })
+    .strict(),
+  z
+    .object({
+      type: z.literal("step.fail"),
+      nodeId: workflowNodeIdSchema,
+      key: workflowStepKeySchema,
+      error: workflowErrorSchema,
+      retryAt: z.iso.datetime().optional(),
+    })
+    .strict(),
+  z
+    .object({
+      type: z.literal("step.wait"),
+      nodeId: workflowNodeIdSchema,
+      key: workflowStepKeySchema,
+      wakeAt: z.iso.datetime().optional(),
+      eventKey: z.string().trim().min(1).max(160).optional(),
+    })
+    .strict(),
+  z.object({ type: z.literal("execution.cancel.complete") }).strict(),
+]);
+const workflowWorkerTransitionSchema = z
+  .object({
+    workerId: z.string().trim().min(1).max(160),
+    revision: z.number().int().nonnegative(),
+    operation: workflowWorkerOperationSchema,
+  })
+  .strict()
+  .refine(
+    (value) =>
+      Buffer.byteLength(JSON.stringify(value.operation)) <= 1024 * 1024,
+    "operation exceeds limits",
+  );
 const workerTransitionSchema = z.object({
   workerId: z.string().trim().min(1).max(160),
   phase: z.enum([
