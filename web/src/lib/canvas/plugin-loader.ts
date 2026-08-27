@@ -3,6 +3,7 @@ import { getPluginRuntime } from "@/lib/canvas/plugin-runtime";
 import { usePluginStore, type InstalledPlugin } from "@/stores/canvas/use-plugin-store";
 import type { CanvasPlugin } from "@/types/canvas-plugin";
 import i18n from "@/i18n";
+import { assertTrustedPluginUrl, isTrustedPluginUrl } from "@/lib/canvas/plugin-trust";
 
 const cleanups = new Map<string, () => void>();
 
@@ -59,10 +60,11 @@ function withCacheBust(url: string) {
 // Install or replace a plugin from a URL and enable it immediately.
 // bustCache bypasses HTTP/CDN caches during upgrades while persisting a clean URL without the timestamp query.
 export async function installPluginFromUrl(url: string, opts?: { official?: boolean; bustCache?: boolean }) {
+    assertTrustedPluginUrl(url, window.location.origin);
     const source = await fetchPluginSource(opts?.bustCache ? withCacheBust(url) : url);
     const plugin = await evaluatePluginSource(source);
     deactivatePlugin(plugin.id); // Replace the previous version.
-    usePluginStore.getState().upsert({ id: plugin.id, name: plugin.name || plugin.id, version: plugin.version || "0.0.0", description: plugin.description, url, source, enabled: true, official: opts?.official });
+    usePluginStore.getState().upsert({ id: plugin.id, name: plugin.name || plugin.id, version: plugin.version || "0.0.0", description: plugin.description, url, source, enabled: true, official: opts?.official, local: true });
     activatePlugin(plugin);
     return plugin;
 }
@@ -101,6 +103,10 @@ export async function ensurePluginsLoaded() {
     await Promise.all(
         records.map(async (record) => {
             try {
+                if (!record.local || !isTrustedPluginUrl(record.url, window.location.origin)) {
+                    usePluginStore.getState().setEnabled(record.id, false);
+                    throw new Error("Blocked legacy remote plugin");
+                }
                 // Local plugins use the latest output; other plugins use their cached source.
                 const source = record.local ? await fetchPluginSource(withCacheBust(record.url)) : record.source;
                 activatePlugin(await evaluatePluginSource(source));
@@ -154,6 +160,7 @@ async function loadDevPlugins() {
     const raw = import.meta.env.VITE_DEV_PLUGINS;
     if (!raw) return;
     const urls = raw.split(",").map((item) => item.trim()).filter(Boolean);
+    if (!import.meta.env.DEV) return;
     await Promise.all(
         urls.map(async (url) => {
             try {
