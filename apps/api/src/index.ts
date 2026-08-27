@@ -1,6 +1,7 @@
 import { serve } from "@hono/node-server";
 import { createApp } from "./app.js";
 import { PostgresPlatformRepository } from "./postgres-repository.js";
+import { CollaborationHub } from "./collaboration.js";
 import {
   IdentityService,
   ProjectService,
@@ -10,16 +11,29 @@ import {
 const databaseUrl = required("DATABASE_URL");
 const sessionTtlSeconds = Number(required("SESSION_TTL_SECONDS"));
 const repository = new PostgresPlatformRepository(databaseUrl);
+const identity = new IdentityService(repository, sessionTtlSeconds * 1000);
+const projects = new ProjectService(repository);
+const collaboration = new CollaborationHub(
+  identity,
+  projects,
+  new Set(
+    required("COLLABORATION_ORIGINS")
+      .split(",")
+      .map((origin) => new URL(origin.trim()).origin),
+  ),
+);
 const app = createApp({
-  identity: new IdentityService(repository, sessionTtlSeconds * 1000),
+  identity,
   workspaces: new WorkspaceService(repository),
-  projects: new ProjectService(repository),
+  projects,
+  collaboration,
   secureCookies: process.env.NODE_ENV === "production",
 });
 const port = Number(process.env.PORT || "3001");
-serve({ fetch: app.fetch, port }, (info) =>
+const server = serve({ fetch: app.fetch, port }, (info) =>
   console.log(`API listening on http://localhost:${info.port}`),
 );
+collaboration.attach(server as import("node:http").Server);
 
 function required(name: string) {
   const value = process.env[name]?.trim();

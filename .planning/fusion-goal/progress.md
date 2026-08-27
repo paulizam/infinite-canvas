@@ -10,3 +10,4 @@
 - 完成显式 Local/Server Mode、Session 恢复、登录注册页、Workspace 选择及双语导航入口。
 - 加固 Mutation runtime schema：拒绝 Document 保留字段伪造，扩展节点字段保持 round-trip。
 - 完成 Cloud Canvas CRUD/snapshot sync、remote revision 分账、409 熔断与 Local/Workspace 缓存隔离。
+- 完成 WebSocket Collaboration Hub、Origin/Session/project 鉴权、canonical mutation、presence、room isolation 与前端重连/去重。

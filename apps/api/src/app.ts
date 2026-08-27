@@ -17,6 +17,12 @@ export type AppServices = {
   workspaces: WorkspaceService;
   projects: ProjectService;
   secureCookies: boolean;
+  collaboration?: {
+    publishMutation: (
+      project: import("./domain.js").ProjectRecord,
+      mutation: import("@infinite-canvas/contracts").CanvasMutation,
+    ) => void;
+  };
 };
 
 export function createApp(services: AppServices) {
@@ -157,12 +163,15 @@ export function createApp(services: AppServices) {
   });
   app.post("/api/v1/projects/:projectId/mutations", async (c) => {
     const input = mutationSchema.parse(await c.req.json());
+    const result = await services.projects.mutate(
+      c.get("user").id,
+      c.req.param("projectId"),
+      input,
+    );
+    if (!result.replayed)
+      services.collaboration?.publishMutation(result.project, input);
     return c.json({
-      data: await services.projects.mutate(
-        c.get("user").id,
-        c.req.param("projectId"),
-        input,
-      ),
+      data: result,
       requestId: requestId(c),
     });
   });

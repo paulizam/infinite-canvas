@@ -16,7 +16,7 @@
 - [x] PostgreSQL schema 与 revision/idempotency transaction
 - [x] 标准 Node ESM build、文档与质量门禁
 - [x] Web Local/Server repository adapter 与登录/Workspace UI
-- [ ] WebSocket collaboration hub
+- [x] WebSocket collaboration hub
 - [ ] Asset storage、Generation Job Worker、Model Gateway、Billing ledger
 
 ## 错误账本

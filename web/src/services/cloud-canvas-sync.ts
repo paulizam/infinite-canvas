@@ -45,7 +45,7 @@ export class CloudCanvasSyncEngine {
         }
     }
 
-    async flush(projectId?: string) {
+  async flush(projectId?: string) {
         const ids = projectId ? [projectId] : [...this.latest.keys()];
         for (const id of ids) {
             const timer = this.timers.get(id);
@@ -55,6 +55,16 @@ export class CloudCanvasSyncEngine {
         }
     }
 
+  noteRemoteRevision(projectId: string, revision: number) {
+    const current = this.revisions.get(projectId);
+    if (current === undefined || revision > current) this.revisions.set(projectId, revision);
+  }
+
+  acceptSnapshot(project: CanvasProject) {
+    this.revisions.set(project.id, project.revision);
+    this.fingerprints.set(project.id, fingerprint(project));
+    this.conflicts.delete(project.id);
+  }
     stop() {
         this.stopped = true;
         for (const timer of this.timers.values()) clearTimeout(timer);
@@ -109,7 +119,7 @@ export class CloudCanvasSyncEngine {
                     mutationId: crypto.randomUUID(),
                     projectId,
                     baseRevision: this.revisions.get(projectId)!,
-                    clientId: getClientId(),
+                    clientId: getCloudClientId(),
                     createdAt: new Date().toISOString(),
                     operations: snapshotOperations(project),
                 };
@@ -169,6 +179,6 @@ function fingerprint(project: CanvasProject) {
 }
 
 let clientId: string | undefined;
-function getClientId() {
-    return (clientId ||= crypto.randomUUID());
+export function getCloudClientId() {
+  return (clientId ||= crypto.randomUUID());
 }

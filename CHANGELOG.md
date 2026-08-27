@@ -2,6 +2,8 @@
 
 ## Unreleased
 
++ [新增] 新增鉴权 WebSocket Collaboration Hub：按项目隔离 canonical mutation 广播、snapshot、presence、光标与选区，客户端支持去重、revision 推进和指数重连。
++ [安全] WebSocket upgrade 强制校验 Origin allowlist、HttpOnly Session 与项目成员权限，presence 限制 16KiB payload 和每秒 30 条消息，持久写仍统一走 REST transaction。
 + [新增] Server Workspace 接入云画布 CRUD 与 500ms 串行快照同步，远端 revision 独立记账；409 冲突保留本地内容并熔断自动重试。
 + [修复] Local 与各 Cloud Workspace 使用独立 Canvas 缓存命名空间，切换空云空间不再覆盖本地项目；服务端项目 ID 改为兼容历史 nanoid。
 + [新增] 新增显式 Local/Server Mode 账户页、登录注册、HttpOnly Session 恢复与 Workspace 切换；Local Mode 不会隐式连接云端。
