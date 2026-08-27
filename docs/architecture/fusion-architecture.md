@@ -382,3 +382,7 @@ Render Worker 已接入独立租约循环。输入/输出 API 均校验 Worker t
 ### DRM-009 双向互通（2026-08-28）
 
 Drama 可将来源、实体参考、镜头选择、时间轴或成片 Asset 投递为 Canvas media node；Canvas 中绑定云端 assetId 的节点可反向导入 Drama 实体或时间轴，Asset Library 亦可直接导入。所有路径强制同 Workspace、目标 revision、mutationId 与 payload hash，Canvas Asset reference 会阻止仍在画布使用的素材被删除。
+
+## R3 Community COM-001～005（2026-08-28）
+
+作品社区采用独立 Publication aggregate：草稿关联同 Workspace Canvas，提交时冻结完整 document snapshot，审核通过复制为不可变发布版本。公开 Feed/Search/Tag/Cursor、详情、分享链接与作者页无需 Session；草稿、点赞、关注、举报要求登录。审核、驳回、下架、恢复由 Maintenance 边界执行并记录 requestId 幂等 audit trail；互动使用唯一约束保证计数一致。

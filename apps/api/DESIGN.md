@@ -104,3 +104,7 @@ Workers claim Drama render leases independently from model-generation jobs. Inpu
 ### Drama / Canvas interoperability
 
 `DramaInteropService` supports Drama-to-Canvas media nodes and Canvas/Asset-to-Drama entity or timeline imports. It requires source and destination to share a Workspace, verifies Drama ownership of exported media, and uses destination revisions and mutation IDs. Canvas mutations now persist SHA-256 request hashes and reject mutation-ID payload drift; legacy mutation rows without hashes remain replayable for forward migration compatibility.
+
+## Community publication domain
+
+Community works are revisioned drafts linked to same-Workspace Canvas projects. Submission refreshes a full Canvas `draftSnapshot`; approval copies it into an immutable publication version so later source changes cannot alter public content. Anonymous feed/detail/author APIs expose only published visibility, while authenticated mutations enforce ownership and idempotency hashes. Likes/follows use set semantics, reports and moderation write auditable events, and Maintenance retries are request-id idempotent.

@@ -27,6 +27,7 @@ import type { DramaService } from "./drama-service.js";
 import type { DramaProductionService } from "./drama-production-service.js";
 import type { DramaRenderService } from "./drama-render-service.js";
 import type { DramaInteropService } from "./drama-interop-service.js";
+import type { CommunityService } from "./community-service.js";
 import { ModelDiscoveryService } from "./model-discovery.js";
 import { createModelDiscoveryApi } from "./model-discovery-api.js";
 import {
@@ -60,6 +61,7 @@ export type AppServices = {
   dramaProduction?: DramaProductionService;
   dramaRender?: DramaRenderService;
   dramaInterop?: DramaInteropService;
+  community?: CommunityService;
   maintenanceToken: string;
   secureCookies: boolean;
   modelDiscovery?: ModelDiscoveryService;
@@ -134,6 +136,31 @@ export function createApp(services: AppServices) {
       healthy ? 200 : 503,
     );
   });
+  if (services.community) {
+    app.get("/api/public/v1/community/feed", async (c) =>
+      c.json({
+        data: await services.community!.feed(
+          c.req.query("q"),
+          c.req.query("tag"),
+          c.req.query("cursor"),
+          Number(c.req.query("limit") || 20),
+        ),
+        requestId: requestId(c),
+      }),
+    );
+    app.get("/api/public/v1/community/works/:workId", async (c) => {
+      const x = await services.community!.detail(c.req.param("workId"));
+      if (!x)
+        throw new DomainError("COMMUNITY_WORK_NOT_FOUND", 404, "作品不存在");
+      return c.json({ data: x, requestId: requestId(c) });
+    });
+    app.get("/api/public/v1/community/authors/:authorId", async (c) =>
+      c.json({
+        data: await services.community!.author(c.req.param("authorId")),
+        requestId: requestId(c),
+      }),
+    );
+  }
 
   const registerSchema = z.object({
     email: z.email(),
@@ -265,6 +292,91 @@ export function createApp(services: AppServices) {
   app.get("/api/v1/me", (c) =>
     c.json({ data: c.get("user"), requestId: requestId(c) }),
   );
+  if (services.community) {
+    app.get("/api/v1/workspaces/:workspaceId/community/works", async (c) =>
+      c.json({
+        data: await services.community!.listOwned(
+          c.get("user").id,
+          c.req.param("workspaceId"),
+        ),
+        requestId: requestId(c),
+      }),
+    );
+    app.post("/api/v1/workspaces/:workspaceId/community/works", async (c) =>
+      c.json(
+        {
+          data: await services.community!.create(
+            c.get("user").id,
+            c.req.param("workspaceId"),
+            communityCreateSchema.parse(await c.req.json()),
+          ),
+          requestId: requestId(c),
+        },
+        201,
+      ),
+    );
+    app.patch("/api/v1/community/works/:workId", async (c) =>
+      c.json({
+        data: await services.community!.mutate(
+          c.get("user").id,
+          c.req.param("workId"),
+          communityUpdateSchema.parse(await c.req.json()),
+        ),
+        requestId: requestId(c),
+      }),
+    );
+    app.post("/api/v1/community/works/:workId/submit", async (c) =>
+      c.json(
+        {
+          data: await services.community!.submit(
+            c.get("user").id,
+            c.req.param("workId"),
+            communityMutationSchema.parse(await c.req.json()),
+          ),
+          requestId: requestId(c),
+        },
+        202,
+      ),
+    );
+    app.put("/api/v1/community/works/:workId/like", async (c) => {
+      const x = z
+        .object({ value: z.boolean() })
+        .strict()
+        .parse(await c.req.json());
+      return c.json({
+        data: await services.community!.like(
+          c.get("user").id,
+          c.req.param("workId"),
+          x.value,
+        ),
+        requestId: requestId(c),
+      });
+    });
+    app.put("/api/v1/community/authors/:authorId/follow", async (c) => {
+      const x = z
+        .object({ value: z.boolean() })
+        .strict()
+        .parse(await c.req.json());
+      return c.json({
+        data: await services.community!.follow(
+          c.get("user").id,
+          c.req.param("authorId"),
+          x.value,
+        ),
+        requestId: requestId(c),
+      });
+    });
+    app.post("/api/v1/community/works/:workId/reports", async (c) => {
+      const x = communityReportSchema.parse(await c.req.json());
+      await services.community!.report(
+        c.get("user").id,
+        c.req.param("workId"),
+        x.reasonCode,
+        x.detail || "",
+      );
+      return c.json({ data: { ok: true }, requestId: requestId(c) }, 201);
+    });
+  }
   if (services.drama) {
     app.get("/api/v1/workspaces/:workspaceId/drama-projects", async (c) =>
       c.json({
@@ -1260,6 +1372,14 @@ export function createApp(services: AppServices) {
     );
     await next();
   });
+  app.use("/internal/v1/community/*", async (c, next) => {
+    requireBearerToken(
+      c.req.header("authorization"),
+      services.maintenanceToken,
+      "Maintenance",
+    );
+    await next();
+  });
   app.post("/internal/v1/generation/claim", async (c) => {
     const input = workerClaimSchema.parse(await c.req.json());
     const now = new Date();
@@ -1272,6 +1392,26 @@ export function createApp(services: AppServices) {
     });
     return c.json({ data: jobs, requestId: requestId(c) });
   });
+  if (services.community) {
+    app.post("/internal/v1/community/works/:workId/moderate", async (c) => {
+      const x = communityModerateSchema.parse(await c.req.json());
+      return c.json({
+        data: await services.community!.moderate(
+          c.req.param("workId"),
+          x.decision,
+          x.reason,
+          requestId(c),
+        ),
+        requestId: requestId(c),
+      });
+    });
+    app.get("/internal/v1/community/works/:workId/audit", async (c) =>
+      c.json({
+        data: await services.community!.audit(c.req.param("workId")),
+        requestId: requestId(c),
+      }),
+    );
+  }
   if (services.dramaRender) {
     app.post("/internal/v1/drama-render/claim", async (c) => {
       const x = workerClaimSchema.parse(await c.req.json());
@@ -2810,6 +2950,45 @@ const dramaFromCanvasSchema = z
     expectedDramaRevision: z.number().int().nonnegative(),
     mutationId: z.string().trim().min(8).max(200),
     target: dramaTransferTargetSchema,
+  })
+  .strict();
+const communityCreateSchema = z
+  .object({
+    sourceProjectId: z.string().min(1).max(128),
+    title: z.string().trim().min(1).max(160),
+    description: z.string().max(10_000).optional(),
+    coverAssetId: z.uuid().optional(),
+    tags: z.array(z.string().trim().min(1).max(40)).max(20).optional(),
+    visibility: z.enum(["public", "unlisted", "private"]),
+  })
+  .strict();
+const communityMutationSchema = z
+  .object({
+    expectedRevision: z.number().int().nonnegative(),
+    mutationId: z.string().trim().min(8).max(200),
+  })
+  .strict();
+const communityUpdateSchema = z
+  .object({
+    expectedRevision: z.number().int().nonnegative(),
+    mutationId: z.string().trim().min(8).max(200),
+    title: z.string().trim().min(1).max(160).optional(),
+    description: z.string().max(10_000).optional(),
+    coverAssetId: z.uuid().nullable().optional(),
+    tags: z.array(z.string().trim().min(1).max(40)).max(20).optional(),
+    visibility: z.enum(["public", "unlisted", "private"]).optional(),
+  })
+  .strict();
+const communityReportSchema = z
+  .object({
+    reasonCode: z.enum(["spam", "copyright", "harassment", "unsafe", "other"]),
+    detail: z.string().max(4000).optional(),
+  })
+  .strict();
+const communityModerateSchema = z
+  .object({
+    decision: z.enum(["approve", "reject", "take_down", "restore"]),
+    reason: z.string().trim().max(4000),
   })
   .strict();
 function writeSession(
