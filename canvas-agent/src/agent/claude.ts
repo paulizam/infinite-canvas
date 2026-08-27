@@ -1,56 +1,47 @@
-import { spawn } from "node:child_process";
+import { query, type SDKMessage } from "@anthropic-ai/claude-agent-sdk";
 
 import { AGENT_PROMPT } from "../config.js";
 import { createAgentLogWriter } from "../utils/agent-runtime.js";
 import { errorMessage } from "../utils/value.js";
 import type { AgentEmit } from "./types.js";
 
-/** 使用 Claude CLI 执行一次带 Canvas Agent 工具的任务。 */
+type ClaudeQuery = typeof query;
+
+/** 使用官方 Claude Agent SDK 执行一次带 Canvas MCP 工具的任务。 */
 export function runClaudeTurn(prompt: string, emit: AgentEmit) {
-    const fullPrompt = withAgentPrompt(prompt);
-    if (!fullPrompt) return;
-    const child = spawnAgent("claude", ["-p", "--output-format", "stream-json", "--verbose", "--include-partial-messages", "--allowedTools", "mcp__infinite-canvas__*", fullPrompt], emit);
-    if (child) pipeJsonLines(child, emit, "claude");
+    void runClaudeSdkTurn(prompt, emit);
 }
 
-/** 为 Claude CLI 请求拼接 Canvas Agent 指令。 */
-function withAgentPrompt(prompt: string) {
-    return prompt.trim() ? `${AGENT_PROMPT}\n\n用户请求：${prompt}` : "";
-}
-
-/** 将 Claude CLI 的 JSON Lines 输出转换为 Agent 事件。 */
-function pipeJsonLines(child: ReturnType<typeof spawn>, emit: AgentEmit, agent: string) {
-    let out = "";
+export async function runClaudeSdkTurn(prompt: string, emit: AgentEmit, sdkQuery: ClaudeQuery = query) {
+    const userPrompt = prompt.trim();
+    if (!userPrompt) return 0;
     const stderr = createAgentLogWriter((text) => emit("agent_log", { text }));
-    child.stdout?.on("data", (chunk) => {
-        out += chunk.toString();
-        const lines = out.split(/\r?\n/);
-        out = lines.pop() || "";
-        lines.filter(Boolean).forEach((line) => {
-            try {
-                emit("agent_event", { agent, ...JSON.parse(line) });
-            } catch {
-                emit("agent_event", { agent, type: "raw", text: line });
-            }
-        });
-    });
-    child.stderr?.on("data", (chunk) => stderr.write(chunk.toString()));
-    child.on("error", (error) => {
-        stderr.flush();
-        emit("agent_error", { message: error.message });
-    });
-    child.on("close", (code) => {
-        stderr.flush();
-        emit("agent_done", { agent, code });
-    });
-}
-
-/** 启动外部 Agent CLI，并将同步启动异常转换为事件。 */
-function spawnAgent(name: string, args: string[], emit: AgentEmit) {
+    let exitCode = 0;
     try {
-        return spawn(name, args, { stdio: ["ignore", "pipe", "pipe"], shell: process.platform === "win32", windowsHide: true });
+        const messages = sdkQuery({
+            prompt: userPrompt,
+            options: {
+                allowedTools: ["mcp__infinite-canvas__*"],
+                includePartialMessages: true,
+                settingSources: ["user", "project", "local"],
+                systemPrompt: { type: "preset", preset: "claude_code", append: AGENT_PROMPT },
+                stderr: (text) => stderr.write(text),
+            },
+        });
+        for await (const sdkMessage of messages) {
+            const message = sdkMessage as SDKMessage;
+            emit("agent_event", { agent: "claude", ...message });
+            if (message.type === "result" && message.subtype !== "success") {
+                exitCode = 1;
+                emit("agent_error", { message: message.errors.join("\n") || message.subtype });
+            }
+        }
     } catch (error) {
+        exitCode = 1;
         emit("agent_error", { message: errorMessage(error) });
-        return null;
+    } finally {
+        stderr.flush();
+        emit("agent_done", { agent: "claude", code: exitCode });
     }
+    return exitCode;
 }

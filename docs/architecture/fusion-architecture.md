@@ -167,6 +167,8 @@ Canvas 写能力按 Workspace role fail-closed：Local mode 与 `owner/admin/edi
 
 Project checkpoint 是聚合的 immutable read model：创建时在锁定 Project 的同一事务内复制 canonical `CanvasDocument`，记录 `sourceRevision/name/description/createdBy/createdAt`。viewer 可读取和预览，只有 editor+ 可创建、删除或恢复。恢复必须携带 `expectedRevision`，在 Project row lock 内把 checkpoint snapshot 写成 `currentRevision + 1` 的新 canonical revision，并同步 Asset references 与 WebSocket canonical snapshot；禁止覆写 checkpoint、倒退 revision 或静默覆盖并发修改。Project 删除时 checkpoint 级联删除。
 
+本地 Claude adapter 使用官方 Claude Agent SDK typed async iterator，不再直接 spawn CLI 或手工解析 JSONL；仅自动允许 Canvas MCP tools，继承 user/project/local settings，stderr 经统一脱敏后进入 Agent 事件协议。
+
 ## 6. 领域模块
 
 ### 6.1 Identity & Workspace

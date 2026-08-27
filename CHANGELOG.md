@@ -2,6 +2,7 @@
 
 ## Unreleased
 
++ [重构] Claude Code Adapter 迁移至官方 Claude Agent SDK，使用 typed streaming、统一终态与脱敏错误通道，并保持 Canvas MCP 最小工具授权。
 + [新增] Project Checkpoint 支持命名不可变快照、viewer 预览、editor 恢复为新 revision，并通过乐观锁与实时 canonical snapshot 阻断静默覆盖。
 + [安全] 文档与前端构建链升级 Next.js，并锁定已修复的 Sharp、PostCSS、PrismJS，官方 npm audit 收敛为零已知漏洞。
 + [新增] Model Gateway Maintenance API 新增渠道连接测试与模型发现，支持 OpenAI-compatible、Gemini 及显式 Custom catalog path，返回去重规范化模型目录并反馈渠道健康状态。
