@@ -14,6 +14,8 @@ import { WorkflowPublicationService } from "./workflow-service.js";
 import { WorkflowExecutionService } from "./workflow-execution-service.js";
 import { PostgresWorkflowExecutionRepository } from "./postgres-workflow-execution-repository.js";
 import { WorkflowExecutionWorkerService } from "./workflow-execution-worker-service.js";
+import { PostgresWorkflowTriggerRepository } from "./postgres-workflow-trigger-repository.js";
+import { WorkflowTriggerService } from "./workflow-trigger-service.js";
 import {
   IdentityService,
   ProjectService,
@@ -36,6 +38,14 @@ const modelGateway = new PostgresModelGatewayRepository(
 );
 const workflowRepository = new PostgresWorkflowRepository(databaseUrl);
 const workflowExecutionRepository = new PostgresWorkflowExecutionRepository(
+  databaseUrl,
+);
+const workflowExecutionService = new WorkflowExecutionService(
+  repository,
+  workflowRepository,
+  workflowExecutionRepository,
+);
+const workflowTriggerRepository = new PostgresWorkflowTriggerRepository(
   databaseUrl,
 );
 const assets = new AssetService(
@@ -64,13 +74,15 @@ const app = createApp({
   workerStaleMs: positiveInteger("WORKER_STALE_MS"),
   modelGateway,
   workflows: new WorkflowPublicationService(repository, workflowRepository),
-  workflowExecutions: new WorkflowExecutionService(
-    repository,
-    workflowRepository,
-    workflowExecutionRepository,
-  ),
+  workflowExecutions: workflowExecutionService,
   workflowWorker: new WorkflowExecutionWorkerService(
     workflowExecutionRepository,
+  ),
+  workflowTriggers: new WorkflowTriggerService(
+    repository,
+    workflowRepository,
+    workflowExecutionService,
+    workflowTriggerRepository,
   ),
   maintenanceToken,
   collaboration,

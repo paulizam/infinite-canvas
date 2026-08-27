@@ -10,6 +10,11 @@ import type {
 } from "./workflow-types.js";
 
 export type WorkerResolvedModel = ResolvedModelCandidate & { apiKey: string };
+export type WorkerScheduleTrigger = {
+  id: string;
+  nextRunAt: string;
+  kind: "schedule";
+};
 
 export class WorkerApiClient {
   private readonly origin: string;
@@ -117,6 +122,29 @@ export class WorkerApiClient {
     return this.request<GenerationJob | null>(
       `/internal/v1/workflow/executions/${encodeURIComponent(executionId)}/generation/cancel`,
       { workerId, ...input },
+      signal,
+    );
+  }
+  claimScheduleTriggers(
+    workerId: string,
+    limit: number,
+    leaseMs: number,
+    signal?: AbortSignal,
+  ) {
+    return this.request<WorkerScheduleTrigger[]>(
+      "/internal/v1/workflow/triggers/schedules/claim",
+      { workerId, limit, leaseMs },
+      signal,
+    );
+  }
+  dispatchScheduleTrigger(
+    workerId: string,
+    triggerId: string,
+    signal?: AbortSignal,
+  ) {
+    return this.request(
+      `/internal/v1/workflow/triggers/schedules/${encodeURIComponent(triggerId)}/dispatch`,
+      { workerId },
       signal,
     );
   }

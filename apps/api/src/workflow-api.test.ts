@@ -16,6 +16,8 @@ import { WorkflowPublicationService } from "./workflow-service.js";
 import { MemoryWorkflowExecutionRepository } from "./workflow-execution-repository.js";
 import { WorkflowExecutionService } from "./workflow-execution-service.js";
 import { WorkflowExecutionWorkerService } from "./workflow-execution-worker-service.js";
+import { MemoryWorkflowTriggerRepository } from "./workflow-trigger-repository.js";
+import { WorkflowTriggerService } from "./workflow-trigger-service.js";
 
 let app: ReturnType<typeof createApp>;
 beforeEach(() => {
@@ -29,6 +31,11 @@ beforeEach(() => {
     (userId, workspaceId, minimum) =>
       platform.requireWorkspaceRole(userId, workspaceId, minimum),
   );
+  const workflowExecutionService = new WorkflowExecutionService(
+    platform,
+    workflowRepository,
+    executionRepository,
+  );
   app = createApp({
     identity: new IdentityService(platform, 60_000),
     workspaces: new WorkspaceService(platform),
@@ -37,12 +44,16 @@ beforeEach(() => {
     jobs: new GenerationJobService(platform, jobs),
     jobRepository: jobs,
     workflows: new WorkflowPublicationService(platform, workflowRepository),
-    workflowExecutions: new WorkflowExecutionService(
+    workflowExecutions: workflowExecutionService,
+    workflowWorker: new WorkflowExecutionWorkerService(executionRepository),
+    workflowTriggers: new WorkflowTriggerService(
       platform,
       workflowRepository,
-      executionRepository,
+      workflowExecutionService,
+      new MemoryWorkflowTriggerRepository((userId, workspaceId, minimum) =>
+        platform.requireWorkspaceRole(userId, workspaceId, minimum),
+      ),
     ),
-    workflowWorker: new WorkflowExecutionWorkerService(executionRepository),
     workerToken: "test-worker-token-32-characters-long",
     workerStaleMs: 120_000,
     modelGateway: new MemoryModelGatewayRepository(),
@@ -531,6 +542,78 @@ describe("Workflow publication API", () => {
         )
       ).status,
     ).toBe(404);
+    const triggerResponse = await app.request(
+      `/api/v1/workflows/${firstData.workflow.id}/triggers`,
+      {
+        method: "POST",
+        headers: { cookie: owner.cookie, "content-type": "application/json" },
+        body: JSON.stringify({
+          kind: "webhook",
+          targetNodeId: "generate",
+          config: { rateLimitPerMinute: 1 },
+        }),
+      },
+    );
+    expect(triggerResponse.status).toBe(201);
+    const trigger = (
+      (await triggerResponse.json()) as {
+        data: { trigger: { id: string }; token: string };
+      }
+    ).data;
+    const invoke = (key: string, token = trigger.token) =>
+      app.request(`/api/v1/workflow-triggers/${trigger.trigger.id}/invoke`, {
+        method: "POST",
+        headers: {
+          authorization: `Bearer ${token}`,
+          "idempotency-key": key,
+          "content-type": "application/json",
+        },
+        body: JSON.stringify({ prompt: "from webhook" }),
+      });
+    const invoked = await invoke("webhook-event-0001");
+    expect(invoked.status).toBe(202);
+    const invokedData = (
+      (await invoked.json()) as {
+        data: {
+          record: { state: { id: string; initialInputs: unknown } };
+          replayed: boolean;
+        };
+      }
+    ).data;
+    expect(invokedData).toMatchObject({
+      replayed: false,
+      record: {
+        state: { initialInputs: { generate: { prompt: "from webhook" } } },
+      },
+    });
+    const replayed = await invoke("webhook-event-0001");
+    expect(
+      (
+        (await replayed.json()) as {
+          data: { record: { state: { id: string } }; replayed: boolean };
+        }
+      ).data,
+    ).toMatchObject({
+      replayed: true,
+      record: { state: { id: invokedData.record.state.id } },
+    });
+    expect((await invoke("webhook-event-0002")).status).toBe(429);
+    const listedTriggers = await app.request(
+      `/api/v1/workflows/${firstData.workflow.id}/triggers`,
+      { headers: { cookie: owner.cookie } },
+    );
+    expect(JSON.stringify(await listedTriggers.json())).not.toContain(
+      "tokenHash",
+    );
+    expect(
+      (
+        await app.request(`/api/v1/workflow-triggers/${trigger.trigger.id}`, {
+          method: "DELETE",
+          headers: { cookie: owner.cookie },
+        })
+      ).status,
+    ).toBe(200);
+    expect((await invoke("webhook-event-0003")).status).toBe(404);
   });
 
   it("returns compile diagnostics without persisting an invalid Canvas", async () => {

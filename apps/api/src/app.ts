@@ -18,6 +18,7 @@ import type { WorkflowPublicationService } from "./workflow-service.js";
 import type { WorkflowExecutionService } from "./workflow-execution-service.js";
 import type { WorkflowExecutionWorkerService } from "./workflow-execution-worker-service.js";
 import type { WorkflowExecutionRecord } from "./workflow-execution-repository.js";
+import type { WorkflowTriggerService } from "./workflow-trigger-service.js";
 import { ModelDiscoveryService } from "./model-discovery.js";
 import { createModelDiscoveryApi } from "./model-discovery-api.js";
 import {
@@ -43,6 +44,7 @@ export type AppServices = {
   workflows?: WorkflowPublicationService;
   workflowExecutions?: WorkflowExecutionService;
   workflowWorker?: WorkflowExecutionWorkerService;
+  workflowTriggers?: WorkflowTriggerService;
   maintenanceToken: string;
   secureCookies: boolean;
   modelDiscovery?: ModelDiscoveryService;
@@ -149,6 +151,60 @@ export function createApp(services: AppServices) {
     deleteCookie(c, "ic_session", { path: "/" });
     return c.json({ data: { ok: true }, requestId: requestId(c) });
   });
+  if (services.workflowTriggers)
+    app.post("/api/v1/workflow-triggers/:triggerId/invoke", async (c) => {
+      const length = Number(c.req.header("content-length") || 0);
+      if (length > 1024 * 1024)
+        throw new DomainError(
+          "TRIGGER_PAYLOAD_TOO_LARGE",
+          422,
+          "Trigger payload 超过 1 MiB",
+        );
+      const token = c.req
+        .header("authorization")
+        ?.match(/^Bearer ([A-Za-z0-9_-]{32,})$/)?.[1];
+      const idempotencyKey = c.req.header("idempotency-key")?.trim();
+      if (
+        !token ||
+        !idempotencyKey ||
+        idempotencyKey.length < 8 ||
+        idempotencyKey.length > 200
+      )
+        throw new DomainError(
+          "TRIGGER_AUTH_REQUIRED",
+          401,
+          "Trigger token 或幂等键无效",
+        );
+      const raw = await c.req.text();
+      if (Buffer.byteLength(raw) > 1024 * 1024)
+        throw new DomainError(
+          "TRIGGER_PAYLOAD_TOO_LARGE",
+          422,
+          "Trigger payload 超过 1 MiB",
+        );
+      let payload: unknown;
+      try {
+        payload = raw ? JSON.parse(raw) : {};
+      } catch {
+        throw new DomainError(
+          "INVALID_TRIGGER_PAYLOAD",
+          422,
+          "Trigger payload 必须是 JSON",
+        );
+      }
+      return c.json(
+        {
+          data: await services.workflowTriggers!.invokeExternal(
+            c.req.param("triggerId"),
+            token,
+            idempotencyKey,
+            payload,
+          ),
+          requestId: requestId(c),
+        },
+        202,
+      );
+    });
 
   app.use("/api/v1/*", async (c, next) => {
     const token = getCookie(c, "ic_session");
@@ -470,6 +526,40 @@ export function createApp(services: AppServices) {
         }),
     );
   }
+  if (services.workflowTriggers) {
+    app.get("/api/v1/workflows/:workflowId/triggers", async (c) =>
+      c.json({
+        data: await services.workflowTriggers!.list(
+          c.get("user").id,
+          c.req.param("workflowId"),
+        ),
+        requestId: requestId(c),
+      }),
+    );
+    app.post("/api/v1/workflows/:workflowId/triggers", async (c) => {
+      const input = workflowTriggerCreateSchema.parse(await c.req.json());
+      return c.json(
+        {
+          data: await services.workflowTriggers!.create(
+            c.get("user").id,
+            c.req.param("workflowId"),
+            input,
+          ),
+          requestId: requestId(c),
+        },
+        201,
+      );
+    });
+    app.delete("/api/v1/workflow-triggers/:triggerId", async (c) =>
+      c.json({
+        data: await services.workflowTriggers!.disable(
+          c.get("user").id,
+          c.req.param("triggerId"),
+        ),
+        requestId: requestId(c),
+      }),
+    );
+  }
   app.delete("/api/v1/projects/:projectId", async (c) => {
     await services.projects.delete(c.get("user").id, c.req.param("projectId"));
     return c.json({ data: { ok: true }, requestId: requestId(c) });
@@ -632,6 +722,35 @@ export function createApp(services: AppServices) {
           ? job
           : await services.jobs.cancel(record.createdBy, job.id);
         return c.json({ data: cancelled, requestId: requestId(c) });
+      },
+    );
+  }
+  if (services.workflowTriggers) {
+    app.post("/internal/v1/workflow/triggers/schedules/claim", async (c) => {
+      const input = workflowWorkerClaimSchema.parse(await c.req.json());
+      return c.json({
+        data: await services.workflowTriggers!.claimSchedules(
+          input.workerId,
+          input.limit,
+          input.leaseMs,
+        ),
+        requestId: requestId(c),
+      });
+    });
+    app.post(
+      "/internal/v1/workflow/triggers/schedules/:triggerId/dispatch",
+      async (c) => {
+        const input = z
+          .object({ workerId: z.string().trim().min(1).max(160) })
+          .strict()
+          .parse(await c.req.json());
+        return c.json({
+          data: await services.workflowTriggers!.dispatchSchedule(
+            input.workerId,
+            c.req.param("triggerId"),
+          ),
+          requestId: requestId(c),
+        });
       },
     );
   }
@@ -1010,6 +1129,40 @@ const createWorkflowExecutionSchema = z
       .optional(),
   })
   .strict();
+const workflowTriggerCreateSchema = z
+  .object({
+    kind: z.enum(["webhook", "form", "email", "schedule"]),
+    targetNodeId: z.string().trim().min(1).max(160),
+    version: z.number().int().positive().optional(),
+    config: z.record(z.string(), z.unknown()).default({}),
+    nextRunAt: z.iso.datetime().optional(),
+  })
+  .strict()
+  .superRefine((value, context) => {
+    const rate = value.config.rateLimitPerMinute;
+    if (
+      rate !== undefined &&
+      (!Number.isInteger(rate) || Number(rate) < 1 || Number(rate) > 600)
+    )
+      context.addIssue({
+        code: "custom",
+        path: ["config", "rateLimitPerMinute"],
+        message: "rateLimitPerMinute must be 1..600",
+      });
+    if (value.kind === "schedule") {
+      const interval = value.config.intervalSeconds;
+      if (
+        !Number.isInteger(interval) ||
+        Number(interval) < 60 ||
+        Number(interval) > 2_592_000
+      )
+        context.addIssue({
+          code: "custom",
+          path: ["config", "intervalSeconds"],
+          message: "intervalSeconds must be 60..2592000",
+        });
+    }
+  });
 const workerClaimSchema = z.object({
   workerId: z.string().trim().min(1).max(160),
   limit: z.number().int().min(1).max(50).default(20),

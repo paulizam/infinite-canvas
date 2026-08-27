@@ -4,6 +4,7 @@ import { nextPollDelay } from "./poll-policy.js";
 import { createModelGatewayHandler } from "./gateway-handler.js";
 import { runWorkflowCycle, type WorkflowHandler } from "./workflow-runtime.js";
 import type { WorkflowNodeAdapters } from "./workflow-executor.js";
+import { runScheduleTriggerCycle } from "./trigger-runtime.js";
 
 export type JobHandler = (
   job: GenerationJob,
@@ -77,26 +78,34 @@ export async function runWorker(input: {
   let idleBatches = 0;
   while (!input.signal?.aborted) {
     try {
-      const [generationClaimed, workflowClaimed] = await Promise.all([
-        runWorkerCycle({
-          client: input.client,
-          workerId: input.workerId,
-          limit: input.limit || 10,
-          leaseMs: input.leaseMs || 90_000,
-          handler: input.handler,
-          signal: input.signal,
-        }),
-        runWorkflowCycle({
-          client: input.client,
-          workerId: input.workerId,
-          limit: input.limit || 10,
-          leaseMs: input.leaseMs || 90_000,
-          handler: input.workflowHandler,
-          adapters: input.workflowAdapters,
-          signal: input.signal,
-        }),
-      ]);
-      const claimed = generationClaimed + workflowClaimed;
+      const [generationClaimed, workflowClaimed, triggerClaimed] =
+        await Promise.all([
+          runWorkerCycle({
+            client: input.client,
+            workerId: input.workerId,
+            limit: input.limit || 10,
+            leaseMs: input.leaseMs || 90_000,
+            handler: input.handler,
+            signal: input.signal,
+          }),
+          runWorkflowCycle({
+            client: input.client,
+            workerId: input.workerId,
+            limit: input.limit || 10,
+            leaseMs: input.leaseMs || 90_000,
+            handler: input.workflowHandler,
+            adapters: input.workflowAdapters,
+            signal: input.signal,
+          }),
+          runScheduleTriggerCycle({
+            client: input.client,
+            workerId: input.workerId,
+            limit: input.limit || 10,
+            leaseMs: input.leaseMs || 90_000,
+            signal: input.signal,
+          }),
+        ]);
+      const claimed = generationClaimed + workflowClaimed + triggerClaimed;
       const policy = nextPollDelay({
         claimed,
         idleBatches,
