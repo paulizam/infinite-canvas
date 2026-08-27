@@ -20,6 +20,7 @@ import type { WorkflowExecutionWorkerService } from "./workflow-execution-worker
 import type { WorkflowExecutionRecord } from "./workflow-execution-repository.js";
 import type { WorkflowTriggerService } from "./workflow-trigger-service.js";
 import type { WorkflowLibraryService } from "./workflow-library-service.js";
+import type { WorkflowPublicApiService } from "./workflow-public-api-service.js";
 import { ModelDiscoveryService } from "./model-discovery.js";
 import { createModelDiscoveryApi } from "./model-discovery-api.js";
 import {
@@ -47,6 +48,7 @@ export type AppServices = {
   workflowWorker?: WorkflowExecutionWorkerService;
   workflowTriggers?: WorkflowTriggerService;
   workflowLibrary?: WorkflowLibraryService;
+  workflowPublicApi?: WorkflowPublicApiService;
   maintenanceToken: string;
   secureCookies: boolean;
   modelDiscovery?: ModelDiscoveryService;
@@ -207,6 +209,39 @@ export function createApp(services: AppServices) {
         202,
       );
     });
+  if (services.workflowPublicApi) {
+    app.post("/api/v1/public/workflows/invoke", async (c) => {
+      const { secret, idempotencyKey } = publicWorkflowCredentials(c);
+      const raw = await readBoundedJson(
+        c,
+        1024 * 1024,
+        "WORKFLOW_API_PAYLOAD_TOO_LARGE",
+      );
+      return c.json(
+        {
+          data: await services.workflowPublicApi!.invoke(
+            secret,
+            idempotencyKey,
+            raw,
+            requestId(c),
+          ),
+          requestId: requestId(c),
+        },
+        202,
+      );
+    });
+    app.get("/api/v1/public/workflow-executions/:executionId", async (c) => {
+      const { secret } = publicWorkflowCredentials(c, false);
+      return c.json({
+        data: await services.workflowPublicApi!.getExecution(
+          secret,
+          c.req.param("executionId"),
+          requestId(c),
+        ),
+        requestId: requestId(c),
+      });
+    });
+  }
 
   app.use("/api/v1/*", async (c, next) => {
     const token = getCookie(c, "ic_session");
@@ -671,6 +706,65 @@ export function createApp(services: AppServices) {
           201,
         );
       },
+    );
+  }
+  if (services.workflowPublicApi) {
+    app.get("/api/v1/workflows/:workflowId/api-tokens", async (c) =>
+      c.json({
+        data: await services.workflowPublicApi!.list(
+          c.get("user").id,
+          c.req.param("workflowId"),
+        ),
+        requestId: requestId(c),
+      }),
+    );
+    app.get("/api/v1/workflows/:workflowId/api-audit", async (c) =>
+      c.json({
+        data: await services.workflowPublicApi!.listAudit(
+          c.get("user").id,
+          c.req.param("workflowId"),
+          z.coerce
+            .number()
+            .int()
+            .min(1)
+            .max(200)
+            .default(50)
+            .parse(c.req.query("limit")),
+        ),
+        requestId: requestId(c),
+      }),
+    );
+    app.post("/api/v1/workflows/:workflowId/api-tokens", async (c) => {
+      const input = workflowApiTokenCreateSchema.parse(await c.req.json());
+      return c.json(
+        {
+          data: await services.workflowPublicApi!.create(
+            c.get("user").id,
+            c.req.param("workflowId"),
+            input,
+          ),
+          requestId: requestId(c),
+        },
+        201,
+      );
+    });
+    app.delete("/api/v1/workflow-api-tokens/:tokenId", async (c) =>
+      c.json({
+        data: await services.workflowPublicApi!.revoke(
+          c.get("user").id,
+          c.req.param("tokenId"),
+        ),
+        requestId: requestId(c),
+      }),
+    );
+    app.post("/api/v1/workflow-api-tokens/:tokenId/rotate", async (c) =>
+      c.json({
+        data: await services.workflowPublicApi!.rotate(
+          c.get("user").id,
+          c.req.param("tokenId"),
+        ),
+        requestId: requestId(c),
+      }),
     );
   }
   app.delete("/api/v1/projects/:projectId", async (c) => {
@@ -1276,6 +1370,21 @@ const workflowTriggerCreateSchema = z
         });
     }
   });
+const workflowApiTokenCreateSchema = z
+  .object({
+    name: z.string().trim().min(1).max(120),
+    scopes: z
+      .array(z.enum(["invoke", "read_execution"]))
+      .min(1)
+      .max(2)
+      .refine(
+        (value) => new Set(value).size === value.length,
+        "scopes must be unique",
+      ),
+    version: z.number().int().positive().optional(),
+    rateLimitPerMinute: z.number().int().min(1).max(600).default(60),
+  })
+  .strict();
 const workflowPortImportSchema = z
   .object({
     id: z.string().min(1).max(160),
@@ -1746,6 +1855,47 @@ function writeSession(
     sameSite: "Strict",
     path: "/",
   });
+}
+function publicWorkflowCredentials(
+  c: Context<ApiEnv>,
+  requireIdempotency = true,
+) {
+  const secret = c.req
+    .header("authorization")
+    ?.match(/^Bearer (icwf_[A-Za-z0-9_-]{43})$/)?.[1];
+  const idempotencyKey = c.req.header("idempotency-key")?.trim() || "";
+  if (
+    !secret ||
+    (requireIdempotency &&
+      (idempotencyKey.length < 8 || idempotencyKey.length > 200))
+  )
+    throw new DomainError(
+      "WORKFLOW_API_AUTH_REQUIRED",
+      401,
+      "Workflow API token 或幂等键无效",
+    );
+  return { secret, idempotencyKey };
+}
+async function readBoundedJson(
+  c: Context<ApiEnv>,
+  maxBytes: number,
+  tooLargeCode: string,
+) {
+  const length = Number(c.req.header("content-length") || 0);
+  if (Number.isFinite(length) && length > maxBytes)
+    throw new DomainError(tooLargeCode, 413, "请求体超过 1 MiB");
+  const raw = await c.req.text();
+  if (Buffer.byteLength(raw) > maxBytes)
+    throw new DomainError(tooLargeCode, 413, "请求体超过 1 MiB");
+  try {
+    return raw ? JSON.parse(raw) : {};
+  } catch {
+    throw new DomainError(
+      "INVALID_WORKFLOW_API_PAYLOAD",
+      422,
+      "Workflow API payload 必须是 JSON",
+    );
+  }
 }
 function requestId(c: Context<ApiEnv>) {
   return c.get("requestId");

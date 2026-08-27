@@ -112,6 +112,23 @@ export type CloudWorkflowBundle = {
     version: { number: number; definition: WorkflowDefinition };
     checksum: string;
 };
+export type CloudWorkflowApiScope = "invoke" | "read_execution";
+export type CloudWorkflowApiToken = {
+    id: string;
+    workflowId: string;
+    workflowVersion: number;
+    workspaceId: string;
+    createdBy: string;
+    name: string;
+    tokenPrefix: string;
+    scopes: CloudWorkflowApiScope[];
+    rateLimitPerMinute: number;
+    revokedAt: string | null;
+    createdAt: string;
+    lastUsedAt: string | null;
+};
+export type CloudWorkflowApiCredential = { token: CloudWorkflowApiToken; secret: string };
+export type CloudWorkflowApiAuditEvent = { id: string; tokenId: string; tokenName: string; action: CloudWorkflowApiScope; executionId: string | null; requestId: string | null; createdAt: string };
 
 type FetchLike = (input: RequestInfo | URL, init?: RequestInit) => Promise<Response>;
 type Envelope<T> = { data: T; requestId: string };
@@ -255,6 +272,29 @@ export class CloudPlatformClient {
         });
     }
 
+    listWorkflowApiTokens(workflowId: string) {
+        return this.request<CloudWorkflowApiToken[]>(`/api/v1/workflows/${encodeURIComponent(workflowId)}/api-tokens`);
+    }
+
+    listWorkflowApiAudit(workflowId: string, limit = 50) {
+        return this.request<CloudWorkflowApiAuditEvent[]>(`/api/v1/workflows/${encodeURIComponent(workflowId)}/api-audit?limit=${limit}`);
+    }
+
+    createWorkflowApiToken(workflowId: string, input: { name: string; scopes: CloudWorkflowApiScope[]; version?: number; rateLimitPerMinute: number }) {
+        return this.request<CloudWorkflowApiCredential>(`/api/v1/workflows/${encodeURIComponent(workflowId)}/api-tokens`, {
+            method: "POST",
+            body: JSON.stringify(input),
+        });
+    }
+
+    rotateWorkflowApiToken(tokenId: string) {
+        return this.request<CloudWorkflowApiCredential>(`/api/v1/workflow-api-tokens/${encodeURIComponent(tokenId)}/rotate`, { method: "POST" });
+    }
+
+    revokeWorkflowApiToken(tokenId: string) {
+        return this.request<CloudWorkflowApiToken>(`/api/v1/workflow-api-tokens/${encodeURIComponent(tokenId)}`, { method: "DELETE" });
+    }
+
     listModels() {
         return this.request<LogicalModel[]>("/api/v1/models");
     }
@@ -356,5 +396,6 @@ export class CloudPlatformClient {
     }
 }
 
-export const cloudPlatform = new CloudPlatformClient((import.meta.env.VITE_API_BASE as string | undefined)?.replace(/\/$/, "") || "");
+export const cloudApiBaseUrl = (import.meta.env.VITE_API_BASE as string | undefined)?.replace(/\/$/, "") || "";
+export const cloudPlatform = new CloudPlatformClient(cloudApiBaseUrl);
 export const cloudModeEnabled = import.meta.env.VITE_PLATFORM_MODE === "server";

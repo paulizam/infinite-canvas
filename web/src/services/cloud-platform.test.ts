@@ -105,4 +105,20 @@ describe("CloudPlatformClient", () => {
         expect(fetcher).toHaveBeenNthCalledWith(2, "/api/v1/workspaces/team%2Fa/workflows/import", expect.objectContaining({ method: "POST", body: JSON.stringify({ bundle, name: "Imported" }) }));
         expect(fetcher).toHaveBeenNthCalledWith(3, "/api/v1/workflow-templates/template%2Fa/instantiate", expect.objectContaining({ method: "POST", body: JSON.stringify({ name: "Copy" }) }));
     });
+
+    it("manages scoped workflow API tokens without placing secrets in paths", async () => {
+        const fetcher = vi.fn(async () => Response.json({ data: [], requestId: "r12" }));
+        const client = new CloudPlatformClient("", fetcher);
+        const input = { name: "Production", scopes: ["invoke", "read_execution"] as const, rateLimitPerMinute: 30 };
+        await client.listWorkflowApiTokens("workflow/a");
+        await client.listWorkflowApiAudit("workflow/a", 20);
+        await client.createWorkflowApiToken("workflow/a", { ...input, scopes: [...input.scopes] });
+        await client.rotateWorkflowApiToken("token/a");
+        await client.revokeWorkflowApiToken("token/a");
+        expect(fetcher).toHaveBeenNthCalledWith(1, "/api/v1/workflows/workflow%2Fa/api-tokens", expect.any(Object));
+        expect(fetcher).toHaveBeenNthCalledWith(2, "/api/v1/workflows/workflow%2Fa/api-audit?limit=20", expect.any(Object));
+        expect(fetcher).toHaveBeenNthCalledWith(3, "/api/v1/workflows/workflow%2Fa/api-tokens", expect.objectContaining({ method: "POST", body: JSON.stringify(input) }));
+        expect(fetcher).toHaveBeenNthCalledWith(4, "/api/v1/workflow-api-tokens/token%2Fa/rotate", expect.objectContaining({ method: "POST" }));
+        expect(fetcher).toHaveBeenNthCalledWith(5, "/api/v1/workflow-api-tokens/token%2Fa", expect.objectContaining({ method: "DELETE" }));
+    });
 });

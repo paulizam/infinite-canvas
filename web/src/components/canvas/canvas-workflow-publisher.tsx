@@ -6,6 +6,7 @@ import { useTranslation } from "react-i18next";
 import { cloudModeEnabled, cloudPlatform, type CloudWorkflowPublication, type CloudWorkflowVersion, type WorkflowCompileIssue } from "@/services/cloud-platform";
 import { WorkflowExecutionPanel } from "./workflow-execution-panel";
 import { WorkflowLibraryPanel } from "./workflow-library-panel";
+import { WorkflowApiPanel } from "./workflow-api-panel";
 
 export function CanvasWorkflowPublisher({ projectId, projectRevision, projectName, workspaceId, onFocusNode }: { projectId: string; projectRevision: number; projectName: string; workspaceId?: string | null; onFocusNode: (nodeId: string) => void }) {
     const { t } = useTranslation();
@@ -125,6 +126,7 @@ export function CanvasWorkflowPublisher({ projectId, projectRevision, projectNam
                         )}
                     </section>
                     {current ? <WorkflowExecutionPanel publication={current} versions={versions} onFocusNode={onFocusNode} onClose={() => setOpen(false)} /> : null}
+                    {current ? <WorkflowApiPanel workflowId={current.workflow.id} /> : null}
                     {workspaceId ? <WorkflowLibraryPanel workspaceId={workspaceId} currentWorkflowId={current?.workflow.id} /> : null}
                 </div>
             </Modal>

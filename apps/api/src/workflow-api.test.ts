@@ -20,8 +20,11 @@ import { MemoryWorkflowTriggerRepository } from "./workflow-trigger-repository.j
 import { WorkflowTriggerService } from "./workflow-trigger-service.js";
 import { MemoryWorkflowLibraryRepository } from "./workflow-library-repository.js";
 import { WorkflowLibraryService } from "./workflow-library-service.js";
+import { MemoryWorkflowPublicApiRepository } from "./workflow-public-api-repository.js";
+import { WorkflowPublicApiService } from "./workflow-public-api-service.js";
 
 let app: ReturnType<typeof createApp>;
+let publicApiRepository: MemoryWorkflowPublicApiRepository;
 beforeEach(() => {
   const platform = new MemoryPlatformRepository();
   const jobs = new MemoryGenerationJobRepository();
@@ -45,6 +48,10 @@ beforeEach(() => {
       platform.requireWorkspaceRole(userId, workspaceId, minimum),
     ),
   );
+  publicApiRepository = new MemoryWorkflowPublicApiRepository(
+    (userId, workspaceId, minimum) =>
+      platform.requireWorkspaceRole(userId, workspaceId, minimum),
+  );
   app = createApp({
     identity: new IdentityService(platform, 60_000),
     workspaces: new WorkspaceService(platform),
@@ -64,6 +71,12 @@ beforeEach(() => {
       ),
     ),
     workflowLibrary,
+    workflowPublicApi: new WorkflowPublicApiService(
+      platform,
+      workflowRepository,
+      workflowExecutionService,
+      publicApiRepository,
+    ),
     workerToken: "test-worker-token-32-characters-long",
     workerStaleMs: 120_000,
     modelGateway: new MemoryModelGatewayRepository(),
@@ -756,6 +769,171 @@ describe("Workflow publication API", () => {
     expect(data.compile.issues.map((issue) => issue.code)).toContain(
       "EMPTY_WORKFLOW",
     );
+  });
+
+  it("manages scoped public API tokens and invokes idempotently with audit", async () => {
+    const owner = await register("workflow-public-api@example.com");
+    await createProject(owner, "project-public-api");
+    const published = await app.request(
+      "/api/v1/projects/project-public-api/workflows/publish",
+      {
+        method: "POST",
+        headers: { cookie: owner.cookie, "content-type": "application/json" },
+        body: JSON.stringify({
+          publicationId: "public-api-publish",
+          expectedProjectRevision: 0,
+          entryNodeIds: ["prompt"],
+        }),
+      },
+    );
+    const workflowId = (
+      (await published.json()) as {
+        data: { publication: { workflow: { id: string } } };
+      }
+    ).data.publication.workflow.id;
+    const created = await app.request(
+      `/api/v1/workflows/${workflowId}/api-tokens`,
+      {
+        method: "POST",
+        headers: { cookie: owner.cookie, "content-type": "application/json" },
+        body: JSON.stringify({
+          name: "Production",
+          scopes: ["invoke", "read_execution"],
+          rateLimitPerMinute: 2,
+        }),
+      },
+    );
+    expect(created.status).toBe(201);
+    const credential = (
+      (await created.json()) as {
+        data: { secret: string; token: { id: string; tokenHash?: string } };
+      }
+    ).data;
+    expect(credential.secret).toMatch(/^icwf_[A-Za-z0-9_-]{43}$/);
+    expect(credential.token).not.toHaveProperty("tokenHash");
+    const invoke = (secret: string, key: string) =>
+      app.request("/api/v1/public/workflows/invoke", {
+        method: "POST",
+        headers: {
+          authorization: `Bearer ${secret}`,
+          "idempotency-key": key,
+          "content-type": "application/json",
+        },
+        body: JSON.stringify({ prompt: "from API" }),
+      });
+    const first = await invoke(credential.secret, "request-0001");
+    expect(first.status).toBe(202);
+    const executionId = (
+      (await first.json()) as { data: { executionId: string } }
+    ).data.executionId;
+    const replay = await invoke(credential.secret, "request-0001");
+    expect(replay.status).toBe(202);
+    expect((await replay.json()) as object).toMatchObject({
+      data: { executionId, replayed: true },
+    });
+    const status = await app.request(
+      `/api/v1/public/workflow-executions/${executionId}`,
+      { headers: { authorization: `Bearer ${credential.secret}` } },
+    );
+    expect(status.status).toBe(200);
+    expect(publicApiRepository.audits.map((value) => value.action)).toEqual([
+      "invoke",
+      "invoke",
+      "read_execution",
+    ]);
+    const audit = await app.request(
+      `/api/v1/workflows/${workflowId}/api-audit?limit=2`,
+      { headers: { cookie: owner.cookie } },
+    );
+    expect(audit.status).toBe(200);
+    expect(((await audit.json()) as { data: unknown[] }).data).toHaveLength(2);
+    const listed = await app.request(
+      `/api/v1/workflows/${workflowId}/api-tokens`,
+      { headers: { cookie: owner.cookie } },
+    );
+    expect(JSON.stringify(await listed.json())).not.toContain(
+      credential.secret,
+    );
+    const rotated = await app.request(
+      `/api/v1/workflow-api-tokens/${credential.token.id}/rotate`,
+      { method: "POST", headers: { cookie: owner.cookie } },
+    );
+    expect(rotated.status).toBe(200);
+    expect((await invoke(credential.secret, "request-0002")).status).toBe(401);
+  });
+
+  it("enforces public API scopes, limits and payload bounds", async () => {
+    const owner = await register("workflow-public-limit@example.com");
+    await createProject(owner, "project-public-limit");
+    const published = await app.request(
+      "/api/v1/projects/project-public-limit/workflows/publish",
+      {
+        method: "POST",
+        headers: { cookie: owner.cookie, "content-type": "application/json" },
+        body: JSON.stringify({
+          publicationId: "public-limit",
+          expectedProjectRevision: 0,
+        }),
+      },
+    );
+    const workflowId = (
+      (await published.json()) as {
+        data: { publication: { workflow: { id: string } } };
+      }
+    ).data.publication.workflow.id;
+    const tokenResponse = await app.request(
+      `/api/v1/workflows/${workflowId}/api-tokens`,
+      {
+        method: "POST",
+        headers: { cookie: owner.cookie, "content-type": "application/json" },
+        body: JSON.stringify({
+          name: "Invoke only",
+          scopes: ["invoke"],
+          rateLimitPerMinute: 1,
+        }),
+      },
+    );
+    const { secret } = (
+      (await tokenResponse.json()) as { data: { secret: string } }
+    ).data;
+    const headers = {
+      authorization: `Bearer ${secret}`,
+      "content-type": "application/json",
+      "idempotency-key": "limit-0001",
+    };
+    const first = await app.request("/api/v1/public/workflows/invoke", {
+      method: "POST",
+      headers,
+      body: "{}",
+    });
+    const executionId = (
+      (await first.json()) as { data: { executionId: string } }
+    ).data.executionId;
+    expect(
+      (
+        await app.request("/api/v1/public/workflows/invoke", {
+          method: "POST",
+          headers: { ...headers, "idempotency-key": "limit-0002" },
+          body: "{}",
+        })
+      ).status,
+    ).toBe(429);
+    expect(
+      (
+        await app.request(`/api/v1/public/workflow-executions/${executionId}`, {
+          headers: { authorization: `Bearer ${secret}` },
+        })
+      ).status,
+    ).toBe(401);
+    expect(
+      (
+        await app.request("/api/v1/public/workflows/invoke", {
+          method: "POST",
+          headers: { ...headers, "content-length": String(1024 * 1024 + 1) },
+          body: "{}",
+        })
+      ).status,
+    ).toBe(413);
   });
 
   it("rejects stale revisions and hides projects across tenants", async () => {

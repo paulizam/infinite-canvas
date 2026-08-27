@@ -18,6 +18,8 @@ import { PostgresWorkflowTriggerRepository } from "./postgres-workflow-trigger-r
 import { WorkflowTriggerService } from "./workflow-trigger-service.js";
 import { PostgresWorkflowLibraryRepository } from "./postgres-workflow-library-repository.js";
 import { WorkflowLibraryService } from "./workflow-library-service.js";
+import { PostgresWorkflowPublicApiRepository } from "./postgres-workflow-public-api-repository.js";
+import { WorkflowPublicApiService } from "./workflow-public-api-service.js";
 import {
   IdentityService,
   ProjectService,
@@ -51,6 +53,9 @@ const workflowTriggerRepository = new PostgresWorkflowTriggerRepository(
   databaseUrl,
 );
 const workflowLibraryRepository = new PostgresWorkflowLibraryRepository(
+  databaseUrl,
+);
+const workflowPublicApiRepository = new PostgresWorkflowPublicApiRepository(
   databaseUrl,
 );
 const assets = new AssetService(
@@ -93,6 +98,12 @@ const app = createApp({
     repository,
     workflowRepository,
     workflowLibraryRepository,
+  ),
+  workflowPublicApi: new WorkflowPublicApiService(
+    repository,
+    workflowRepository,
+    workflowExecutionService,
+    workflowPublicApiRepository,
   ),
   maintenanceToken,
   collaboration,
