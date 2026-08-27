@@ -19,7 +19,7 @@
 - [x] WebSocket collaboration hub
 - [x] Asset storage（magic-byte、SHA-256、Local/S3、RBAC、AssetRef 保护）
 - [x] Generation Job Worker（contract/state/schema/repository/API、独立 runtime、heartbeat/lease recovery）
-- [▶] Model Gateway（OpenAI-compatible、Gemini、声明式 Custom runtime、媒体 Asset、health/cooldown、provider cancel 已完成；streaming、连接测试/模型发现、provider-specific adapter 待完成）；Billing、Web 预估/余额、Cloud Job、AssetRef 回填、Canvas Retry/编辑全路径已完成，运营对账待完成
+- [▶] Model Gateway（OpenAI-compatible、Gemini、声明式 Custom runtime、媒体 Asset、health/cooldown、provider cancel、连接测试/模型发现已完成；streaming、provider-specific adapter 待完成）；Billing、Web 预估/余额、Cloud Job、AssetRef 回填、Canvas Retry/编辑全路径已完成，运营对账待完成
 
 ## 错误账本
 
@@ -40,3 +40,4 @@
 | Web reference 单测顶层加载 i18n 依赖 localStorage | 1 | 本地 BlobStore 改为按 storageKey 动态导入，Data URL 路径无环境副作用 |
 | Asset materializer 用字符串 `pending` 占位存在并发污染风险 | 1 | 改为缓存 Promise，重复引用等待同一结果并保持唯一读取 |
 | Facade 单测顶层导入 Local API 触发 i18n/localStorage | 1 | 测试显式 mock Local provider 模块，不伪造浏览器全局 |
+| 误判存在 `model-gateway-service.ts` | 1 | 重新读取 AppServices，确认现阶段直接注入 Repository，Discovery 独立成 service |

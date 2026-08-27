@@ -10,6 +10,11 @@ import type {
 import type { ModelRoutingCatalog } from "@infinite-canvas/model-gateway";
 
 export type InternalResolvedModel = ResolvedModelCandidate & { apiKey: string };
+export type ModelChannelRuntime = {
+  channel: ModelChannel;
+  protocol: ModelProtocol;
+  apiKey: string;
+};
 export interface ModelGatewayRepository {
   catalog(): Promise<ModelRoutingCatalog>;
   saveProtocol(value: ModelProtocol): Promise<ModelProtocol>;
@@ -29,6 +34,7 @@ export interface ModelGatewayRepository {
     outcome: "success" | "failure",
     now: string,
   ): Promise<void>;
+  channelRuntime(channelId: string): Promise<ModelChannelRuntime | null>;
 }
 
 export class MemoryModelGatewayRepository implements ModelGatewayRepository {
@@ -116,5 +122,11 @@ export class MemoryModelGatewayRepository implements ModelGatewayRepository {
           ? new Date(Date.parse(now) + 60_000).toISOString()
           : null,
     });
+  }
+  async channelRuntime(channelId: string) {
+    const channel = this.channels.get(channelId);
+    const protocol = channel && this.protocols.get(channel.protocolId);
+    const apiKey = channel && this.secrets.get(channel.id);
+    return channel && protocol && apiKey ? { channel, protocol, apiKey } : null;
   }
 }

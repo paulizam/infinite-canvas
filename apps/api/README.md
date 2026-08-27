@@ -52,6 +52,10 @@ Development uses `pnpm --filter @infinite-canvas/api dev`. The API listens on po
   assets cannot be deleted. S3 content is served through short-lived signed URLs.
 - Provider endpoints default to HTTPS-only, reject URL credentials/query/fragment components, and
   channel secrets are decrypted only while resolving a Worker request.
+- Maintenance can test or discover a saved channel through
+  `POST /internal/v1/maintenance/model-channels/:id/test` and `.../:id/discover`. Discovery rejects
+  redirects and private/reserved DNS targets unless private-network access is explicitly enabled,
+  caps catalog responses at 2 MiB, and never returns provider bodies or credentials in diagnostics.
 - Paid Job retries create a new reservation for a new attempt. Failed/cancelled attempts refund
   once; uncertain `needs_review` attempts retain their reservation for explicit reconciliation.
 

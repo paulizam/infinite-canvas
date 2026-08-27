@@ -189,6 +189,34 @@ export class PostgresModelGatewayRepository implements ModelGatewayRepository {
       [upstreamModelId, now],
     );
   }
+  async channelRuntime(channelId: string) {
+    const result = await this.pool.query(
+      `SELECT c.*,p.id AS p_id,p.name AS p_name,p.adapter AS p_adapter,p.enabled AS p_enabled,p.config AS p_config
+       FROM model_channels c JOIN model_protocols p ON p.id=c.protocol_id WHERE c.id=$1`,
+      [channelId],
+    );
+    const row = result.rows[0];
+    if (!row?.secret_ciphertext || !row.secret_iv || !row.secret_tag)
+      return null;
+    return {
+      channel: mapChannel(row),
+      protocol: {
+        id: String(row.p_id),
+        name: String(row.p_name),
+        adapter: row.p_adapter as ModelProtocol["adapter"],
+        enabled: Boolean(row.p_enabled),
+        config: row.p_config as Record<string, unknown>,
+      },
+      apiKey: this.cipher.decrypt(
+        {
+          ciphertext: row.secret_ciphertext,
+          iv: row.secret_iv,
+          tag: row.secret_tag,
+        },
+        channelId,
+      ),
+    };
+  }
 }
 function mapProtocol(r: Record<string, unknown>): ModelProtocol {
   return {

@@ -29,6 +29,14 @@ beforeEach(async () => {
     workerToken: worker.slice(7),
     workerStaleMs: 120_000,
     modelGateway: new MemoryModelGatewayRepository(),
+    modelDiscovery: {
+      discover: async (channelId: string) => ({
+        channelId,
+        adapter: "openai-compatible",
+        models: [{ id: "image-v1" }],
+        latencyMs: 12,
+      }),
+    } as never,
     maintenanceToken: maintenance.slice(7),
     secureCookies: false,
   });
@@ -76,6 +84,15 @@ describe("model gateway control plane", () => {
     expect(JSON.stringify(await channel.json())).not.toContain(
       "provider-secret",
     );
+    const discovered = await app.request(
+      `/internal/v1/maintenance/model-channels/${channelId}/discover`,
+      { method: "POST", headers: { authorization: maintenance } },
+    );
+    expect(discovered.status).toBe(200);
+    expect(
+      ((await discovered.json()) as { data: { models: Array<{ id: string }> } })
+        .data.models,
+    ).toEqual([{ id: "image-v1" }]);
     await put(`upstream-models/${upstreamId}`, {
       channelId,
       modelId: "image-v1",

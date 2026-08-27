@@ -2,6 +2,8 @@
 
 ## Unreleased
 
++ [新增] Model Gateway Maintenance API 新增渠道连接测试与模型发现，支持 OpenAI-compatible、Gemini 及显式 Custom catalog path，返回去重规范化模型目录并反馈渠道健康状态。
++ [安全] 模型发现使用运行时解密凭据、30 秒超时、禁止重定向、DNS 后内网/保留地址拦截、2MiB 响应上限和脱敏错误；Provider body 与 API Key 不进入响应或日志。
 + [重构] Canvas Local/Cloud 生成统一收口到 provider facade，Server mode 现覆盖普通生成、批量槽位、Retry、Mask Edit、Angle Edit 及 image/video/audio 引用；Job 终态自动刷新积分余额。
 + [重构] Worker input AssetRef 物化从 gateway handler 拆为独立模块，并以 Promise single-flight 修复重复引用可能把占位值传入 Provider 的竞态。
 + [安全] Cloud 引用媒体先经 magic-byte 校验上传为 AssetRef，Job JSON 不再持久化大型 Data URL；Worker 仅凭有效 Job lease 读取同 Workspace 素材，并在受限内存中临时物化 Provider 输入。

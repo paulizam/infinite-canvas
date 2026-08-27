@@ -9,6 +9,8 @@ import type { AssetService } from "./asset-service.js";
 import type { GenerationJobService } from "./generation-job-service.js";
 import type { GenerationJobRepository } from "./generation-job-repository.js";
 import type { ModelGatewayRepository } from "./model-gateway-repository.js";
+import { ModelDiscoveryService } from "./model-discovery.js";
+import { createModelDiscoveryApi } from "./model-discovery-api.js";
 import {
   IdentityService,
   ProjectService,
@@ -30,6 +32,7 @@ export type AppServices = {
   modelGateway: ModelGatewayRepository;
   maintenanceToken: string;
   secureCookies: boolean;
+  modelDiscovery?: ModelDiscoveryService;
   collaboration?: {
     publishMutation: (
       project: import("./domain.js").ProjectRecord,
@@ -40,6 +43,8 @@ export type AppServices = {
 
 export function createApp(services: AppServices) {
   const app = new Hono<ApiEnv>();
+  const modelDiscovery =
+    services.modelDiscovery || new ModelDiscoveryService(services.modelGateway);
   app.onError((error, c) => {
     const id = c.get("requestId") || crypto.randomUUID();
     if (error instanceof DomainError)
@@ -468,6 +473,10 @@ export function createApp(services: AppServices) {
       requestId: requestId(c),
     });
   });
+  app.route(
+    "/internal/v1/maintenance/model-channels",
+    createModelDiscoveryApi(modelDiscovery, services.modelGateway),
+  );
   app.put("/internal/v1/maintenance/upstream-models/:id", async (c) => {
     const input = upstreamModelSchema.parse(await c.req.json());
     return c.json({

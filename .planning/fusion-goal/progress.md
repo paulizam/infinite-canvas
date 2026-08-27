@@ -37,3 +37,6 @@
 - 将 Worker AssetRef materializer 拆出 gateway handler，并将占位字符串修正为 Promise single-flight，重复引用会等待同一读取结果而非把 `pending` 送给 Provider。
 - 新增 Canvas generation provider facade，统一 Local/Cloud text/image/video/audio 调用；主生成、批量槽位、Retry、Mask Edit、Angle Edit 全部共享逻辑，Server mode 不再落回浏览器 Provider credential。
 - Video Cloud Job 同步携带 image/video/audio 引用 AssetRef；多模态 text 的 `image_url.url` 保持 AssetRef 到 Worker 才物化。Job 成功、失败或取消结束后广播 Billing 刷新事件。
+- Model Gateway 新增 runtime channel lookup，PostgreSQL 仅在连接测试/模型发现调用期间解密 AES-GCM credential，公开 DTO 继续只暴露 credentialConfigured。
+- 新增独立 Model Discovery service/API：OpenAI `/v1/models`、Gemini `/v1beta/models`、显式 Custom catalog path；支持模型 ID 去前缀、去重和 displayName。
+- Discovery 出站请求实施禁止 redirect、30 秒 timeout、DNS 后 private/reserved IP 拒绝（显式 allowPrivateNetwork 才放行）、2MiB 流式上限和无 Provider body 的错误映射；成功/失败反馈该 Channel 下 upstream health。
