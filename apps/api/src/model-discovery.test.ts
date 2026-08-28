@@ -160,7 +160,10 @@ describe("ModelDiscoveryService", () => {
       kind: "usage",
       payload: { Result: { RemainingUnits: 42 } },
     });
-    const [url, init] = fetcher.mock.calls[0] as unknown as [string, RequestInit];
+    const [url, init] = fetcher.mock.calls[0] as unknown as [
+      string,
+      RequestInit,
+    ];
     expect(String(url)).toContain("Action=GetResourceUsage");
     expect(String(url)).not.toContain("AKLTEXAMPLE");
     expect(JSON.stringify(init)).not.toContain("secret");
