@@ -31,7 +31,7 @@
 | CAN-006 | P0 | DIRECT-TEST-EVIDENCE | 文本、图片、视频、音频、生成配置等内置节点。 | `packages/canvas-core/src/core.test.ts` |
 | CAN-007 | P0 | DIRECT-TEST-EVIDENCE | 文件拖入画布，按类型创建节点并保存媒体引用。 | `web/src/lib/canvas/canvas-file-drop.test.ts` |
 | CAN-008 | P0 | DIRECT-TEST-EVIDENCE | 导入/导出整项目或选中节点，资源随包；兼容 export v3。 | `packages/canvas-core/src/core.test.ts`<br>`web/src/lib/canvas/canvas-export.test.ts` |
-| CAN-009 | P0 | DIRECT-TEST-EVIDENCE | 图片裁剪、遮罩、旋转/角度、拆分、放大、取视频帧。 | `web/src/lib/canvas/canvas-media-geometry.test.ts` |
+| CAN-009 | P0 | DIRECT-TEST-EVIDENCE | 图片裁剪、遮罩、旋转/角度、拆分、放大、取视频帧。 | `web/src/lib/canvas/canvas-media-geometry.test.ts`<br>`web/src/pages/canvas/canvas-super-resolution.test.ts` |
 | CAN-010 | P0 | DIRECT-TEST-EVIDENCE | Prompt/参考素材通过连接或 mention 绑定生成节点。 | `web/src/lib/canvas/canvas-generation-contracts.test.ts` |
 | CAN-011 | P0 | DIRECT-TEST-EVIDENCE | 生成节点记录 prompt、model、尺寸、画质、时长、参考和 attempt。 | `web/src/lib/canvas/canvas-generation-contracts.test.ts` |
 | CAN-012 | P1 | DIRECT-TEST-EVIDENCE | Canvas 与 Creative Studio 双视图，切换不改变项目数据。 | `web/src/lib/studio/project-media-projection.test.ts` |

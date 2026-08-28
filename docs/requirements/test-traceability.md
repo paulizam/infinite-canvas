@@ -30,7 +30,7 @@
 | CAN-006 | P0 | `packages/canvas-core/src/core.test.ts` |
 | CAN-007 | P0 | `web/src/lib/canvas/canvas-file-drop.test.ts` |
 | CAN-008 | P0 | `packages/canvas-core/src/core.test.ts`<br>`web/src/lib/canvas/canvas-export.test.ts` |
-| CAN-009 | P0 | `web/src/lib/canvas/canvas-media-geometry.test.ts` |
+| CAN-009 | P0 | `web/src/lib/canvas/canvas-media-geometry.test.ts`<br>`web/src/pages/canvas/canvas-super-resolution.test.ts` |
 | CAN-010 | P0 | `web/src/lib/canvas/canvas-generation-contracts.test.ts` |
 | CAN-011 | P0 | `web/src/lib/canvas/canvas-generation-contracts.test.ts` |
 | CAN-012 | P1 | `web/src/lib/studio/project-media-projection.test.ts` |
