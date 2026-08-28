@@ -21,6 +21,19 @@ jobs:
         with: { node-version: 22, cache: pnpm }
       - run: pnpm install --frozen-lockfile
       - run: pnpm quality
+      - name: Exercise real S3-compatible asset storage
+        run: |
+          docker run -d --name minio-runtime -p 9000:9000 \
+            -e MINIO_ROOT_USER=minioadmin -e MINIO_ROOT_PASSWORD=minioadmin \
+            minio/minio:RELEASE.2025-04-22T22-12-26Z server /data
+          trap 'docker rm -f minio-runtime >/dev/null 2>&1 || true' EXIT
+          for attempt in $(seq 1 30); do
+            curl --fail --silent http://127.0.0.1:9000/minio/health/ready && break
+            test "$attempt" -lt 30
+            sleep 2
+          done
+          S3_TEST_ENDPOINT=http://127.0.0.1:9000 \
+            pnpm --filter @infinite-canvas/api test -- src/blob-store-runtime.integration.test.ts
       - name: Exercise real FFmpeg drama rendering
         run: |
           sudo apt-get update
