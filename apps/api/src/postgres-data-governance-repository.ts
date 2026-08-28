@@ -111,14 +111,14 @@ export class PostgresDataGovernanceRepository implements DataGovernanceRepositor
   }) {
     if (input.dryRun) {
       const r = await this.pool.query(
-        `SELECT id asset_id,storage_key FROM media_assets a WHERE created_at<$1 AND NOT EXISTS(SELECT 1 FROM media_asset_references r WHERE r.asset_id=a.id) ORDER BY created_at,id LIMIT $2`,
+        `SELECT id asset_id,storage_provider,storage_key FROM media_assets a WHERE created_at<$1 AND NOT EXISTS(SELECT 1 FROM media_asset_references r WHERE r.asset_id=a.id) ORDER BY created_at,id LIMIT $2`,
         [input.olderThan, input.limit],
       );
       return { candidates: r.rows.map(candidate), queued: [] };
     }
     return this.tx(async (c) => {
       const r = await c.query(
-        `SELECT id asset_id,storage_key FROM media_assets a WHERE created_at<$1 AND NOT EXISTS(SELECT 1 FROM media_asset_references r WHERE r.asset_id=a.id) ORDER BY created_at,id LIMIT $2 FOR UPDATE SKIP LOCKED`,
+        `SELECT id asset_id,storage_provider,storage_key FROM media_assets a WHERE created_at<$1 AND NOT EXISTS(SELECT 1 FROM media_asset_references r WHERE r.asset_id=a.id) ORDER BY created_at,id LIMIT $2 FOR UPDATE SKIP LOCKED`,
         [input.olderThan, input.limit],
       );
       const candidates = r.rows.map(candidate),
@@ -132,8 +132,14 @@ export class PostgresDataGovernanceRepository implements DataGovernanceRepositor
           );
           if (removed.rowCount) {
             await c.query(
-              "INSERT INTO media_blob_gc(id,asset_id,storage_key,state,created_at,updated_at) VALUES($1,$2,$3,'pending',$4,$4)",
-              [item.id, item.assetId, item.storageKey, input.now],
+              "INSERT INTO media_blob_gc(id,asset_id,storage_provider,storage_key,state,created_at,updated_at) VALUES($1,$2,$3,$4,'pending',$5,$5)",
+              [
+                item.id,
+                item.assetId,
+                item.storageProvider,
+                item.storageKey,
+                input.now,
+              ],
             );
             queued.push(item);
           }
@@ -163,7 +169,7 @@ export class PostgresDataGovernanceRepository implements DataGovernanceRepositor
 
   async pendingBlobGc(limit: number) {
     const r = await this.pool.query(
-      "SELECT id,asset_id,storage_key FROM media_blob_gc WHERE state IN ('pending','failed') ORDER BY updated_at,id LIMIT $1",
+      "SELECT id,asset_id,storage_provider,storage_key FROM media_blob_gc WHERE state IN ('pending','failed') ORDER BY updated_at,id LIMIT $1",
       [limit],
     );
     return r.rows.map(candidateWithId);
@@ -243,11 +249,13 @@ export class PostgresDataGovernanceRepository implements DataGovernanceRepositor
 const candidate = (x: any): BlobGcItem => ({
   id: randomUUID(),
   assetId: String(x.asset_id),
+  storageProvider: String(x.storage_provider || "local"),
   storageKey: String(x.storage_key),
 });
 const candidateWithId = (x: any): BlobGcItem => ({
   id: String(x.id),
   assetId: String(x.asset_id),
+  storageProvider: String(x.storage_provider || "local"),
   storageKey: String(x.storage_key),
 });
 const iso = (x: unknown) => (x instanceof Date ? x.toISOString() : String(x));

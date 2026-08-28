@@ -48,6 +48,7 @@ export type AssetRecord = {
   id: string;
   workspaceId: string;
   ownerId: string;
+  storageProvider: string;
   storageKey: string;
   sha256: string;
   bytes: number;

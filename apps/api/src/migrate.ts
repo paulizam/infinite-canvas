@@ -3,6 +3,9 @@ import { readdir, readFile } from "node:fs/promises";
 import pg from "pg";
 const databaseUrl = process.env.DATABASE_URL?.trim();
 if (!databaseUrl) throw new Error("DATABASE_URL is required");
+const assetStorageProvider = process.env.BLOB_STORAGE_DRIVER?.trim() || "local";
+if (!/^[a-z][a-z0-9_-]{0,39}$/.test(assetStorageProvider))
+  throw new Error("BLOB_STORAGE_DRIVER is invalid");
 const pool = new pg.Pool({ connectionString: databaseUrl });
 try {
   await pool.query(`CREATE TABLE IF NOT EXISTS schema_migrations (
@@ -35,6 +38,10 @@ async function applyMigration(file: string, directory: URL) {
   const client = await pool.connect();
   try {
     await client.query("BEGIN");
+    await client.query(
+      "SELECT set_config('app.asset_storage_provider',$1,true)",
+      [assetStorageProvider],
+    );
     await client.query(sql);
     await client.query(
       "INSERT INTO schema_migrations(id,checksum) VALUES($1,$2)",

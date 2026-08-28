@@ -13,6 +13,7 @@ export type AccountExport = {
 export type BlobGcItem = {
   id: string;
   assetId: string;
+  storageProvider: string;
   storageKey: string;
 };
 

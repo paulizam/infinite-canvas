@@ -1,14 +1,21 @@
-import type { AssetBlobStore } from "./blob-store.js";
+import {
+  assetBlobStoreRegistry,
+  type AssetBlobStore,
+  type AssetBlobStoreRegistry,
+} from "./blob-store.js";
 import type { DataGovernanceRepository } from "./data-governance-repository.js";
 import type { IdentityService } from "./services.js";
 import { sanitizedError } from "./observability.js";
 
 export class DataGovernanceService {
+  private readonly blobStores: AssetBlobStoreRegistry;
   constructor(
     private readonly repository: DataGovernanceRepository,
-    private readonly blobs: AssetBlobStore,
+    blobs: AssetBlobStore | AssetBlobStoreRegistry,
     private readonly identity: IdentityService,
-  ) {}
+  ) {
+    this.blobStores = assetBlobStoreRegistry(blobs);
+  }
 
   exportAccount(userId: string) {
     return this.repository.exportAccount(userId, new Date().toISOString());
@@ -37,7 +44,12 @@ export class DataGovernanceService {
       failed = 0;
     for (const item of pending) {
       try {
-        await this.blobs.delete(item.storageKey);
+        const blobs = this.blobStores.stores[item.storageProvider];
+        if (!blobs)
+          throw new Error(
+            `Asset storage provider ${item.storageProvider} is not configured`,
+          );
+        await blobs.delete(item.storageKey);
         await this.repository.completeBlobGc(item.id, now);
         deleted++;
       } catch (error) {

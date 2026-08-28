@@ -457,11 +457,12 @@ export class PostgresPlatformRepository implements PlatformRepository {
       "editor",
     );
     const result = await this.pool.query(
-      "INSERT INTO media_assets(id,workspace_id,owner_id,storage_key,sha256,bytes,mime_type,kind,original_name,created_at) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10) ON CONFLICT(workspace_id,sha256) DO UPDATE SET sha256=EXCLUDED.sha256 RETURNING *",
+      "INSERT INTO media_assets(id,workspace_id,owner_id,storage_provider,storage_key,sha256,bytes,mime_type,kind,original_name,created_at) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11) ON CONFLICT(workspace_id,sha256) DO UPDATE SET sha256=EXCLUDED.sha256 RETURNING *",
       [
         asset.id,
         asset.workspaceId,
         asset.ownerId,
+        asset.storageProvider,
         asset.storageKey,
         asset.sha256,
         asset.bytes,
@@ -571,6 +572,7 @@ function mapAsset(r: Record<string, unknown>): AssetRecord {
     id: String(r.id),
     workspaceId: String(r.workspace_id),
     ownerId: String(r.owner_id),
+    storageProvider: String(r.storage_provider || "local"),
     storageKey: String(r.storage_key),
     sha256: String(r.sha256),
     bytes: Number(r.bytes),

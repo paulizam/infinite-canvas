@@ -38,7 +38,14 @@ class GovernanceRepositoryStub implements DataGovernanceRepository {
     return { deletedAt: now };
   }
   async prepareBlobGc(input: { dryRun: boolean }) {
-    const candidates = [{ id: "gc-1", assetId: "asset-1", storageKey: "ok" }];
+    const candidates = [
+      {
+        id: "gc-1",
+        assetId: "asset-1",
+        storageProvider: "default",
+        storageKey: "ok",
+      },
+    ];
     return { candidates, queued: input.dryRun ? [] : candidates };
   }
   async pendingBlobGc() {
@@ -113,8 +120,18 @@ describe("data governance service", () => {
 
     blobs.values.set("ok", Buffer.from("x"));
     repository.pending = [
-      { id: "gc-ok", assetId: "asset-ok", storageKey: "ok" },
-      { id: "gc-fail", assetId: "asset-fail", storageKey: "fail" },
+      {
+        id: "gc-ok",
+        assetId: "asset-ok",
+        storageProvider: "default",
+        storageKey: "ok",
+      },
+      {
+        id: "gc-fail",
+        assetId: "asset-fail",
+        storageProvider: "default",
+        storageKey: "fail",
+      },
     ];
     const originalDelete = blobs.delete.bind(blobs);
     blobs.delete = async (key) => {
@@ -130,5 +147,34 @@ describe("data governance service", () => {
     expect(result).toMatchObject({ deleted: 1, failed: 1 });
     expect(repository.completed).toEqual(["gc-ok"]);
     expect(repository.failed).toEqual(["gc-fail"]);
+  });
+
+  it("deletes GC entries from the provider captured before the asset row was removed", async () => {
+    const repository = new GovernanceRepositoryStub();
+    repository.pending = [
+      {
+        id: "gc-local",
+        assetId: "asset-old",
+        storageProvider: "local",
+        storageKey: "old",
+      },
+    ];
+    const local = new MemoryAssetBlobStore();
+    const s3 = new MemoryAssetBlobStore();
+    local.values.set("old", Buffer.from("old"));
+    const service = new DataGovernanceService(
+      repository,
+      { currentProvider: "s3", stores: { local, s3 } },
+      new IdentityService(new MemoryPlatformRepository(), 60_000),
+    );
+    await service.mediaGc({
+      olderThan: new Date(0).toISOString(),
+      limit: 10,
+      dryRun: false,
+      requestId: "provider-gc",
+    });
+    expect(local.values.has("old")).toBe(false);
+    expect(s3.values.size).toBe(0);
+    expect(repository.completed).toEqual(["gc-local"]);
   });
 });

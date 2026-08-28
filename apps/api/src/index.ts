@@ -83,7 +83,7 @@ const workflowPublicApiRepository = new PostgresWorkflowPublicApiRepository(
   databaseUrl,
 );
 const agentRunRepository = new PostgresAgentRunRepository(databaseUrl);
-const blobStore = createBlobStore();
+const blobStore = createBlobStores();
 const assets = new AssetService(
   repository,
   blobStore,
@@ -245,17 +245,30 @@ function positiveInteger(name: string) {
   return value;
 }
 
-function createBlobStore() {
+function createBlobStores() {
   const driver = required("BLOB_STORAGE_DRIVER");
-  if (driver === "local")
-    return new LocalAssetBlobStore(required("ASSET_LOCAL_ROOT"));
-  if (driver === "s3")
-    return new S3AssetBlobStore(required("S3_BUCKET"), {
-      region: required("S3_REGION"),
+  if (driver !== "local" && driver !== "s3")
+    throw new Error(`Unsupported BLOB_STORAGE_DRIVER: ${driver}`);
+  const stores: Record<string, LocalAssetBlobStore | S3AssetBlobStore> = {};
+  const localRoot = process.env.ASSET_LOCAL_ROOT?.trim();
+  if (localRoot) stores.local = new LocalAssetBlobStore(localRoot);
+  const s3 = [
+    "S3_BUCKET",
+    "S3_REGION",
+    "S3_ACCESS_KEY_ID",
+    "S3_SECRET_ACCESS_KEY",
+  ].map((name) => process.env[name]?.trim());
+  if (s3.every(Boolean))
+    stores.s3 = new S3AssetBlobStore(s3[0]!, {
+      region: s3[1]!,
       endpoint: process.env.S3_ENDPOINT?.trim() || undefined,
-      accessKeyId: required("S3_ACCESS_KEY_ID"),
-      secretAccessKey: required("S3_SECRET_ACCESS_KEY"),
+      accessKeyId: s3[2]!,
+      secretAccessKey: s3[3]!,
       forcePathStyle: process.env.S3_FORCE_PATH_STYLE === "true",
     });
-  throw new Error(`Unsupported BLOB_STORAGE_DRIVER: ${driver}`);
+  if (!stores[driver])
+    throw new Error(
+      `${driver === "local" ? "ASSET_LOCAL_ROOT" : "S3 configuration"} is required for BLOB_STORAGE_DRIVER=${driver}`,
+    );
+  return { currentProvider: driver, stores };
 }

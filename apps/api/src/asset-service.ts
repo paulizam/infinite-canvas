@@ -1,7 +1,11 @@
 import { createHash, randomUUID } from "node:crypto";
 import { basename } from "node:path";
 import { fileTypeFromBuffer } from "file-type";
-import type { AssetBlobStore } from "./blob-store.js";
+import {
+  assetBlobStoreRegistry,
+  type AssetBlobStore,
+  type AssetBlobStoreRegistry,
+} from "./blob-store.js";
 import {
   DomainError,
   type AssetRecord,
@@ -10,13 +14,18 @@ import {
 } from "./domain.js";
 
 export class AssetService {
+  private readonly currentProvider: string;
+  private readonly blobStores: Readonly<Record<string, AssetBlobStore>>;
   constructor(
     private readonly repository: PlatformRepository,
-    private readonly blobs: AssetBlobStore,
+    blobs: AssetBlobStore | AssetBlobStoreRegistry,
     private readonly maxUploadBytes: number,
   ) {
     if (!Number.isSafeInteger(maxUploadBytes) || maxUploadBytes <= 0)
       throw new Error("MAX_UPLOAD_BYTES must be a positive integer");
+    const registry = assetBlobStoreRegistry(blobs);
+    this.currentProvider = registry.currentProvider;
+    this.blobStores = registry.stores;
   }
   list(userId: string, workspaceId: string) {
     return this.repository.listAssets(userId, workspaceId);
@@ -67,6 +76,7 @@ export class AssetService {
       id,
       workspaceId,
       ownerId: userId,
+      storageProvider: this.currentProvider,
       storageKey,
       sha256,
       bytes: input.bytes.length,
@@ -75,36 +85,48 @@ export class AssetService {
       originalName: safeName(input.originalName, detected.ext),
       createdAt: new Date().toISOString(),
     };
-    await this.blobs.put(storageKey, input.bytes, detected.mime);
+    const blobs = this.store(this.currentProvider);
+    await blobs.put(storageKey, input.bytes, detected.mime);
     try {
       const stored = await this.repository.createAsset(userId, asset);
-      if (stored.id !== id) await this.blobs.delete(storageKey);
+      if (stored.id !== id) await blobs.delete(storageKey);
       return { asset: stored, deduplicated: stored.id !== id };
     } catch (error) {
-      await this.blobs.delete(storageKey).catch(() => undefined);
+      await blobs.delete(storageKey).catch(() => undefined);
       throw error;
     }
   }
   async read(userId: string, assetId: string) {
     const asset = await this.repository.getAsset(userId, assetId);
     if (!asset) throw new DomainError("ASSET_NOT_FOUND", 404, "素材不存在");
-    const url = await this.blobs.signedReadUrl?.(
-      asset.storageKey,
-      asset.mimeType,
-    );
+    const blobs = this.store(asset.storageProvider);
+    const url = await blobs.signedReadUrl?.(asset.storageKey, asset.mimeType);
     return url
       ? { asset, url }
-      : { asset, bytes: await this.blobs.get(asset.storageKey) };
+      : { asset, bytes: await blobs.get(asset.storageKey) };
   }
   async readBytes(userId: string, assetId: string) {
     const asset = await this.repository.getAsset(userId, assetId);
     if (!asset) throw new DomainError("ASSET_NOT_FOUND", 404, "素材不存在");
-    return { asset, bytes: await this.blobs.get(asset.storageKey) };
+    return {
+      asset,
+      bytes: await this.store(asset.storageProvider).get(asset.storageKey),
+    };
   }
   async delete(userId: string, assetId: string) {
     const asset = await this.repository.deleteAsset(userId, assetId);
-    await this.blobs.delete(asset.storageKey);
+    await this.store(asset.storageProvider).delete(asset.storageKey);
     return asset;
+  }
+  private store(provider: string) {
+    const store = this.blobStores[provider];
+    if (!store)
+      throw new DomainError(
+        "ASSET_STORAGE_UNAVAILABLE",
+        502,
+        `素材存储 ${provider} 未配置`,
+      );
+    return store;
   }
 }
 function mediaKind(mime?: string): MediaKind | null {

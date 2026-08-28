@@ -15,6 +15,22 @@ export interface AssetBlobStore {
   signedReadUrl?(key: string, contentType: string): Promise<string>;
 }
 
+export type AssetBlobStoreRegistry = {
+  currentProvider: string;
+  stores: Readonly<Record<string, AssetBlobStore>>;
+};
+
+export function assetBlobStoreRegistry(
+  value: AssetBlobStore | AssetBlobStoreRegistry,
+): AssetBlobStoreRegistry {
+  if ("stores" in value) {
+    if (!value.currentProvider.trim() || !value.stores[value.currentProvider])
+      throw new Error("Current asset storage provider is not configured");
+    return value;
+  }
+  return { currentProvider: "default", stores: { default: value } };
+}
+
 export class LocalAssetBlobStore implements AssetBlobStore {
   constructor(private readonly root: string) {}
   async put(key: string, bytes: Buffer) {
