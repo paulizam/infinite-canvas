@@ -78,7 +78,7 @@ jobs:
         with: { node-version: 22, cache: pnpm }
       - run: pnpm install --frozen-lockfile
       - run: pnpm security:secrets
-      - run: pnpm licenses:check || { node ops/license-inventory.mjs; git diff -- THIRD_PARTY_NOTICES.md; exit 1; }
+      - run: pnpm licenses:check
       - run: pnpm audit --audit-level high
       - uses: gitleaks/gitleaks-action@v2
         env:
