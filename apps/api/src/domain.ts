@@ -56,6 +56,16 @@ export type AssetRecord = {
   kind: MediaKind;
   originalName: string;
   createdAt: string;
+  variants: AssetVariantRecord[];
+};
+export type AssetVariantRecord = {
+  kind: "preview";
+  storageProvider: string;
+  storageKey: string;
+  sha256: string;
+  bytes: number;
+  mimeType: string;
+  createdAt: string;
 };
 
 export interface PlatformRepository {

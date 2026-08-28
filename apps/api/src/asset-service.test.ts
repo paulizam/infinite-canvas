@@ -15,6 +15,7 @@ const historical: AssetRecord = {
   kind: "image",
   originalName: "old.png",
   createdAt: new Date(0).toISOString(),
+  variants: [],
 };
 
 describe("AssetService storage provider routing", () => {
@@ -79,5 +80,43 @@ describe("AssetService storage provider routing", () => {
       asset.mimeType,
     );
     expect(get).not.toHaveBeenCalled();
+  });
+
+  it("[AST-003][AST-005] signs the preview variant independently from the original", async () => {
+    const signedReadUrl = vi.fn(
+      async (key: string) => `https://objects.example/${key}`,
+    );
+    const preview = {
+      kind: "preview" as const,
+      storageProvider: "s3",
+      storageKey: "workspace/asset.preview.webp",
+      sha256: "b".repeat(64),
+      bytes: 12,
+      mimeType: "image/webp",
+      createdAt: historical.createdAt,
+    };
+    const asset = { ...historical, storageProvider: "s3", variants: [preview] };
+    const repository = {
+      getAsset: vi.fn(async () => asset),
+    } as unknown as PlatformRepository;
+    const service = new AssetService(
+      repository,
+      {
+        currentProvider: "s3",
+        stores: {
+          s3: { put: vi.fn(), get: vi.fn(), delete: vi.fn(), signedReadUrl },
+        },
+      },
+      1024,
+    );
+    await expect(service.readPreview("user", asset.id)).resolves.toMatchObject({
+      asset,
+      variant: preview,
+      url: "https://objects.example/workspace/asset.preview.webp",
+    });
+    expect(signedReadUrl).toHaveBeenCalledWith(
+      preview.storageKey,
+      "image/webp",
+    );
   });
 });

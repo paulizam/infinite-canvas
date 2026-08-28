@@ -1,3 +1,4 @@
+import { randomUUID } from "node:crypto";
 import pg from "pg";
 import { applyCanvasOperations } from "@infinite-canvas/canvas-core";
 import type { CanvasMutation } from "@infinite-canvas/contracts";
@@ -492,39 +493,71 @@ export class PostgresPlatformRepository implements PlatformRepository {
       "viewer",
     );
     const result = await this.pool.query(
-      "SELECT * FROM media_assets WHERE workspace_id=$1 AND sha256=$2",
+      `SELECT a.*,COALESCE((SELECT jsonb_agg(v ORDER BY v.kind) FROM media_asset_variants v WHERE v.asset_id=a.id),'[]'::jsonb) variants
+       FROM media_assets a WHERE a.workspace_id=$1 AND a.sha256=$2`,
       [workspaceId, sha256],
     );
     return result.rows[0] ? mapAsset(result.rows[0]) : null;
   }
   async createAsset(userId: string, asset: AssetRecord) {
-    await this.requireWorkspaceRoleWithClient(
-      this.pool,
-      userId,
-      asset.workspaceId,
-      "editor",
-    );
-    const result = await this.pool.query(
-      "INSERT INTO media_assets(id,workspace_id,owner_id,storage_provider,storage_key,sha256,bytes,mime_type,kind,original_name,created_at) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11) ON CONFLICT(workspace_id,sha256) DO UPDATE SET sha256=EXCLUDED.sha256 RETURNING *",
-      [
-        asset.id,
+    const client = await this.pool.connect();
+    try {
+      await client.query("BEGIN");
+      await this.requireWorkspaceRoleWithClient(
+        client,
+        userId,
         asset.workspaceId,
-        asset.ownerId,
-        asset.storageProvider,
-        asset.storageKey,
-        asset.sha256,
-        asset.bytes,
-        asset.mimeType,
-        asset.kind,
-        asset.originalName,
-        asset.createdAt,
-      ],
-    );
-    return mapAsset(result.rows[0]);
+        "editor",
+      );
+      const result = await client.query(
+        "INSERT INTO media_assets(id,workspace_id,owner_id,storage_provider,storage_key,sha256,bytes,mime_type,kind,original_name,created_at) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11) ON CONFLICT(workspace_id,sha256) DO UPDATE SET sha256=EXCLUDED.sha256 RETURNING *",
+        [
+          asset.id,
+          asset.workspaceId,
+          asset.ownerId,
+          asset.storageProvider,
+          asset.storageKey,
+          asset.sha256,
+          asset.bytes,
+          asset.mimeType,
+          asset.kind,
+          asset.originalName,
+          asset.createdAt,
+        ],
+      );
+      if (String(result.rows[0].id) === asset.id)
+        for (const variant of asset.variants)
+          await client.query(
+            "INSERT INTO media_asset_variants(asset_id,kind,storage_provider,storage_key,bytes,mime_type,sha256,created_at) VALUES($1,$2,$3,$4,$5,$6,$7,$8)",
+            [
+              asset.id,
+              variant.kind,
+              variant.storageProvider,
+              variant.storageKey,
+              variant.bytes,
+              variant.mimeType,
+              variant.sha256,
+              variant.createdAt,
+            ],
+          );
+      const stored = await client.query(
+        `SELECT a.*,COALESCE((SELECT jsonb_agg(v ORDER BY v.kind) FROM media_asset_variants v WHERE v.asset_id=a.id),'[]'::jsonb) variants
+         FROM media_assets a WHERE a.id=$1`,
+        [result.rows[0].id],
+      );
+      await client.query("COMMIT");
+      return mapAsset(stored.rows[0]);
+    } catch (error) {
+      await client.query("ROLLBACK");
+      throw error;
+    } finally {
+      client.release();
+    }
   }
   async getAsset(userId: string, assetId: string) {
     const result = await this.pool.query(
-      "SELECT a.* FROM media_assets a JOIN workspace_members m ON m.workspace_id=a.workspace_id WHERE a.id=$1 AND m.user_id=$2",
+      `SELECT a.*,COALESCE((SELECT jsonb_agg(v ORDER BY v.kind) FROM media_asset_variants v WHERE v.asset_id=a.id),'[]'::jsonb) variants
+       FROM media_assets a JOIN workspace_members m ON m.workspace_id=a.workspace_id WHERE a.id=$1 AND m.user_id=$2`,
       [assetId, userId],
     );
     return result.rows[0] ? mapAsset(result.rows[0]) : null;
@@ -537,7 +570,8 @@ export class PostgresPlatformRepository implements PlatformRepository {
       "viewer",
     );
     const result = await this.pool.query(
-      "SELECT * FROM media_assets WHERE workspace_id=$1 ORDER BY created_at DESC",
+      `SELECT a.*,COALESCE((SELECT jsonb_agg(v ORDER BY v.kind) FROM media_asset_variants v WHERE v.asset_id=a.id),'[]'::jsonb) variants
+       FROM media_assets a WHERE a.workspace_id=$1 ORDER BY a.created_at DESC`,
       [workspaceId],
     );
     return result.rows.map(mapAsset);
@@ -547,7 +581,8 @@ export class PostgresPlatformRepository implements PlatformRepository {
     try {
       await client.query("BEGIN");
       const result = await client.query(
-        "SELECT * FROM media_assets WHERE id=$1 FOR UPDATE",
+        `SELECT a.*,COALESCE((SELECT jsonb_agg(v ORDER BY v.kind) FROM media_asset_variants v WHERE v.asset_id=a.id),'[]'::jsonb) variants
+         FROM media_assets a WHERE a.id=$1 FOR UPDATE`,
         [assetId],
       );
       if (!result.rows[0])
@@ -565,6 +600,25 @@ export class PostgresPlatformRepository implements PlatformRepository {
       );
       if (references.rows[0])
         throw new DomainError("ASSET_IN_USE", 409, "素材仍被项目引用");
+      const now = new Date().toISOString();
+      const blobs = [
+        {
+          id: asset.id,
+          storageProvider: asset.storageProvider,
+          storageKey: asset.storageKey,
+        },
+        ...asset.variants.map((variant) => ({
+          id: randomUUID(),
+          storageProvider: variant.storageProvider,
+          storageKey: variant.storageKey,
+        })),
+      ];
+      for (const blob of blobs)
+        await client.query(
+          `INSERT INTO media_blob_gc(id,asset_id,storage_provider,storage_key,state,created_at,updated_at)
+           VALUES($1,$2,$3,$4,'pending',$5,$5) ON CONFLICT(storage_key) DO NOTHING`,
+          [blob.id, asset.id, blob.storageProvider, blob.storageKey, now],
+        );
       await client.query("DELETE FROM media_assets WHERE id=$1", [assetId]);
       await client.query("COMMIT");
       return asset;
@@ -628,6 +682,20 @@ function mapAsset(r: Record<string, unknown>): AssetRecord {
     kind: r.kind as AssetRecord["kind"],
     originalName: String(r.original_name),
     createdAt: iso(r.created_at),
+    variants: Array.isArray(r.variants)
+      ? r.variants.map((variant) => {
+          const value = variant as Record<string, unknown>;
+          return {
+            kind: "preview" as const,
+            storageProvider: String(value.storage_provider),
+            storageKey: String(value.storage_key),
+            sha256: String(value.sha256),
+            bytes: Number(value.bytes),
+            mimeType: String(value.mime_type),
+            createdAt: iso(value.created_at),
+          };
+        })
+      : [],
   };
 }
 function mapCheckpoint(r: Record<string, unknown>): ProjectCheckpointRecord {

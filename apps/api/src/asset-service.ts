@@ -1,6 +1,7 @@
 import { createHash, randomUUID } from "node:crypto";
 import { basename } from "node:path";
 import { fileTypeFromBuffer } from "file-type";
+import sharp from "sharp";
 import {
   assetBlobStoreRegistry,
   type AssetBlobStore,
@@ -84,15 +85,40 @@ export class AssetService {
       kind,
       originalName: safeName(input.originalName, detected.ext),
       createdAt: new Date().toISOString(),
+      variants: [],
     };
+    const previewBytes =
+      kind === "image" ? await createPreview(input.bytes) : null;
+    if (previewBytes) {
+      asset.variants.push({
+        kind: "preview",
+        storageProvider: this.currentProvider,
+        storageKey: `${workspaceId}/${id}.preview.webp`,
+        sha256: createHash("sha256").update(previewBytes).digest("hex"),
+        bytes: previewBytes.length,
+        mimeType: "image/webp",
+        createdAt: asset.createdAt,
+      });
+    }
     const blobs = this.store(this.currentProvider);
     await blobs.put(storageKey, input.bytes, detected.mime);
     try {
+      const preview = asset.variants[0];
+      if (preview && previewBytes)
+        await blobs.put(preview.storageKey, previewBytes, preview.mimeType);
       const stored = await this.repository.createAsset(userId, asset);
-      if (stored.id !== id) await blobs.delete(storageKey);
+      if (stored.id !== id) {
+        await blobs.delete(storageKey);
+        if (preview) await blobs.delete(preview.storageKey);
+      }
       return { asset: stored, deduplicated: stored.id !== id };
     } catch (error) {
       await blobs.delete(storageKey).catch(() => undefined);
+      await Promise.all(
+        asset.variants.map((variant) =>
+          blobs.delete(variant.storageKey).catch(() => undefined),
+        ),
+      );
       throw error;
     }
   }
@@ -113,9 +139,29 @@ export class AssetService {
       bytes: await this.store(asset.storageProvider).get(asset.storageKey),
     };
   }
+  async readPreview(userId: string, assetId: string) {
+    const asset = await this.repository.getAsset(userId, assetId);
+    if (!asset) throw new DomainError("ASSET_NOT_FOUND", 404, "素材不存在");
+    const variant = asset.variants.find((item) => item.kind === "preview");
+    if (!variant)
+      throw new DomainError("ASSET_VARIANT_NOT_FOUND", 404, "素材预览不存在");
+    const blobs = this.store(variant.storageProvider);
+    const url = await blobs.signedReadUrl?.(
+      variant.storageKey,
+      variant.mimeType,
+    );
+    return url
+      ? { asset, variant, url }
+      : { asset, variant, bytes: await blobs.get(variant.storageKey) };
+  }
   async delete(userId: string, assetId: string) {
     const asset = await this.repository.deleteAsset(userId, assetId);
-    await this.store(asset.storageProvider).delete(asset.storageKey);
+    await Promise.all([
+      this.store(asset.storageProvider).delete(asset.storageKey),
+      ...asset.variants.map((variant) =>
+        this.store(variant.storageProvider).delete(variant.storageKey),
+      ),
+    ]);
     return asset;
   }
   private store(provider: string) {
@@ -127,6 +173,25 @@ export class AssetService {
         `素材存储 ${provider} 未配置`,
       );
     return store;
+  }
+}
+async function createPreview(bytes: Buffer) {
+  try {
+    return await sharp(bytes, {
+      failOn: "error",
+      limitInputPixels: 100_000_000,
+    })
+      .rotate()
+      .resize({
+        width: 1024,
+        height: 1024,
+        fit: "inside",
+        withoutEnlargement: true,
+      })
+      .webp({ quality: 80 })
+      .toBuffer();
+  } catch {
+    return null;
   }
 }
 function mediaKind(mime?: string): MediaKind | null {

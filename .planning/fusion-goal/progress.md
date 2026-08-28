@@ -55,3 +55,4 @@
 - 阶段状态同步为 R1–R4 实现已落地、真实环境验收待完成，避免历史 `pending` 状态与当前代码事实漂移。
 - BAS-004 安装闭环：新增一次性强 Token、PostgreSQL advisory transaction 首管理员原子创建、安装状态/提交 API、Compose 强制配置、Web `/install` 双语向导与未安装导航门闩；重复消费 fail-closed。同步修复 migration 024 后注册 INSERT 遗漏 `updated_at` 的真实 PostgreSQL 故障。
 - BAS-002/CAN-008 Local 离线闭环补强：无账号项目 CRUD、LocalForage 刷新恢复、v3/v4 导入及含媒体 ZIP round-trip 获得直接测试；Import manifest 拒绝 traversal、重复 storageKey、单文件/总量超限，并对缺失或 bytes 漂移的包 fail-closed，不再静默制造坏链。
+- AST-003/005/006 Asset Variant 纵切：原始媒体保持不可变，图片自动生成独立 WebP preview（旋转、1024px、不放大、像素上限），variant 固化 provider/key/hash/mime；鉴权读取支持独立 signed URL。普通删除与 retention GC 均在数据库事务内为原件和全部 variants 写入 durable outbox，引用保护、provider 切换及失败重试边界得以闭环。

@@ -849,16 +849,26 @@ export function createApp(services: AppServices) {
     return c.json({ data: result, requestId: requestId(c) }, 201);
   });
   app.get("/api/v1/assets/:assetId/content", async (c) => {
-    const result = await services.assets.read(
-      c.get("user").id,
-      c.req.param("assetId"),
-    );
+    const requestedVariant = c.req.query("variant");
+    if (requestedVariant && requestedVariant !== "preview")
+      throw new DomainError("ASSET_VARIANT_INVALID", 400, "素材变体无效");
+    const result =
+      requestedVariant === "preview"
+        ? await services.assets.readPreview(
+            c.get("user").id,
+            c.req.param("assetId"),
+          )
+        : await services.assets.read(c.get("user").id, c.req.param("assetId"));
     if ("url" in result && result.url) return c.redirect(result.url, 307);
     if (!("bytes" in result) || !result.bytes)
       throw new Error("Blob store returned no readable asset content");
+    const representation =
+      "variant" in result
+        ? (result.variant as { mimeType: string; bytes: number })
+        : result.asset;
     return c.body(new Uint8Array(result.bytes), 200, {
-      "content-type": result.asset.mimeType,
-      "content-length": String(result.asset.bytes),
+      "content-type": representation.mimeType,
+      "content-length": String(representation.bytes),
       "cache-control": "private, max-age=300",
       "content-disposition": "inline",
     });

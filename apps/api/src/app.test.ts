@@ -519,12 +519,20 @@ describe("workspace asset API", () => {
     expect(first.status).toBe(201);
     const firstData = (await first.json()) as {
       data: {
-        asset: { id: string; mimeType: string; originalName: string };
+        asset: {
+          id: string;
+          mimeType: string;
+          originalName: string;
+          variants: Array<{ kind: string; mimeType: string }>;
+        };
         deduplicated: boolean;
       };
     };
     expect(firstData.data.asset.mimeType).toBe("image/png");
     expect(firstData.data.asset.originalName).toBe("pixel.png");
+    expect(firstData.data.asset.variants).toEqual([
+      expect.objectContaining({ kind: "preview", mimeType: "image/webp" }),
+    ]);
     expect(firstData.data.deduplicated).toBe(false);
 
     const duplicate = await upload(workspaceId, cookie);
@@ -546,6 +554,17 @@ describe("workspace asset API", () => {
     expect(content.status).toBe(200);
     expect(content.headers.get("content-type")).toBe("image/png");
     expect(Buffer.from(await content.arrayBuffer())).toEqual(png);
+    const preview = await app.request(
+      `/api/v1/assets/${firstData.data.asset.id}/content?variant=preview`,
+      { headers: { cookie } },
+    );
+    expect(preview.status).toBe(200);
+    expect(preview.headers.get("content-type")).toBe("image/webp");
+    expect(
+      Buffer.from(await preview.arrayBuffer())
+        .subarray(0, 4)
+        .toString(),
+    ).toBe("RIFF");
   });
 
   it("rejects forged media and hides assets across tenants", async () => {
@@ -580,7 +599,7 @@ describe("workspace asset API", () => {
     ).toBe(400);
   });
 
-  it("blocks deletion while a canvas references the asset", async () => {
+  it("[AST-006] blocks deletion while a canvas references the asset", async () => {
     const { body, cookie } = await register("asset-ref@example.com");
     const workspaceId = body.data.workspace.id;
     const uploaded = await upload(workspaceId, cookie);
