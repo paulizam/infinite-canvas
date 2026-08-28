@@ -11,7 +11,7 @@ const COMMIT = "a".repeat(40);
 const TREE = "b".repeat(40);
 const SOURCE = "https://github.com/acme/skills/tree/main/skills/demo";
 
-test("预览固定 commit、展示文件与权限，并原子安装 provenance", async (context) => {
+test("预览固定 commit、展示文件与权限，并原子安装 provenance [AGT-009]", async (context) => {
   const workspace = await temporaryWorkspace(context);
   const content = skill(
     "demo",

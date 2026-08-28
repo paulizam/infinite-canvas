@@ -3,7 +3,7 @@ import test from "node:test";
 
 import { runClaudeSdkTurn } from "./claude.js";
 
-test("Claude SDK adapter preserves typed streaming events and Canvas MCP policy", async () => {
+test("Claude SDK adapter preserves typed streaming events and Canvas MCP policy [AGT-003]", async () => {
     const events: Array<{ type: string; payload: unknown }> = [];
     let received: Record<string, unknown> | undefined;
     const fakeQuery = ((input: Record<string, unknown>) => {

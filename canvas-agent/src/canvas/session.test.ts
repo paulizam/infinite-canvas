@@ -5,7 +5,7 @@ import test from "node:test";
 
 import { CanvasSession } from "./session.js";
 
-test("MCP 读取当前激活网页的画布", async (t) => {
+test("MCP 读取当前激活网页的画布 [AGT-001]", async (t) => {
     const session = new CanvasSession();
     const first = connect(session, "first");
     const second = connect(session, "second");
@@ -198,7 +198,7 @@ test("closing a client rejects its pending tool requests", async () => {
     assert.match(outcome, /断开/);
 });
 
-test("shared thread events are broadcast with the active thread id", (t) => {
+test("shared thread events are broadcast with the active thread id [AGT-002]", (t) => {
     const session = new CanvasSession();
     const first = connect(session, "first");
     const second = connect(session, "second");

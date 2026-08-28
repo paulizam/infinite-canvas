@@ -5,8 +5,8 @@
 ## Summary
 
 - Requirements: 133
-- Direct test references: 73
-- Without direct test reference: 60
+- Direct test references: 94
+- Without direct test reference: 39
 
 ## Direct references
 
@@ -53,6 +53,27 @@
 | GEN-016 | P1 | `apps/api/src/generation-job-api.test.ts` |
 | GEN-017 | P2 | `packages/model-gateway/src/volcengine.test.ts` |
 | GEN-018 | P2 | `packages/model-gateway/src/provider-specific.test.ts` |
+| AGT-001 | P0 | `canvas-agent/src/canvas/session.test.ts` |
+| AGT-002 | P0 | `canvas-agent/src/canvas/session.test.ts` |
+| AGT-003 | P1 | `canvas-agent/src/agent/claude.test.ts` |
+| AGT-004 | P1 | `apps/worker/src/remote-agent-adapter.test.ts` |
+| AGT-005 | P1 | `apps/worker/src/remote-agent-adapter.test.ts` |
+| AGT-006 | P1 | `apps/api/src/agent-run-api.test.ts` |
+| AGT-007 | P1 | `apps/worker/src/remote-agent-adapter.test.ts` |
+| AGT-008 | P1 | `canvas-agent/src/skills/store.test.ts` |
+| AGT-009 | P2 | `canvas-agent/src/skills/installer.test.ts` |
+| AGT-010 | P1 | `apps/worker/src/remote-agent-adapter.test.ts` |
+| AGT-011 | P2 | `apps/worker/src/remote-agent-adapter.test.ts` |
+| WFL-001 | P1 | `packages/workflow-runtime/src/validator.test.ts` |
+| WFL-002 | P1 | `packages/workflow-runtime/src/validator.test.ts` |
+| WFL-003 | P1 | `packages/workflow-runtime/src/compiler.test.ts` |
+| WFL-004 | P1 | `packages/workflow-runtime/src/execution.test.ts` |
+| WFL-005 | P1 | `packages/workflow-runtime/src/execution.test.ts` |
+| WFL-006 | P1 | `packages/workflow-runtime/src/execution.test.ts` |
+| WFL-007 | P1 | `packages/workflow-runtime/src/execution.test.ts` |
+| WFL-008 | P2 | `apps/api/src/workflow-api.test.ts` |
+| WFL-009 | P2 | `apps/api/src/workflow-api.test.ts` |
+| WFL-010 | P2 | `apps/api/src/workflow-api.test.ts` |
 | AST-001 | P0 | `apps/api/src/app.test.ts` |
 | AST-003 | P0 | `apps/api/src/asset-service.test.ts` |
 | AST-004 | P0 | `apps/api/src/app.test.ts` |
@@ -91,27 +112,6 @@
 - BAS-009 (P2)
 - BAS-010 (P1)
 - CAN-006 (P0)
-- AGT-001 (P0)
-- AGT-002 (P0)
-- AGT-003 (P1)
-- AGT-004 (P1)
-- AGT-005 (P1)
-- AGT-006 (P1)
-- AGT-007 (P1)
-- AGT-008 (P1)
-- AGT-009 (P2)
-- AGT-010 (P1)
-- AGT-011 (P2)
-- WFL-001 (P1)
-- WFL-002 (P1)
-- WFL-003 (P1)
-- WFL-004 (P1)
-- WFL-005 (P1)
-- WFL-006 (P1)
-- WFL-007 (P1)
-- WFL-008 (P2)
-- WFL-009 (P2)
-- WFL-010 (P2)
 - AST-002 (P0)
 - AST-007 (P1)
 - COM-001 (P2)

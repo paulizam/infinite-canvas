@@ -6,7 +6,7 @@ import test from "node:test";
 
 import { SkillStore, SkillStoreError } from "./store.js";
 
-test("创建、读取和更新画布专属 Skill", async (context) => {
+test("创建、读取和更新画布专属 Skill [AGT-008]", async (context) => {
     const workspace = await fs.mkdtemp(path.join(os.tmpdir(), "canvas-skill-store-"));
     context.after(() => fs.rm(workspace, { recursive: true, force: true }));
     const store = new SkillStore(workspace);

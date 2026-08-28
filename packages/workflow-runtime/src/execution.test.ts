@@ -48,7 +48,7 @@ const at = (second: number) =>
   `2026-01-01T00:00:${String(second).padStart(2, "0")}.000Z`;
 
 describe("durable workflow execution state", () => {
-  it("propagates inactive conditional ports as deterministic skips and rejoins an active branch", () => {
+  it("propagates inactive conditional ports as deterministic skips and rejoins an active branch [WFL-005]", () => {
     const branch: WorkflowDefinition = {
       id: "branch",
       schemaVersion: 1,
@@ -179,7 +179,7 @@ describe("durable workflow execution state", () => {
     );
   });
 
-  it("runs deterministic layers and records snapshots and monotonic timeline", () => {
+  it("runs deterministic layers and records snapshots and monotonic timeline [WFL-006]", () => {
     let state = createWorkflowExecution({
       id: "run",
       definition,
@@ -201,7 +201,7 @@ describe("durable workflow execution state", () => {
     );
   });
 
-  it("supports selected-node execution and explicit single-node retry", () => {
+  it("supports selected-node execution and explicit single-node retry [WFL-004]", () => {
     let state = createWorkflowExecution({
       id: "run",
       definition,
@@ -230,7 +230,7 @@ describe("durable workflow execution state", () => {
     });
   });
 
-  it("persists sleep/event waits and resumes after restart", () => {
+  it("persists sleep/event waits and resumes after restart [WFL-007]", () => {
     let state = createWorkflowExecution({
       id: "run",
       definition,

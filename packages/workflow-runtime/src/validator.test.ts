@@ -43,7 +43,7 @@ const edge = (
 ) => ({ id, fromNodeId, fromPortId, toNodeId, toPortId });
 
 describe("workflow value types", () => {
-  it("supports unions, arrays, any targets and media asset covariance", () => {
+  it("supports unions, arrays, any targets and media asset covariance [WFL-001]", () => {
     expect(isWorkflowValueTypeCompatible("image", "asset")).toBe(true);
     expect(isWorkflowValueTypeCompatible("image[]", "asset[]")).toBe(true);
     expect(
@@ -77,7 +77,7 @@ describe("workflow validation", () => {
     expect(topologicalLayers(definition)).toEqual([["a", "b"], ["c"]]);
   });
 
-  it("reports cycles, missing ports, incompatible types and input cardinality", () => {
+  it("reports cycles, missing ports, incompatible types and input cardinality [WFL-002]", () => {
     const definition = workflow(
       [
         node(

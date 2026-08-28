@@ -249,7 +249,7 @@ describe("Agent Run API", () => {
     ).toMatchObject({ nodes: [], revision: 2 });
   });
 
-  it("claims, streams, pauses for approval and resumes to durable results", async () => {
+  it("claims, streams, pauses for approval and resumes to durable results [AGT-006]", async () => {
     const owner = await register("agent-run@example.com");
     const { detail } = await createRun(owner);
     const runId = detail.run.id;

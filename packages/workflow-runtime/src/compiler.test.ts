@@ -70,7 +70,7 @@ const canvas = (
 });
 
 describe("Canvas workflow compiler", () => {
-  it("compiles declared nodes, sanitized config, typed edges and source mappings", () => {
+  it("compiles declared nodes, sanitized config, typed edges and source mappings [WFL-003]", () => {
     const result = compileCanvasWorkflow(
       canvas(
         [

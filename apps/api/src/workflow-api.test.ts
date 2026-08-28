@@ -168,7 +168,7 @@ async function createProject(
 }
 
 describe("Workflow publication API", () => {
-  it("publishes a trusted typed definition and idempotently replays the immutable version", async () => {
+  it("publishes, triggers and catalogs immutable workflows [WFL-008] [WFL-009]", async () => {
     const owner = await register("workflow-owner@example.com");
     await createProject(owner, "project-flow");
     const url = "/api/v1/projects/project-flow/workflows/publish";
@@ -637,6 +637,42 @@ describe("Workflow publication API", () => {
       ).status,
     ).toBe(200);
     expect((await invoke("webhook-event-0003")).status).toBe(404);
+    for (const kind of ["form", "email"] as const) {
+      const response = await app.request(
+        `/api/v1/workflows/${firstData.workflow.id}/triggers`,
+        {
+          method: "POST",
+          headers: {
+            cookie: owner.cookie,
+            "content-type": "application/json",
+          },
+          body: JSON.stringify({
+            kind,
+            targetNodeId: "generate",
+            config: { rateLimitPerMinute: 2 },
+          }),
+        },
+      );
+      expect(response.status).toBe(201);
+      const external = (
+        (await response.json()) as {
+          data: { trigger: { id: string }; token: string };
+        }
+      ).data;
+      const dispatched = await app.request(
+        `/api/v1/workflow-triggers/${external.trigger.id}/invoke`,
+        {
+          method: "POST",
+          headers: {
+            authorization: `Bearer ${external.token}`,
+            "idempotency-key": `${kind}-event-0001`,
+            "content-type": "application/json",
+          },
+          body: JSON.stringify({ source: kind }),
+        },
+      );
+      expect(dispatched.status).toBe(202);
+    }
     const folderResponse = await app.request(
       `/api/v1/workspaces/${owner.workspaceId}/workflow-folders`,
       {
@@ -771,7 +807,7 @@ describe("Workflow publication API", () => {
     );
   });
 
-  it("manages scoped public API tokens and invokes idempotently with audit", async () => {
+  it("manages scoped public API tokens and invokes idempotently with audit [WFL-010]", async () => {
     const owner = await register("workflow-public-api@example.com");
     await createProject(owner, "project-public-api");
     const published = await app.request(

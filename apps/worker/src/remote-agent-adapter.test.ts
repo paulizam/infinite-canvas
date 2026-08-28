@@ -68,7 +68,7 @@ function client(operations: AgentWorkerOperation[]) {
 }
 
 describe("Remote team Agent adapter", () => {
-  it("sends the versioned shared contract and persists tools, visible events, mixed-media results and final text", async () => {
+  it("sends the versioned shared contract and persists tools, visible events, mixed-media results and final text [AGT-004] [AGT-005] [AGT-007] [AGT-011]", async () => {
     const operations: AgentWorkerOperation[] = [];
     const api = client(operations);
     const fetcher = vi.fn(
@@ -153,7 +153,7 @@ describe("Remote team Agent adapter", () => {
     expect(operations.at(-1)).toEqual({ type: "run.complete" });
   });
 
-  it("pauses destructive shared tools for approval and resumes after approval", async () => {
+  it("pauses destructive shared tools for approval and resumes after approval [AGT-010]", async () => {
     const response = async () =>
       Response.json({
         toolCalls: [
