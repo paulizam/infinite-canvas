@@ -9,9 +9,10 @@
       "packages/model-gateway/src/router.test.ts",
       "packages/model-gateway/src/provider-specific.test.ts",
       "apps/worker/src/provider-runtime.test.ts",
-      "apps/worker/src/gateway-handler.test.ts"
+      "apps/worker/src/gateway-handler.test.ts",
+      "apps/worker/src/provider-sandbox-runtime.integration.test.ts"
     ],
-    "command": "pnpm --filter @infinite-canvas/model-gateway test && pnpm --filter @infinite-canvas/worker test",
+    "command": "PROVIDER_SANDBOX_CASES_FILE=/secure/cases.json pnpm --filter @infinite-canvas/worker test -- src/provider-sandbox-runtime.integration.test.ts",
     "runtime": "Provider sandbox credentials and endpoints"
   },
   "GEN-017": {
@@ -33,9 +34,10 @@
     ],
     "tests": [
       "packages/model-gateway/src/provider-specific.test.ts",
-      "apps/worker/src/provider-runtime.test.ts"
+      "apps/worker/src/provider-runtime.test.ts",
+      "apps/worker/src/provider-sandbox-runtime.integration.test.ts"
     ],
-    "command": "pnpm --filter @infinite-canvas/model-gateway test && pnpm --filter @infinite-canvas/worker test",
+    "command": "PROVIDER_SANDBOX_CASES_FILE=/secure/cases.json pnpm --filter @infinite-canvas/worker test -- src/provider-sandbox-runtime.integration.test.ts",
     "runtime": "MediaKit sandbox endpoint"
   },
   "DRM-008": {

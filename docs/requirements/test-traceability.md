@@ -45,7 +45,7 @@
 | GEN-005 | P0 | `packages/model-gateway/src/router.test.ts`<br>`web/src/services/api/model-channel-discovery.test.ts`<br>`web/src/stores/model-channel-config.test.ts` |
 | GEN-006 | P0 | `apps/api/src/model-gateway-api.test.ts` |
 | GEN-007 | P0 | `packages/model-gateway/src/router.test.ts` |
-| GEN-008 | P1 | `packages/model-gateway/src/provider-specific.test.ts`<br>`packages/model-gateway/src/router.test.ts` |
+| GEN-008 | P1 | `apps/worker/src/provider-sandbox-runtime.integration.test.ts`<br>`packages/model-gateway/src/provider-specific.test.ts`<br>`packages/model-gateway/src/router.test.ts` |
 | GEN-009 | P1 | `apps/api/src/model-gateway-api.test.ts` |
 | GEN-010 | P0 | `apps/api/src/generation-job-api.test.ts` |
 | GEN-011 | P0 | `apps/api/src/generation-job-api.test.ts` |
@@ -55,7 +55,7 @@
 | GEN-015 | P1 | `apps/api/src/asset-service.test.ts`<br>`web/src/services/cloud-generation.test.ts` |
 | GEN-016 | P1 | `apps/api/src/generation-job-api.test.ts` |
 | GEN-017 | P2 | `packages/model-gateway/src/volcengine.test.ts` |
-| GEN-018 | P2 | `packages/model-gateway/src/provider-specific.test.ts` |
+| GEN-018 | P2 | `apps/worker/src/provider-sandbox-runtime.integration.test.ts`<br>`packages/model-gateway/src/provider-specific.test.ts` |
 | AGT-001 | P0 | `canvas-agent/src/canvas/session.test.ts` |
 | AGT-002 | P0 | `canvas-agent/src/canvas/session.test.ts` |
 | AGT-003 | P1 | `canvas-agent/src/agent/claude.test.ts` |

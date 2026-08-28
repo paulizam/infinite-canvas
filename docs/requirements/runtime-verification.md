@@ -140,3 +140,37 @@ pnpm --filter @infinite-canvas/api test -- src/payment-sandbox-runtime.integrati
 ```
 
 未设置 `PAYMENT_SANDBOX_TEST_DATABASE_URL` 时该 integration test 显式 skip，不能作为 Runtime PASS。测试自行启动动态端口 payment sandbox，不接触真实资金。
+
+## GEN-008 / GEN-018 provider sandbox harness (pending credentials)
+
+- Test：`apps/worker/src/provider-sandbox-runtime.integration.test.ts`
+- 支持 adapter：OpenAI-compatible、Gemini、Seedance、Stable Diffusion/A1111/Forge、MediaKit
+- 真实链路：构建生产请求 → 实际 HTTPS submit → 可选 poll 至终态 → adapter normalize → 必须存在可用 text/media result
+- 凭据隔离：case file 只写 `apiKeyEnv` 环境变量名；密钥仅从进程环境读取，不写入 JSON、日志或仓库
+- 安全门槛：HTTP 2xx、poll deadline、失败终态和空结果均导致 test FAIL；没有 case file 时显式 skip，不能作为 Runtime PASS
+
+外部 case file 示例：
+
+```json
+[
+  {
+    "id": "openai-sandbox-text",
+    "adapter": "openai-compatible",
+    "baseUrl": "https://sandbox.example.com",
+    "apiKeyEnv": "OPENAI_SANDBOX_API_KEY",
+    "capability": "text",
+    "upstreamModel": "sandbox-model",
+    "parameters": { "prompt": "Return exactly: runtime-ok" }
+  }
+]
+```
+
+复验命令：
+
+```powershell
+$env:PROVIDER_SANDBOX_CASES_FILE = "C:\secure\provider-cases.json"
+$env:OPENAI_SANDBOX_API_KEY = "<sandbox-secret>"
+pnpm --filter @infinite-canvas/worker test -- src/provider-sandbox-runtime.integration.test.ts
+```
+
+2026-08-28 本机 Process/User/Machine 均未发现相关 sandbox endpoint/credential，且 A1111/Forge 常用端口无监听，因此 `GEN-008`、`GEN-018` 继续保持 `RUNTIME-PENDING`，没有把 skip 计为 PASS。
