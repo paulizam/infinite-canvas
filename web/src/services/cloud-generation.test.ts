@@ -44,6 +44,29 @@ describe("cloud generation orchestration", () => {
         expect(updates).toEqual(["hel", "hello"]);
     });
 
+    it("abandons an oversized event stream and falls back to polling", async () => {
+        const succeeded = { ...queued, phase: "succeeded", status: "succeeded", result: { text: "polled" } } as GenerationJob;
+        const stream = new ReadableStream({
+            start(controller) {
+                controller.enqueue(new Uint8Array(16 * 1024 * 1024 + 1));
+                controller.close();
+            },
+        });
+        const client = {
+            createGenerationJob: vi.fn(async () => ({ job: queued, replayed: false })),
+            openGenerationEvents: vi.fn(async () => new Response(stream)),
+            getGenerationJob: vi.fn(async () => succeeded),
+        };
+        await expect(
+            createAndWaitForGeneration(
+                client as never,
+                { workspaceId: "workspace-1", capability: "text", logicalModelId: "text.default", clientRequestId: "request-oversized", parameters: {} },
+                { onTextDelta: vi.fn(), sleep: async () => undefined },
+            ),
+        ).resolves.toBe(succeeded);
+        expect(client.getGenerationJob).toHaveBeenCalledOnce();
+    });
+
     it("requests provider cancellation when the browser operation is aborted", async () => {
         const controller = new AbortController();
         const client = { getGenerationJob: vi.fn(), cancelGenerationJob: vi.fn(async () => queued) };

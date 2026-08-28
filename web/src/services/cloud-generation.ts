@@ -19,6 +19,10 @@ type WaitOptions = {
     sleep?: (milliseconds: number, signal?: AbortSignal) => Promise<void>;
 };
 
+const MAX_EVENT_BYTES = 256 * 1024;
+const MAX_STREAM_BYTES = 16 * 1024 * 1024;
+const MAX_STREAM_TEXT_CHARS = 2_000_000;
+
 export class CloudGenerationError extends Error {
     constructor(
         message: string,
@@ -66,28 +70,41 @@ async function consumeGenerationEvents(client: CloudPlatformClient, jobId: strin
     const reader = response.body.getReader();
     const decoder = new TextDecoder();
     let buffer = "",
-        fullText = "";
-    while (true) {
-        const { done, value } = await reader.read();
-        buffer += decoder.decode(value, { stream: !done }).replace(/\r\n/g, "\n");
-        let boundary: number;
-        while ((boundary = buffer.indexOf("\n\n")) >= 0) {
-            const frame = buffer.slice(0, boundary);
-            buffer = buffer.slice(boundary + 2);
-            const data = frame
-                .split("\n")
-                .filter((line) => line.startsWith("data:"))
-                .map((line) => line.slice(5).trimStart())
-                .join("\n");
-            if (!data) continue;
-            const event = JSON.parse(data) as { type?: string; payload?: { delta?: unknown } };
-            if (event.type === "text.delta" && typeof event.payload?.delta === "string") {
-                fullText += event.payload.delta;
-                onTextDelta(fullText);
+        fullText = "",
+        bytesRead = 0;
+    try {
+        while (true) {
+            const { done, value } = await reader.read();
+            if (value) {
+                bytesRead += value.byteLength;
+                if (bytesRead > MAX_STREAM_BYTES) throw new Error("Generation event stream exceeds limit");
             }
-            if (event.type === "job.terminal") return;
+            buffer += decoder.decode(value, { stream: !done }).replace(/\r\n/g, "\n");
+            if (buffer.length > MAX_EVENT_BYTES && !buffer.includes("\n\n")) throw new Error("Generation event exceeds limit");
+            let boundary: number;
+            while ((boundary = buffer.indexOf("\n\n")) >= 0) {
+                const frame = buffer.slice(0, boundary);
+                buffer = buffer.slice(boundary + 2);
+                if (frame.length > MAX_EVENT_BYTES) throw new Error("Generation event exceeds limit");
+                const data = frame
+                    .split("\n")
+                    .filter((line) => line.startsWith("data:"))
+                    .map((line) => line.slice(5).trimStart())
+                    .join("\n");
+                if (!data) continue;
+                const event = JSON.parse(data) as { type?: string; payload?: { delta?: unknown } };
+                if (event.type === "text.delta" && typeof event.payload?.delta === "string") {
+                    fullText += event.payload.delta;
+                    if (fullText.length > MAX_STREAM_TEXT_CHARS) throw new Error("Generation streamed text exceeds limit");
+                    onTextDelta(fullText);
+                }
+                if (event.type === "job.terminal") return;
+            }
+            if (done) return;
         }
-        if (done) return;
+    } finally {
+        await reader.cancel().catch(() => undefined);
+        reader.releaseLock();
     }
 }
 

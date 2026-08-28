@@ -5,10 +5,10 @@
 | 阶段 | 状态 | 交付物 |
 |---|---|---|
 | R0 Foundation | complete | workspace、contracts、canvas-core、v3/v4 migration、插件信任边界 |
-| R1 Cloud Creation | in_progress | Identity、Workspace、Cloud Project、Collaboration、Asset、Job、Model Gateway、Billing |
-| R2 Workflow Agent | pending | Workflow compiler/runtime、统一 Agent、Skills、durable execution |
-| R3 Production Suite | pending | 素材库、短剧生产线、发布、治理、运营后台 |
-| R4 Ecosystem | pending | Plugin SDK/Marketplace、部署矩阵、迁移、全量验收 |
+| R1 Cloud Creation | runtime_pending | 实现与自动测试已落地；等待 Provider、PostgreSQL、S3、WebDAV 实机验收 |
+| R2 Workflow Agent | implementation_complete | Workflow compiler/runtime、统一 Agent、Skills、durable execution 已落地，等待全量验收 |
+| R3 Production Suite | runtime_pending | 素材库、短剧、社区、Billing/Commerce 已落地；等待 FFmpeg、剪映、支付沙箱验收 |
+| R4 Ecosystem | runtime_pending | Plugin SDK/Registry、部署矩阵、迁移与门禁已落地；等待 Registry、Docker、CI 实机验收 |
 
 ## 当前切片
 

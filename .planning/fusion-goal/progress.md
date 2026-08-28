@@ -50,3 +50,6 @@
 - GEN-008/018 Provider runtime：新增 Seedance 异步任务、Stable Diffusion/A1111/Forge txt2img/img2img、MediaKit image/video 增强 adapter；扩展 protocol contract/migration/Admin，Worker 统一 submit/poll/cancel/normalize，用户参数不可覆盖 upstream model。
 - GEN-017 Volcengine：新增标准 HMAC-SHA256 AK/SK signer 与 protocol adapter，Worker 支持签名 submit/poll/cancel；Admin 可查询模型、资源包与消耗，沿用 DNS 后 SSRF 阻断、response ceiling 和 Secret 不回显边界。
 - 建立 133 项机器生成 requirement-to-evidence 矩阵：所有 ID 与证据路径受 release gate 校验；118 项已定位 source/test entry，15 项明确标记 Docker/PostgreSQL/Provider/WebDAV/支付/媒体工具链 RUNTIME-PENDING，不以宽泛测试冒充最终 PASS。
+- 完成 Canvas Cloud generation 事实复核：reference image/mask、video/audio、多模态 text 均先上传为 Workspace AssetRef，主生成与 Retry/Mask/Angle 路径共享统一 facade；移除待测文档中“尚未集成”的失实描述。
+- 浏览器 Generation SSE 增加 16MiB 总流、256KiB 单事件和 200 万字符限制，所有终止/异常路径取消并释放 reader；异常流安全回退到权威 polling。
+- 阶段状态同步为 R1–R4 实现已落地、真实环境验收待完成，避免历史 `pending` 状态与当前代码事实漂移。
