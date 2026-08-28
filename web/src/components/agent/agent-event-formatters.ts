@@ -57,12 +57,12 @@ export type AgentUserDetail = { kind: string; status: string; rows?: Array<{ lab
 
 export type AgentLogContext = { endpoint: string; connected: boolean; enabled: boolean; activity: string; waiting: boolean; sending: boolean; messages: number; pendingTool?: string };
 
-export function agentMessageToChatMessage(item: AgentChatItem, endpoint: string, token: string) {
-    return { ...item, meta: item.role === "user" || item.role === "assistant" ? undefined : item.meta, attachments: item.attachments?.map((attachment) => agentAttachmentToChatAttachment(attachment, endpoint, token)) };
+export function agentMessageToChatMessage(item: AgentChatItem, endpoint: string) {
+    return { ...item, meta: item.role === "user" || item.role === "assistant" ? undefined : item.meta, attachments: item.attachments?.map((attachment) => agentAttachmentToChatAttachment(attachment, endpoint)) };
 }
 
-export function agentAttachmentToChatAttachment(item: AgentMessageAttachment, endpoint: string, token: string): AgentChatAttachment {
-    return { id: item.id, name: item.name, url: resolveAgentMessageAssetUrl(endpoint, token, item.dataUrl || item.url) };
+export function agentAttachmentToChatAttachment(item: AgentMessageAttachment, endpoint: string): AgentChatAttachment {
+    return { id: item.id, name: item.name, url: resolveAgentMessageAssetUrl(endpoint, item.dataUrl || item.url) };
 }
 
 export function formatAgentEvent(event: AgentEventPayload): Omit<AgentChatItem, "id"> | null {

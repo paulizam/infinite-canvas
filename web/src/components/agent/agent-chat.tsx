@@ -115,10 +115,9 @@ export function AgentTaskProgress({ theme, busy }: { theme: (typeof canvasThemes
 
 const AgentChatMessageRow = memo(function AgentChatMessageRow({ item, theme }: { item: AgentChatItem; theme: (typeof canvasThemes)[keyof typeof canvasThemes] }) {
     const endpoint = useAgentStore((state) => state.url);
-    const token = useAgentStore((state) => state.token);
     return (
         <div style={item.streamId ? undefined : historyMessageStyle}>
-            <AgentChatMessage item={agentMessageToChatMessage(item, endpoint, token)} theme={theme} />
+            <AgentChatMessage item={agentMessageToChatMessage(item, endpoint)} theme={theme} />
         </div>
     );
 });

@@ -1,6 +1,9 @@
 import i18n from "@/i18n";
 import type { CanvasAgentSnapshot } from "@/lib/canvas/canvas-agent-ops";
 import type { AgentReasoningEffort } from "@/stores/use-agent-store";
+import { withAgentAuth } from "./canvas-agent-auth";
+
+export { AGENT_TOKEN_HEADER, withAgentAuth } from "./canvas-agent-auth";
 
 type AgentConfigResponse = { ok?: boolean; protocolVersion?: number; url?: string; token?: string; hasToken?: boolean };
 const AGENT_MESSAGE_ASSET_PATTERN = /^agent-asset:([a-f0-9]{64})\/([a-f0-9]{64}\.(?:gif|jpe?g|png|webp))$/;
@@ -55,7 +58,7 @@ export type AgentSkillInstallPreview = {
 
 export async function postState(endpoint: string, token: string, clientId: string, snapshot: CanvasAgentSnapshot | null) {
     try {
-        const response = await fetch(`${endpoint}/canvas/state?token=${encodeURIComponent(token)}&clientId=${encodeURIComponent(clientId)}`, {
+        const response = await fetchAgentResource(endpoint, token, `/canvas/state?clientId=${encodeURIComponent(clientId)}`, {
             method: "POST",
             headers: { "content-type": "application/json" },
             body: JSON.stringify(snapshot ? { ...snapshot, hasCanvas: true } : { hasCanvas: false }),
@@ -68,7 +71,7 @@ export async function postState(endpoint: string, token: string, clientId: strin
 
 export async function activateAgentClient(endpoint: string, token: string, clientId: string) {
     try {
-        await fetch(`${endpoint}/canvas/activate?token=${encodeURIComponent(token)}&clientId=${encodeURIComponent(clientId)}`, { method: "POST" });
+        await fetchAgentResource(endpoint, token, `/canvas/activate?clientId=${encodeURIComponent(clientId)}`, { method: "POST" });
     } catch {}
 }
 
@@ -92,11 +95,21 @@ export async function revealAgentLocalFile(endpoint: string, token: string, path
     await fetchAgentJson(endpoint, token, "/agent/local-file/reveal", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ path }) });
 }
 
-export function resolveAgentMessageAssetUrl(endpoint: string, token: string, value: string) {
+export function resolveAgentMessageAssetUrl(endpoint: string, value: string) {
     const match = AGENT_MESSAGE_ASSET_PATTERN.exec(value);
     if (!match) return value.startsWith("agent-asset:") ? "" : value;
     const baseUrl = endpoint.trim().replace(/\/$/, "");
-    return baseUrl && token ? `${baseUrl}/agent/message-assets/${match[1]}/${match[2]}?token=${encodeURIComponent(token)}` : "";
+    return baseUrl ? `${baseUrl}/agent/message-assets/${match[1]}/${match[2]}` : "";
+}
+
+export function isAgentMessageAssetUrl(endpoint: string, value: string) {
+    const baseUrl = endpoint.trim().replace(/\/$/, "");
+    return Boolean(baseUrl && value.startsWith(`${baseUrl}/agent/message-assets/`));
+}
+
+export function fetchAgentResource(endpoint: string, token: string, path: string, init?: RequestInit) {
+    if (!path.startsWith("/") || path.startsWith("//")) throw new Error("Agent resource path must be local");
+    return fetch(`${endpoint.trim().replace(/\/$/, "")}${path}`, withAgentAuth(token, init));
 }
 
 export function fetchCodexSkills(endpoint: string, token: string, forceReload = false) {
@@ -136,8 +149,7 @@ export function setCodexSkillEnabled(endpoint: string, token: string, skill: Pic
 }
 
 export async function fetchAgentJson<T>(endpoint: string, token: string, path: string, init?: RequestInit) {
-    const url = `${endpoint}${path}${path.includes("?") ? "&" : "?"}token=${encodeURIComponent(token)}`;
-    const res = await fetch(url, init);
+    const res = await fetchAgentResource(endpoint, token, path, init);
     const data = (await res.json().catch(() => ({}))) as T & { error?: string; msg?: string };
     if (!res.ok) throw new AgentApiError(res.status, data);
     return data;

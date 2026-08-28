@@ -342,7 +342,7 @@ Skill 远程安装采用强制两阶段协议：`preview` 仅接受无凭据、�
 - Web：HttpOnly/Secure/SameSite Session cookie、CSRF/Origin 校验、CSP、上传类型和大小双检。
 - 权限：API、WebSocket、媒体签名、Worker internal endpoint 分别鉴权，禁止只依赖前端菜单隐藏。
 - 插件：sandbox、权限清单、域名 allowlist、资源配额、签名与撤销列表；禁用 `Blob import` 主域执行。
-- Agent：短期 capability token、工具 allowlist、用户 approval、操作审计、tab/session 隔离。
+- Agent：短期 capability token、工具 allowlist、用户 approval、操作审计、tab/session 隔离。Web 到 Local Agent 的 REST、SSE 与受保护媒体统一使用 `x-canvas-agent-token` Header；禁止把主 token 写入 query、媒体 URL、日志或错误遥测。原生 `EventSource` 不支持自定义 Header，因此 Web 使用 fetch-based SSE，并对断线重连、Abort 及服务端提供 event id 时的 `Last-Event-ID` 游标负责；历史媒体先鉴权 fetch，再以可回收 Blob URL 渲染。
 - 数据：tenant ownership、参数化 SQL、备份加密、导出脱敏、注销与 retention policy。
 - 供应链：lockfile、license inventory、secret scan、SBOM、镜像签名；保存 VOZEB 授权凭证与再分发条款。
 

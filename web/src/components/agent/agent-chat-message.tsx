@@ -11,6 +11,7 @@ import { useAgentStore, type AgentCanvasReference, type AgentPendingApproval, ty
 import { resolveAgentMessageAssetUrl, revealAgentLocalFile } from "@/services/api/canvas-agent";
 import { AgentCanvasReferencePreview, canvasReferenceIcon, canvasReferenceKindLabel } from "./agent-canvas-reference-preview";
 import { agentInlineTokenClass, agentInlineTokenIconClass, agentInlineTokenMediaClass, agentReferenceMarker, parseAgentInlineTokens } from "./agent-chat-inline-tokens";
+import { useAgentMediaUrl } from "./use-agent-media-url";
 
 const streamdownProps = () => ({
     className: "agent-streamdown",
@@ -159,7 +160,8 @@ function AgentCanvasMention({ reference, theme }: { reference: AgentCanvasRefere
     const node = useAgentStore((state) => state.canvasContext?.snapshot.nodes.find((item) => item.id === reference.nodeId));
     const endpoint = useAgentStore((state) => state.url);
     const token = useAgentStore((state) => state.token);
-    const previewUrl = resolveAgentMessageAssetUrl(endpoint, token, reference.previewUrl || node?.metadata?.content || "");
+    const previewSource = resolveAgentMessageAssetUrl(endpoint, reference.previewUrl || node?.metadata?.content || "");
+    const previewUrl = useAgentMediaUrl(endpoint, token, previewSource);
     const previewText = reference.text || node?.metadata?.content || node?.metadata?.prompt;
     const Icon = canvasReferenceIcon(reference.kind);
     return (
@@ -498,17 +500,7 @@ function AgentMessageAttachments({ attachments, alignRight }: { attachments: Age
     return (
         <>
             <div className={`mt-1.5 flex flex-wrap gap-1.5 ${alignRight ? "justify-end" : "justify-start"}`}>
-                {attachments.map((item) => (
-                    <img
-                        key={item.id}
-                        src={item.url}
-                        alt={item.name}
-                        title={t("agent.message.viewLarge")}
-                        className="size-10 cursor-zoom-in rounded-lg object-cover"
-                        draggable={false}
-                        onClick={() => setPreviewUrl(item.url)}
-                    />
-                ))}
+                {attachments.map((item) => <AgentMessageAttachmentImage key={item.id} item={item} onPreview={setPreviewUrl} />)}
             </div>
             {previewUrl ? (
                 <div className="hidden">
@@ -517,6 +509,23 @@ function AgentMessageAttachments({ attachments, alignRight }: { attachments: Age
             ) : null}
         </>
     );
+}
+
+function AgentMessageAttachmentImage({ item, onPreview }: { item: AgentChatAttachment; onPreview: (url: string) => void }) {
+    const { t } = useTranslation();
+    const endpoint = useAgentStore((state) => state.url);
+    const token = useAgentStore((state) => state.token);
+    const url = useAgentMediaUrl(endpoint, token, item.url);
+    return url ? (
+        <img
+            src={url}
+            alt={item.name}
+            title={t("agent.message.viewLarge")}
+            className="size-10 cursor-zoom-in rounded-lg object-cover"
+            draggable={false}
+            onClick={() => onPreview(url)}
+        />
+    ) : null;
 }
 
 function toolCardState(title: string, text: string, detail?: unknown) {
