@@ -24,3 +24,14 @@ CONFIRM_RESTORE=RESTORE ./ops/restore.sh /secure/backups/infinite-canvas-....dum
 ```
 
 Asset volume snapshots must be taken in the same maintenance window as PostgreSQL. A valid drill proves database checksum, migrations, `/health`, login, Asset download and one queued Worker job.
+
+## Release and supply-chain gates
+
+```sh
+pnpm security:secrets
+pnpm licenses:check
+pnpm audit --registry=https://registry.npmjs.org --audit-level high
+pnpm release:check
+```
+
+`release:check` verifies VERSION/tag consistency, product brand, required documentation, sensitive tracked files, the immutable migration checksum manifest and generated third-party notices. `quality-security.yml` additionally runs Gitleaks, PostgreSQL migrations twice, Syft SPDX SBOM generation, Trivy filesystem/image scans, Compose validation and all three container builds. When adding a migration, never edit a previously shipped SQL file; add the next numbered file and deliberately run `node ops/migration-manifest.mjs`.

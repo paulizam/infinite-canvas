@@ -1,0 +1,7 @@
+{
+  "allowedUnknown": {
+    "@anthropic-ai/claude-agent-sdk": "Upstream package metadata does not declare SPDX; usage is governed by Anthropic's published commercial terms.",
+    "@anthropic-ai/claude-agent-sdk-win32-x64": "Platform package shipped with the explicitly approved Anthropic Agent SDK."
+  },
+  "deniedLicensePatterns": ["AGPL", "SSPL", "BUSL", "Commons-Clause"]
+}

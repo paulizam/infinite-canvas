@@ -20,6 +20,9 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Release gate
+        run: corepack enable && pnpm install --frozen-lockfile && pnpm release:check
+
       - uses: oven-sh/setup-bun@v2
 
       - name: Install dependencies
