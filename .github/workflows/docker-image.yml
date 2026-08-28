@@ -1,118 +1,148 @@
-name: Docker image
+name: Quality and Security
 
 on:
+  pull_request:
   push:
+    branches: [main]
     tags: ["v*"]
   workflow_dispatch:
 
 permissions:
   contents: read
-  packages: write
-
-env:
-  IMAGE_NAME: ghcr.io/basketikun/infinite-canvas
 
 jobs:
-  meta:
+  quality:
     runs-on: ubuntu-latest
-    outputs:
-      tags: ${{ steps.meta.outputs.tags }}
-      labels: ${{ steps.meta.outputs.labels }}
-    steps:
-      - id: meta
-        uses: docker/metadata-action@v5
-        with:
-          images: ${{ env.IMAGE_NAME }}
-          tags: |
-            type=ref,event=tag
-            type=sha,prefix=
-
-  build:
-    needs: meta
-    runs-on: ${{ matrix.runner }}
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - platform: linux/amd64
-            arch: amd64
-            runner: ubuntu-latest
-          - platform: linux/arm64
-            arch: arm64
-            runner: ubuntu-24.04-arm
     steps:
       - uses: actions/checkout@v4
-
-      - name: Release gate
-        run: corepack enable && pnpm install --frozen-lockfile && pnpm release:check
-
-      - uses: docker/setup-buildx-action@v3
-
-      - uses: docker/login-action@v3
-        with:
-          registry: ghcr.io
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
-
-      - id: build
-        uses: docker/build-push-action@v6
-        with:
-          context: .
-          platforms: ${{ matrix.platform }}
-          labels: ${{ needs.meta.outputs.labels }}
-          outputs: type=image,name=${{ env.IMAGE_NAME }},push-by-digest=true,name-canonical=true,push=true
-          cache-from: type=gha,scope=app-${{ matrix.arch }}
-          cache-to: type=gha,mode=max,scope=app-${{ matrix.arch }}
-
-      - name: Export digest
-        shell: bash
+      - uses: pnpm/action-setup@v4
+        with: { version: 10.32.1 }
+      - uses: actions/setup-node@v4
+        with: { node-version: 22, cache: pnpm }
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm quality
+      - name: Exercise real FFmpeg drama rendering
         run: |
-          mkdir -p "$RUNNER_TEMP/digests"
-          digest="${{ steps.build.outputs.digest }}"
-          touch "$RUNNER_TEMP/digests/${digest#sha256:}"
+          sudo apt-get update
+          sudo apt-get install -y ffmpeg
+          FFMPEG_PATH="$(command -v ffmpeg)" pnpm --filter @infinite-canvas/worker test -- src/drama-render-runtime.integration.test.ts
+      - run: pnpm release:check
 
-      - uses: actions/upload-artifact@v4
-        with:
-          name: digests-${{ matrix.arch }}
-          path: ${{ runner.temp }}/digests/*
-          if-no-files-found: error
-          retention-days: 1
+  migration:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:17-alpine
+        env:
+          POSTGRES_DB: infinite_canvas_test
+          POSTGRES_USER: infinite_canvas
+          POSTGRES_PASSWORD: test-database-password
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U infinite_canvas -d infinite_canvas_test"
+          --health-interval 5s --health-timeout 5s --health-retries 20
+    env:
+      DATABASE_URL: postgresql://infinite_canvas:test-database-password@127.0.0.1:5432/infinite_canvas_test
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with: { version: 10.32.1 }
+      - uses: actions/setup-node@v4
+        with: { node-version: 22, cache: pnpm }
+      - run: pnpm install --frozen-lockfile
+      - name: Apply migrations twice to prove idempotency
+        run: |
+          pnpm --filter @infinite-canvas/api db:migrate
+          pnpm --filter @infinite-canvas/api db:migrate
+      - name: Verify migration ledger
+        run: >-
+          pnpm --filter @infinite-canvas/api exec node --input-type=module -e
+          "import pg from 'pg'; import {readFileSync} from 'node:fs'; const p=new pg.Pool({connectionString:process.env.DATABASE_URL});
+          const r=await p.query('select count(*)::int count from schema_migrations');
+          const expected=Object.keys(JSON.parse(readFileSync('../../ops/migration-manifest.json'))).length;
+          if(r.rows[0].count!==expected) throw new Error('migration count mismatch: '+r.rows[0].count); await p.end();"
+      - name: Exercise sanitized business transfer
+        run: |
+          pnpm --filter @infinite-canvas/api business:transfer export /tmp/business-transfer.json
+          pnpm --filter @infinite-canvas/api business:transfer verify /tmp/business-transfer.json
+          CONFIRM_BUSINESS_IMPORT=IMPORT pnpm --filter @infinite-canvas/api business:transfer import /tmp/business-transfer.json
 
-  merge:
-    needs:
-      - meta
-      - build
+  supply-chain:
     runs-on: ubuntu-latest
     steps:
-      - uses: docker/setup-buildx-action@v3
-
-      - uses: docker/login-action@v3
-        with:
-          registry: ghcr.io
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
-
-      - uses: actions/download-artifact@v4
-        with:
-          path: ${{ runner.temp }}/digests
-          pattern: digests-*
-          merge-multiple: true
-
-      - name: Create multi-arch manifest
-        shell: bash
+      - uses: actions/checkout@v4
+        with: { fetch-depth: 0 }
+      - uses: pnpm/action-setup@v4
+        with: { version: 10.32.1 }
+      - uses: actions/setup-node@v4
+        with: { node-version: 22, cache: pnpm }
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm security:secrets
+      - run: pnpm licenses:check
+      - run: pnpm audit --audit-level high
+      - uses: gitleaks/gitleaks-action@v2
         env:
-          TAGS: ${{ needs.meta.outputs.tags }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - uses: anchore/sbom-action@v0
+        with:
+          path: .
+          format: spdx-json
+          output-file: sbom.spdx.json
+          upload-artifact: true
+      - uses: aquasecurity/trivy-action@0.33.1
+        with:
+          scan-type: fs
+          scan-ref: .
+          severity: CRITICAL,HIGH
+          exit-code: "1"
+          ignore-unfixed: true
+
+  containers:
+    runs-on: ubuntu-latest
+    env:
+      POSTGRES_PASSWORD: ci-database-password-url-safe
+      INSTALL_TOKEN: ci-install-token-32-characters-long
+      PUBLIC_ORIGIN: http://localhost:3000
+      WORKER_TOKEN: ci-worker-token-32-characters-long
+      MAINTENANCE_TOKEN: ci-maintenance-token-distinct-32-chars
+      MODEL_SECRET_KEY: MDEyMzQ1Njc4OWFiY2RlZjAxMjM0NTY3ODlhYmNkZWY=
+      BILLING_CODE_SECRET: ci-billing-code-secret-32-characters
+      PAYMENT_PROVIDER: sandbox
+      PAYMENT_API_BASE_URL: https://payments.invalid/
+      PAYMENT_API_TOKEN: ci-payment-api-token-32-characters
+      PAYMENT_WEBHOOK_SECRET: ci-webhook-secret-32-characters-long
+      MFA_SECRET_KEY: MDEyMzQ1Njc4OWFiY2RlZjAxMjM0NTY3ODlhYmNkZWY=
+      MFA_RECOVERY_PEPPER: ci-mfa-recovery-pepper-32-characters
+    steps:
+      - uses: actions/checkout@v4
+      - name: Validate Compose interpolation
+        run: docker compose config --quiet
+      - run: docker build -t infinite-canvas-web:ci .
+      - run: docker build -f infra/docker/Dockerfile.api -t infinite-canvas-api:ci .
+      - run: docker build -f infra/docker/Dockerfile.worker -t infinite-canvas-worker:ci .
+      - name: Compose health and isolated backup restore smoke
         run: |
-          tag_args=()
-          while IFS= read -r tag; do
-            if [ -n "$tag" ]; then
-              tag_args+=("-t" "$tag")
-            fi
-          done <<< "$TAGS"
-
-          digest_args=()
-          while IFS= read -r digest_file; do
-            digest_args+=("${IMAGE_NAME}@sha256:${digest_file}")
-          done < <(find "$RUNNER_TEMP/digests" -type f -printf '%f\n' | sort)
-
-          docker buildx imagetools create "${tag_args[@]}" "${digest_args[@]}"
+          set -euo pipefail
+          docker compose up -d --build --wait
+          curl --fail --retry 10 --retry-delay 2 http://127.0.0.1:3000/health
+          docker compose exec -T api node -e "fetch('http://127.0.0.1:3001/health').then(async r=>{if(!r.ok)throw new Error(await r.text())})"
+          docker compose exec -T postgres psql -U infinite_canvas -d infinite_canvas -v ON_ERROR_STOP=1 -c "CREATE TABLE runtime_backup_probe(id integer primary key, value text not null); INSERT INTO runtime_backup_probe VALUES (1, 'before-backup');"
+          docker compose exec -T api sh -c "printf 'asset-before-backup' > /data/assets/runtime-backup-probe.txt"
+          BACKUP_DIR=.runtime-backups sh ops/backup.sh
+          backup="$(find .runtime-backups -name '*.dump' -type f | head -n 1)"
+          test -n "$backup"
+          docker compose exec -T postgres psql -U infinite_canvas -d infinite_canvas -v ON_ERROR_STOP=1 -c "UPDATE runtime_backup_probe SET value='after-backup' WHERE id=1;"
+          docker compose exec -T api sh -c "printf 'asset-after-backup' > /data/assets/runtime-backup-probe.txt"
+          CONFIRM_RESTORE=RESTORE sh ops/restore.sh "$backup"
+          test "$(docker compose exec -T postgres psql -U infinite_canvas -d infinite_canvas -Atc 'SELECT value FROM runtime_backup_probe WHERE id=1')" = "before-backup"
+          test "$(docker compose exec -T api cat /data/assets/runtime-backup-probe.txt)" = "asset-before-backup"
+          docker compose up -d --wait
+          curl --fail --retry 10 --retry-delay 2 http://127.0.0.1:3000/health
+      - if: always()
+        run: docker compose down -v --remove-orphans
+      - uses: aquasecurity/trivy-action@0.33.1
+        with:
+          image-ref: infinite-canvas-api:ci
+          severity: CRITICAL,HIGH
+          exit-code: "1"
+          ignore-unfixed: true
