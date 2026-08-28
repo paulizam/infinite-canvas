@@ -63,10 +63,12 @@
   },
   "PLG-005": {
     "sources": [
+      "web/src/lib/canvas/plugin-loader.ts",
       "web/src/stores/canvas/use-plugin-store.ts",
       "web/src/lib/canvas/plugin-registry.ts"
     ],
     "tests": [
+      "web/src/lib/canvas/plugin-lifecycle.test.ts",
       "web/src/lib/canvas/plugin-registry.test.ts",
       "web/src/lib/canvas/plugin-manifest.test.ts"
     ],

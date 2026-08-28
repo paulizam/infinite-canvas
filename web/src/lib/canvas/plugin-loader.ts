@@ -9,6 +9,7 @@ import { evaluateSandboxPlugin } from "@/lib/canvas/plugin-sandbox";
 import { createSandboxCanvasPlugin } from "@/lib/canvas/sandbox-canvas-plugin";
 import type { PluginPermission } from "@infinite-canvas/contracts";
 import { fetchPluginManifest, satisfiesMinAppVersion, type ResolvedPluginManifest } from "@/lib/canvas/plugin-manifest";
+import { fetchOfficialPlugins } from "@/lib/canvas/plugin-registry";
 
 const cleanups = new Map<string, () => void>();
 
@@ -38,11 +39,17 @@ export function activatePlugin(plugin: CanvasPlugin) {
     registerNodeDefinitions(plugin.nodes, plugin.id);
     const runtime = getPluginRuntime();
     const disposers: Array<() => void> = [];
-    // Inject declared styles when enabled and remove them when disabled or uninstalled.
-    if (plugin.css) disposers.push(runtime.injectCSS(plugin.css, plugin.id));
-    const cleanup = plugin.setup?.(runtime);
-    if (typeof cleanup === "function") disposers.push(cleanup);
-    if (disposers.length) cleanups.set(plugin.id, () => disposers.forEach((dispose) => dispose()));
+    try {
+        // Inject declared styles when enabled and remove them when disabled or uninstalled.
+        if (plugin.css) disposers.push(runtime.injectCSS(plugin.css, plugin.id));
+        const cleanup = plugin.setup?.(runtime);
+        if (typeof cleanup === "function") disposers.push(cleanup);
+        if (disposers.length) cleanups.set(plugin.id, () => disposers.forEach((dispose) => dispose()));
+    } catch (error) {
+        for (const dispose of disposers.reverse()) dispose();
+        unregisterPluginNodes(plugin.id);
+        throw error;
+    }
 }
 
 export function deactivatePlugin(pluginId: string) {
@@ -79,7 +86,25 @@ export async function installPluginFromUrl(url: string, opts?: PluginInstallOpti
     const plugin = local || trustedOfficial ? await evaluateTrustedPluginSource(source) : await evaluateRemotePlugin(source, opts!);
     if (opts?.id && plugin.id !== opts.id) throw new Error("插件标识与清单不匹配");
     deactivatePlugin(plugin.id); // Replace the previous version.
-    usePluginStore.getState().upsert({ id: plugin.id, name: plugin.name || plugin.id, version: plugin.version || "0.0.0", description: plugin.description, url, manifestUrl: opts?.manifestUrl, source, enabled: true, official: opts?.official, local, trustedOfficial, sandboxed: !local && !trustedOfficial, integrity: opts?.integrity, permissions: opts?.permissions, lastCheckedAt: new Date().toISOString() });
+    usePluginStore
+        .getState()
+        .upsert({
+            id: plugin.id,
+            name: plugin.name || plugin.id,
+            version: plugin.version || "0.0.0",
+            description: plugin.description,
+            url,
+            manifestUrl: opts?.manifestUrl,
+            source,
+            enabled: true,
+            official: opts?.official,
+            local,
+            trustedOfficial,
+            sandboxed: !local && !trustedOfficial,
+            integrity: opts?.integrity,
+            permissions: opts?.permissions,
+            lastCheckedAt: new Date().toISOString(),
+        });
     activatePlugin(plugin);
     return plugin;
 }
@@ -104,15 +129,17 @@ export async function installPluginManifest(manifest: ResolvedPluginManifest, of
 }
 
 export async function setPluginEnabled(record: InstalledPlugin, enabled: boolean) {
-    usePluginStore.getState().setEnabled(record.id, enabled);
     if (!enabled) {
+        usePluginStore.getState().setEnabled(record.id, false);
         deactivatePlugin(record.id);
         return;
     }
     // Reload local plugins from their URL when enabled because the cached source may be stale.
     const source = record.local ? await fetchPluginSource(withCacheBust(record.url)) : record.source;
     const plugin = await evaluateStoredPlugin(record, source);
+    deactivatePlugin(record.id);
     activatePlugin(plugin);
+    usePluginStore.getState().setEnabled(record.id, true);
 }
 
 export function uninstallPlugin(id: string) {
@@ -128,6 +155,7 @@ export async function ensurePluginsLoaded() {
     loaded = true;
     await usePluginStore.persist.rehydrate();
     await loadLocalPlugins(); // Discover disabled local plugins first, then activate all enabled records.
+    await enforceOfficialRevocations();
     const records = usePluginStore.getState().plugins.filter((record) => record.enabled);
     await Promise.all(
         records.map(async (record) => {
@@ -146,6 +174,23 @@ export async function ensurePluginsLoaded() {
         }),
     );
     await loadDevPlugins();
+}
+
+export async function enforceOfficialRevocations() {
+    const enabledOfficial = usePluginStore.getState().plugins.filter((record) => record.enabled && record.official);
+    if (!enabledOfficial.length) return;
+    try {
+        const revoked = new Map((await fetchOfficialPlugins()).filter((entry) => entry.revoked).map((entry) => [entry.id, entry.revokeReason || "插件版本已被撤销"]));
+        for (const record of enabledOfficial) {
+            const reason = revoked.get(record.id);
+            if (!reason) continue;
+            deactivatePlugin(record.id);
+            usePluginStore.getState().setEnabled(record.id, false);
+            usePluginStore.getState().setDiagnostic(record.id, reason);
+        }
+    } catch (error) {
+        console.warn("[plugin] Revocation check unavailable; using integrity-verified cache", error);
+    }
 }
 
 // Discover local plugins from web/public/plugins, add them disabled, and expose them in the manager without a URL.
@@ -190,7 +235,10 @@ async function loadLocalPlugins() {
 async function loadDevPlugins() {
     const raw = import.meta.env.VITE_DEV_PLUGINS;
     if (!raw) return;
-    const urls = raw.split(",").map((item) => item.trim()).filter(Boolean);
+    const urls = raw
+        .split(",")
+        .map((item) => item.trim())
+        .filter(Boolean);
     if (!import.meta.env.DEV) return;
     await Promise.all(
         urls.map(async (url) => {
