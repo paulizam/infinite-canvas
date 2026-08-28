@@ -5,9 +5,9 @@
 ## 汇总
 
 - 总需求：133
-- 已定位源码/测试入口：125
-- 实机/外部环境待验：8
-- 待验 ID：GEN-008、GEN-017、GEN-018、AST-002、DRM-008、BIL-005、BIL-006、BIL-007
+- 已定位源码/测试入口：126
+- 实机/外部环境待验：7
+- 待验 ID：GEN-008、GEN-017、GEN-018、DRM-008、BIL-005、BIL-006、BIL-007
 
 ## 逐项证据
 
@@ -78,16 +78,16 @@
 | WFL-008 | P2 | SOURCE-EVIDENCE | Webhook、表单、邮件、计划任务等 trigger nodes。 | `packages/workflow-runtime/src/compiler.test.ts`<br>`apps/api/src/workflow-api.test.ts` |
 | WFL-009 | P2 | SOURCE-EVIDENCE | Workflow 模板、文件夹、封面、导入导出和版本。 | `packages/workflow-runtime/src/compiler.test.ts`<br>`apps/api/src/workflow-api.test.ts` |
 | WFL-010 | P2 | SOURCE-EVIDENCE | API snippet/公开调用 endpoint，具备 token scope 与限流。 | `packages/workflow-runtime/src/compiler.test.ts`<br>`apps/api/src/workflow-api.test.ts` |
-| AST-001 | P0 | SOURCE-EVIDENCE | 图片、视频、音频、文件、Prompt 素材入库、搜索、筛选、删除。 | `apps/api/src/asset-references.test.ts`<br>`web/src/services/webdav-sync.ts` |
-| AST-002 | P0 | RUNTIME-PENDING | local/S3 provider；历史资产按自身 provider 读取。 | `apps/api/src/blob-store.ts`<br>`apps/api/src/asset-service.ts`<br>`apps/api/src/postgres-repository.ts`<br>`apps/api/migrations/029_asset_storage_provider.sql`<br>`apps/api/src/asset-service.test.ts`<br>`apps/api/src/data-governance-service.test.ts`<br>Command: `pnpm --filter @infinite-canvas/api test`<br>Needs: PostgreSQL plus S3-compatible object store |
-| AST-003 | P0 | SOURCE-EVIDENCE | stable storageKey/AssetRef，原件与 preview variant 分离。 | `apps/api/src/asset-references.test.ts`<br>`web/src/services/webdav-sync.ts` |
-| AST-004 | P0 | SOURCE-EVIDENCE | 上传格式、大小、归属校验；服务端 UUID 重命名。 | `apps/api/src/asset-references.test.ts`<br>`web/src/services/webdav-sync.ts` |
-| AST-005 | P0 | SOURCE-EVIDENCE | 鉴权媒体读取和短期 signed URL，不暴露 bucket secret。 | `apps/api/src/asset-references.test.ts`<br>`web/src/services/webdav-sync.ts` |
-| AST-006 | P1 | SOURCE-EVIDENCE | 引用保护、对象迁移、孤儿扫描、retention GC。 | `apps/api/src/asset-references.test.ts`<br>`web/src/services/webdav-sync.ts` |
-| AST-007 | P1 | SOURCE-EVIDENCE | WebDAV 分域同步 Canvas/Assets/生成记录与媒体。 | `apps/api/src/asset-references.test.ts`<br>`web/src/services/webdav-sync.ts` |
-| AST-008 | P1 | SOURCE-EVIDENCE | 七个内置 Prompt sources，自定义 JSON source、刷新、缓存、标签检索。 | `apps/api/src/asset-references.test.ts`<br>`web/src/services/webdav-sync.ts` |
-| AST-009 | P1 | SOURCE-EVIDENCE | 运营提示词库、分类、上下架；一键送入 Agent/Canvas/短剧。 | `apps/api/src/asset-references.test.ts`<br>`web/src/services/webdav-sync.ts` |
-| AST-010 | P2 | SOURCE-EVIDENCE | content hash 去重、媒体版本与来源血缘。 | `apps/api/src/asset-references.test.ts`<br>`web/src/services/webdav-sync.ts` |
+| AST-001 | P0 | SOURCE-EVIDENCE | 图片、视频、音频、文件、Prompt 素材入库、搜索、筛选、删除。 | `apps/api/src/asset-references.test.ts`<br>`apps/api/src/asset-provider-switch-runtime.integration.test.ts`<br>`web/src/services/webdav-sync.ts` |
+| AST-002 | P0 | SOURCE-EVIDENCE | local/S3 provider；历史资产按自身 provider 读取。 | `apps/api/src/asset-references.test.ts`<br>`apps/api/src/asset-provider-switch-runtime.integration.test.ts`<br>`web/src/services/webdav-sync.ts` |
+| AST-003 | P0 | SOURCE-EVIDENCE | stable storageKey/AssetRef，原件与 preview variant 分离。 | `apps/api/src/asset-references.test.ts`<br>`apps/api/src/asset-provider-switch-runtime.integration.test.ts`<br>`web/src/services/webdav-sync.ts` |
+| AST-004 | P0 | SOURCE-EVIDENCE | 上传格式、大小、归属校验；服务端 UUID 重命名。 | `apps/api/src/asset-references.test.ts`<br>`apps/api/src/asset-provider-switch-runtime.integration.test.ts`<br>`web/src/services/webdav-sync.ts` |
+| AST-005 | P0 | SOURCE-EVIDENCE | 鉴权媒体读取和短期 signed URL，不暴露 bucket secret。 | `apps/api/src/asset-references.test.ts`<br>`apps/api/src/asset-provider-switch-runtime.integration.test.ts`<br>`web/src/services/webdav-sync.ts` |
+| AST-006 | P1 | SOURCE-EVIDENCE | 引用保护、对象迁移、孤儿扫描、retention GC。 | `apps/api/src/asset-references.test.ts`<br>`apps/api/src/asset-provider-switch-runtime.integration.test.ts`<br>`web/src/services/webdav-sync.ts` |
+| AST-007 | P1 | SOURCE-EVIDENCE | WebDAV 分域同步 Canvas/Assets/生成记录与媒体。 | `apps/api/src/asset-references.test.ts`<br>`apps/api/src/asset-provider-switch-runtime.integration.test.ts`<br>`web/src/services/webdav-sync.ts` |
+| AST-008 | P1 | SOURCE-EVIDENCE | 七个内置 Prompt sources，自定义 JSON source、刷新、缓存、标签检索。 | `apps/api/src/asset-references.test.ts`<br>`apps/api/src/asset-provider-switch-runtime.integration.test.ts`<br>`web/src/services/webdav-sync.ts` |
+| AST-009 | P1 | SOURCE-EVIDENCE | 运营提示词库、分类、上下架；一键送入 Agent/Canvas/短剧。 | `apps/api/src/asset-references.test.ts`<br>`apps/api/src/asset-provider-switch-runtime.integration.test.ts`<br>`web/src/services/webdav-sync.ts` |
+| AST-010 | P2 | SOURCE-EVIDENCE | content hash 去重、媒体版本与来源血缘。 | `apps/api/src/asset-references.test.ts`<br>`apps/api/src/asset-provider-switch-runtime.integration.test.ts`<br>`web/src/services/webdav-sync.ts` |
 | PLG-001 | P0 | SOURCE-EVIDENCE | Plugin SDK 支持节点 render、inspector、serialization、migration、toolbar。 | `web/src/lib/canvas/plugin-manifest.test.ts`<br>`web/src/lib/canvas/plugin-sandbox.test.ts`<br>`web/src/lib/canvas/plugin-browser-runtime.integration.test.ts` |
 | PLG-002 | P0 | SOURCE-EVIDENCE | 内置 HTML、Markdown、SVG、Panorama、Sticky Note 节点。 | `web/src/lib/canvas/plugin-manifest.test.ts`<br>`web/src/lib/canvas/plugin-sandbox.test.ts`<br>`web/src/lib/canvas/plugin-browser-runtime.integration.test.ts` |
 | PLG-003 | P0 | SOURCE-EVIDENCE | manifest 声明 app version、permissions、network allowlist、integrity/signature。 | `web/src/lib/canvas/plugin-manifest.test.ts`<br>`web/src/lib/canvas/plugin-sandbox.test.ts`<br>`web/src/lib/canvas/plugin-browser-runtime.integration.test.ts` |

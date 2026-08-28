@@ -10,7 +10,7 @@ const evidence = {
   GEN: ["apps/api/src/generation-job-api.test.ts", "apps/worker/src/gateway-handler.test.ts"],
   AGT: ["apps/api/src/agent-run-api.test.ts", "apps/worker/src/agent-runtime.test.ts"],
   WFL: ["packages/workflow-runtime/src/compiler.test.ts", "apps/api/src/workflow-api.test.ts"],
-  AST: ["apps/api/src/asset-references.test.ts", "web/src/services/webdav-sync.ts"],
+  AST: ["apps/api/src/asset-references.test.ts", "apps/api/src/asset-provider-switch-runtime.integration.test.ts", "web/src/services/webdav-sync.ts"],
   PLG: ["web/src/lib/canvas/plugin-manifest.test.ts", "web/src/lib/canvas/plugin-sandbox.test.ts", "web/src/lib/canvas/plugin-browser-runtime.integration.test.ts"],
   COL: ["apps/api/src/collaboration.test.ts", "web/src/services/cloud-collaboration.test.ts"],
   DRM: ["apps/api/src/drama-api.test.ts", "apps/worker/src/drama-render-runtime.test.ts"],
@@ -20,7 +20,7 @@ const evidence = {
   OPS: [".github/workflows/quality-security.yml", "ops/README.md"],
 };
 const runtimePending = new Set([
-  "GEN-008", "GEN-017", "GEN-018", "AST-002",
+  "GEN-008", "GEN-017", "GEN-018",
   "DRM-008", "BIL-005", "BIL-006", "BIL-007",
 ]);
 

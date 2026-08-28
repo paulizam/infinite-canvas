@@ -97,3 +97,25 @@ pnpm --dir web test -- src/lib/canvas/plugin-browser-runtime.integration.test.ts
 ```
 
 未设置 `PLUGIN_BROWSER_TEST=1` 时该 integration test 显式 skip，不能作为 Runtime PASS。`PLUGIN_BROWSER_EXECUTABLE` 可指向任意 Playwright 支持的本机 Chromium executable；测试不下载浏览器。
+
+## AST-002 PostgreSQL + S3 provider switch
+
+- 验证日期：2026-08-28
+- PostgreSQL：原生 PostgreSQL `17.2`，隔离端口 `127.0.0.1:19432`，完整执行 32 个 migrations
+- S3：MinIO `RELEASE.2025-09-07T16-13-09Z`，隔离 endpoint `http://127.0.0.1:19000`
+- Test：`apps/api/src/asset-provider-switch-runtime.integration.test.ts`
+- 链路：以 `local` 上传历史图片及 preview → 将当前 provider 切到 `s3` → 上传新图片及 preview → 由同一 PostgreSQL repository 按每条 Asset 的 immutable `storageProvider` 分流读取 → 删除元数据与两端对象
+- 断言：PostgreSQL 同时持久化 `local`/`s3` provider；历史 local 原始字节在切换后不变；S3 新对象字节不变；两次连续运行均 PASS
+- 清理：测试 bucket、临时 local root、PostgreSQL/MinIO 进程均已清理，`19432/19000/19001` 端口已释放
+
+本机复验需先准备已执行 migrations 的隔离 PostgreSQL 数据库和 MinIO bucket endpoint：
+
+```powershell
+$env:ASSET_PROVIDER_TEST_DATABASE_URL = "postgresql://<user>:<password>@127.0.0.1:19432/<database>"
+$env:S3_TEST_ENDPOINT = "http://127.0.0.1:19000"
+$env:S3_TEST_ACCESS_KEY = "<sandbox-access-key>"
+$env:S3_TEST_SECRET_KEY = "<sandbox-secret-key>"
+pnpm --filter @infinite-canvas/api test -- src/asset-provider-switch-runtime.integration.test.ts
+```
+
+未同时设置 `ASSET_PROVIDER_TEST_DATABASE_URL` 与 `S3_TEST_ENDPOINT` 时该 integration test 显式 skip，不能作为 Runtime PASS。

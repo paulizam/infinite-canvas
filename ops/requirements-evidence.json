@@ -38,20 +38,6 @@
     "command": "pnpm --filter @infinite-canvas/model-gateway test && pnpm --filter @infinite-canvas/worker test",
     "runtime": "MediaKit sandbox endpoint"
   },
-  "AST-002": {
-    "sources": [
-      "apps/api/src/blob-store.ts",
-      "apps/api/src/asset-service.ts",
-      "apps/api/src/postgres-repository.ts",
-      "apps/api/migrations/029_asset_storage_provider.sql"
-    ],
-    "tests": [
-      "apps/api/src/asset-service.test.ts",
-      "apps/api/src/data-governance-service.test.ts"
-    ],
-    "command": "pnpm --filter @infinite-canvas/api test",
-    "runtime": "PostgreSQL plus S3-compatible object store"
-  },
   "DRM-008": {
     "sources": ["apps/worker/src/drama-render-runtime.ts"],
     "tests": ["apps/worker/src/drama-render-runtime.test.ts"],

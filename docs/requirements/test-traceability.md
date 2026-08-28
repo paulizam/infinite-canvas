@@ -78,7 +78,7 @@
 | WFL-009 | P2 | `apps/api/src/workflow-api.test.ts` |
 | WFL-010 | P2 | `apps/api/src/workflow-api.test.ts` |
 | AST-001 | P0 | `apps/api/src/app.test.ts` |
-| AST-002 | P0 | `apps/api/src/asset-service.test.ts` |
+| AST-002 | P0 | `apps/api/src/asset-provider-switch-runtime.integration.test.ts`<br>`apps/api/src/asset-service.test.ts` |
 | AST-003 | P0 | `apps/api/src/asset-service.test.ts` |
 | AST-004 | P0 | `apps/api/src/app.test.ts` |
 | AST-005 | P0 | `apps/api/src/asset-service.test.ts`<br>`apps/api/src/blob-store-runtime.integration.test.ts` |
