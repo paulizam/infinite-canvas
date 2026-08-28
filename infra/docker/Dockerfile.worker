@@ -1,13 +1,18 @@
-FROM node:22-alpine
+FROM node:22-alpine AS build
 
-RUN corepack enable && apk add --no-cache ffmpeg
+RUN corepack enable
 WORKDIR /app
 COPY . .
 RUN --mount=type=cache,target=/root/.local/share/pnpm/store pnpm install --frozen-lockfile \
   && pnpm --filter @infinite-canvas/contracts build \
   && pnpm --filter @infinite-canvas/model-gateway build \
   && pnpm --filter @infinite-canvas/workflow-runtime build \
-  && pnpm --filter @infinite-canvas/worker build
+  && pnpm --filter @infinite-canvas/worker build \
+  && pnpm --filter @infinite-canvas/worker deploy --prod --legacy /prod/worker
 
+FROM node:22-alpine
+RUN apk add --no-cache ffmpeg
+WORKDIR /app
+COPY --from=build --chown=node:node /prod/worker/ ./
 USER node
-CMD ["pnpm", "--filter", "@infinite-canvas/worker", "start"]
+CMD ["node", "dist/index.js"]
