@@ -31,6 +31,8 @@ import type { CommunityService } from "./community-service.js";
 import type { CommunitySocialService } from "./community-social-service.js";
 import type { CommerceService } from "./commerce-service.js";
 import type { PaymentService } from "./payment-service.js";
+import type { AdminService } from "./admin-service.js";
+import { createAdminApi } from "./admin-api.js";
 import { ModelDiscoveryService } from "./model-discovery.js";
 import { createModelDiscoveryApi } from "./model-discovery-api.js";
 import {
@@ -68,6 +70,7 @@ export type AppServices = {
   communitySocial?: CommunitySocialService;
   commerce?: CommerceService;
   payments?: PaymentService;
+  admin?: AdminService;
   maintenanceToken: string;
   secureCookies: boolean;
   modelDiscovery?: ModelDiscoveryService;
@@ -2151,6 +2154,10 @@ export function createApp(services: AppServices) {
       }),
     );
   }
+  if (services.admin)
+    app.route("/api/v1/admin", createAdminApi(services.admin, "user"));
+  if (services.admin)
+    app.route("/internal/v1/maintenance/admin", createAdminApi(services.admin));
   return app;
 }
 

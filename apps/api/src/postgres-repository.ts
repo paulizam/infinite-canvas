@@ -69,13 +69,17 @@ export class PostgresPlatformRepository implements PlatformRepository {
     }
   }
   async findUserByEmail(email: string) {
-    const r = await this.pool.query("SELECT * FROM users WHERE email=$1", [
-      email,
-    ]);
+    const r = await this.pool.query(
+      "SELECT * FROM users WHERE email=$1 AND status='active'",
+      [email],
+    );
     return r.rows[0] ? mapUser(r.rows[0]) : null;
   }
   async findUserById(id: string) {
-    const r = await this.pool.query("SELECT * FROM users WHERE id=$1", [id]);
+    const r = await this.pool.query(
+      "SELECT * FROM users WHERE id=$1 AND status='active'",
+      [id],
+    );
     return r.rows[0] ? mapUser(r.rows[0]) : null;
   }
   async createSession(s: SessionRecord) {
@@ -86,7 +90,7 @@ export class PostgresPlatformRepository implements PlatformRepository {
   }
   async findSession(hash: string, now: string) {
     const r = await this.pool.query(
-      "SELECT * FROM sessions WHERE token_hash=$1 AND expires_at>$2",
+      "SELECT * FROM sessions WHERE token_hash=$1 AND expires_at>$2 AND revoked_at IS NULL",
       [hash, now],
     );
     return r.rows[0]

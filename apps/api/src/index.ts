@@ -37,6 +37,8 @@ import { CommerceService } from "./commerce-service.js";
 import { PostgresCommerceRepository } from "./postgres-commerce-repository.js";
 import { HttpPaymentAdapter, PaymentService } from "./payment-service.js";
 import { PostgresPaymentRepository } from "./postgres-payment-repository.js";
+import { AdminService } from "./admin-service.js";
+import { PostgresAdminRepository } from "./postgres-admin-repository.js";
 import {
   IdentityService,
   ProjectService,
@@ -53,9 +55,10 @@ const workerToken = strongToken("WORKER_TOKEN");
 const maintenanceToken = strongToken("MAINTENANCE_TOKEN");
 if (workerToken === maintenanceToken)
   throw new Error("WORKER_TOKEN and MAINTENANCE_TOKEN must be distinct");
+const modelSecretCipher = new SecretCipher(required("MODEL_SECRET_KEY"));
 const modelGateway = new PostgresModelGatewayRepository(
   databaseUrl,
-  new SecretCipher(required("MODEL_SECRET_KEY")),
+  modelSecretCipher,
 );
 const workflowRepository = new PostgresWorkflowRepository(databaseUrl);
 const workflowExecutionRepository = new PostgresWorkflowExecutionRepository(
@@ -176,6 +179,10 @@ const app = createApp({
     ),
     required("PAYMENT_WEBHOOK_SECRET"),
     positiveInteger("PAYMENT_WEBHOOK_TOLERANCE_SECONDS"),
+  ),
+  admin: new AdminService(
+    new PostgresAdminRepository(databaseUrl),
+    modelSecretCipher,
   ),
   maintenanceToken,
   collaboration,

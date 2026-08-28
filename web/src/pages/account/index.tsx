@@ -2,6 +2,7 @@ import { Alert, Button, Card, Form, Input, Select, Tabs, Typography, message } f
 import { Cloud, HardDrive } from "lucide-react";
 import type { ReactNode } from "react";
 import { useTranslation } from "react-i18next";
+import { Link } from "react-router-dom";
 
 import { useCloudSessionStore } from "@/stores/use-cloud-session-store";
 import { useCloudCanvasSyncStore } from "@/stores/use-cloud-canvas-sync-store";
@@ -45,6 +46,9 @@ export default function AccountPage() {
                     <Button className="mt-5" danger onClick={() => void session.logout()}>
                         {t("account.logout")}
                     </Button>
+                    <Link to="/admin">
+                        <Button className="mt-5 ml-2">平台管理后台</Button>
+                    </Link>
                 </Card>
             </PageShell>
         );
@@ -110,10 +114,10 @@ export default function AccountPage() {
                             ),
                         },
                     ]}
-                    />
-                    <Typography.Paragraph className="mt-2" type="secondary">
-                        {t(`account.sync.${sync.state}`)}
-                    </Typography.Paragraph>
+                />
+                <Typography.Paragraph className="mt-2" type="secondary">
+                    {t(`account.sync.${sync.state}`)}
+                </Typography.Paragraph>
             </Card>
         </PageShell>
     );

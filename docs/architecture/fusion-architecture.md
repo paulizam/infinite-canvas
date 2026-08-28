@@ -237,6 +237,12 @@ queued -> claimed -> submitting -> submitted -> polling
 
 作品草稿、版本、审核、发布、下架、重发、点赞、关注、作者页与举报。发布快照不可随源项目变化；治理操作全量写 audit log。
 
+### 6.11 Admin Control Plane
+
+管理后台是独立领域模块和 Web route，不把控制面逻辑散落到各业务页面。浏览器使用 HttpOnly Session，并在每次请求校验用户仍为 `active/admin`；Maintenance Token 只作为隔离的 break-glass 入口。Dashboard 聚合用户、任务、模型健康、资产、积分、订单和治理数据。用户停用与 Session 撤销、任务恢复/取消、设置和运营内容变更必须与不可变 Audit Ledger 同事务。
+
+平台设置按 allowlist 做类型与范围验证并使用 revision 防并发覆盖。Secret 使用 AES-256-GCM + setting-specific AAD，API 只返回配置状态。失败任务恢复创建新 attempt 并重新原子预留积分；仍持有 reserve 的 `needs_review` 才可原地恢复，禁止以已退款 attempt 免费重跑。
+
 ## 7. 关键数据契约
 
 ```ts
