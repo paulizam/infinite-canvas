@@ -512,7 +512,7 @@ describe("workspace asset API", () => {
     });
   }
 
-  it("sniffs, deduplicates, lists and downloads immutable media", async () => {
+  it("[AST-001] sniffs, deduplicates, lists and downloads immutable media", async () => {
     const { body, cookie } = await register("asset@example.com");
     const workspaceId = body.data.workspace.id;
     const first = await upload(workspaceId, cookie);
@@ -523,6 +523,7 @@ describe("workspace asset API", () => {
           id: string;
           mimeType: string;
           originalName: string;
+          storageKey: string;
           variants: Array<{ kind: string; mimeType: string }>;
         };
         deduplicated: boolean;
@@ -530,6 +531,9 @@ describe("workspace asset API", () => {
     };
     expect(firstData.data.asset.mimeType).toBe("image/png");
     expect(firstData.data.asset.originalName).toBe("pixel.png");
+    expect(firstData.data.asset.storageKey).toMatch(
+      /^[0-9a-f-]{36}\/[0-9a-f-]{36}\.png$/,
+    );
     expect(firstData.data.asset.variants).toEqual([
       expect.objectContaining({ kind: "preview", mimeType: "image/webp" }),
     ]);
@@ -567,7 +571,7 @@ describe("workspace asset API", () => {
     ).toBe("RIFF");
   });
 
-  it("rejects forged media and hides assets across tenants", async () => {
+  it("[AST-004] rejects forged media and hides assets across tenants", async () => {
     const owner = await register("asset-owner@example.com");
     const uploaded = await upload(owner.body.data.workspace.id, owner.cookie);
     const data = (await uploaded.json()) as { data: { asset: { id: string } } };

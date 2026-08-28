@@ -5,8 +5,8 @@
 ## Summary
 
 - Requirements: 133
-- Direct test references: 28
-- Without direct test reference: 105
+- Direct test references: 31
+- Without direct test reference: 102
 
 ## Direct references
 
@@ -36,9 +36,12 @@
 | GEN-012 | P0 | `apps/worker/src/gateway-handler.test.ts` |
 | GEN-013 | P0 | `apps/api/src/generation-job-api.test.ts` |
 | GEN-016 | P1 | `apps/api/src/generation-job-api.test.ts` |
+| AST-001 | P0 | `apps/api/src/app.test.ts` |
 | AST-003 | P0 | `apps/api/src/asset-service.test.ts` |
+| AST-004 | P0 | `apps/api/src/app.test.ts` |
 | AST-005 | P0 | `apps/api/src/asset-service.test.ts` |
 | AST-006 | P1 | `apps/api/src/app.test.ts` |
+| AST-008 | P1 | `web/src/services/api/prompts.test.ts` |
 | COL-007 | P2 | `apps/api/src/app.test.ts` |
 
 ## Missing direct references
@@ -84,11 +87,8 @@
 - WFL-008 (P2)
 - WFL-009 (P2)
 - WFL-010 (P2)
-- AST-001 (P0)
 - AST-002 (P0)
-- AST-004 (P0)
 - AST-007 (P1)
-- AST-008 (P1)
 - AST-009 (P1)
 - AST-010 (P2)
 - PLG-001 (P0)
