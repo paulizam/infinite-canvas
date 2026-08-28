@@ -4,11 +4,13 @@ import { runPromptSource, type RawPrompt } from "./prompt-source-runtime";
 import { usePromptSourceStore } from "@/stores/use-prompt-source-store";
 import i18n from "@/i18n";
 import type { PromptSource } from "./prompt-source-presets";
+import { cloudModeEnabled, cloudPlatform, type OperationalPrompt } from "@/services/cloud-platform";
 
 export type Prompt = RawPrompt & {
     sourceId: string;
     category: string;
     githubUrl: string;
+    targets?: ("agent" | "canvas" | "drama")[];
 };
 
 export const ALL_PROMPTS_OPTION = "all";
@@ -133,7 +135,32 @@ async function getAllPrompts(): Promise<Prompt[]> {
             }
         }),
     );
-    return settled.flat();
+    const local = settled.flat();
+    if (!cloudModeEnabled) return local;
+    const operational = await cloudPlatform.listOperationalPrompts().catch(() => []);
+    return mergeOperationalPrompts(local, operational);
+}
+
+export function mergeOperationalPrompts(local: Prompt[], operational: OperationalPrompt[]) {
+    const catalog = operational.map(
+        (item): Prompt => ({
+            id: item.id,
+            title: item.title,
+            prompt: item.content,
+            description: "",
+            coverUrl: "",
+            referenceImageUrls: [],
+            tags: item.tags,
+            preview: "",
+            createdAt: "",
+            updatedAt: item.updatedAt,
+            sourceId: "operational-catalog",
+            category: item.category,
+            githubUrl: "",
+            targets: item.targets,
+        }),
+    );
+    return [...catalog, ...local];
 }
 
 export async function fetchPrompts({ keyword = "", tag = [], category = ALL_PROMPTS_OPTION, page = 1, pageSize = 20 }: { keyword?: string; tag?: string[]; category?: string; page?: number; pageSize?: number } = {}) {

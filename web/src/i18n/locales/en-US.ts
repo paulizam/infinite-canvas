@@ -61,6 +61,8 @@ export default {
         loading: "Loading...",
         loadMore: "Scroll down to load more",
         end: "You've reached the end",
+        sendTo: { label: "Send to", agent: "Agent", canvas: "Canvas", drama: "Drama" },
+        sentTo: { agent: "Filled the Agent composer", canvas: "Sent to Canvas assets", drama: "Created a drama task draft" },
     },
     assets: {
         title: "My Assets",

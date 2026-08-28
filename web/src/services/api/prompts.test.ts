@@ -30,7 +30,7 @@ vi.mock("@/stores/use-prompt-source-store", () => ({
 }));
 
 import { DEFAULT_PROMPT_SOURCES } from "./prompt-source-presets";
-import { fetchPrompts, refreshSource } from "./prompts";
+import { fetchPrompts, mergeOperationalPrompts, refreshSource } from "./prompts";
 
 describe("[AST-008] prompt sources", () => {
     beforeEach(() => {
@@ -69,5 +69,14 @@ describe("[AST-008] prompt sources", () => {
         expect(fetchMock).toHaveBeenCalledTimes(1);
         await refreshSource(customSource.id);
         expect(fetchMock).toHaveBeenCalledTimes(2);
+    });
+
+    it("[AST-009] maps operational catalog metadata into searchable handoff prompts", () => {
+        const merged = mergeOperationalPrompts([], [
+            { id: "ops-1", title: "Campaign", content: "Launch at dawn", category: "Marketing", tags: ["featured"], targets: ["agent", "canvas"], revision: 2, updatedAt: "2026-01-01T00:00:00.000Z" },
+        ]);
+        expect(merged).toEqual([
+            expect.objectContaining({ id: "ops-1", prompt: "Launch at dawn", sourceId: "operational-catalog", category: "Marketing", tags: ["featured"], targets: ["agent", "canvas"] }),
+        ]);
     });
 });

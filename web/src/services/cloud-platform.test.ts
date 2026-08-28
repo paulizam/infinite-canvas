@@ -56,6 +56,16 @@ describe("CloudPlatformClient", () => {
         expect(fetcher).toHaveBeenCalledWith("https://api.example/api/v1/workspaces/team%2Fa/assets", expect.objectContaining({ credentials: "include" }));
     });
 
+    it("[AST-009] queries the public operational prompt catalog with encoded filters", async () => {
+        const fetcher = vi.fn(async () => Response.json({ data: [], requestId: "prompts" }));
+        const client = new CloudPlatformClient("https://api.example", fetcher);
+        await client.listOperationalPrompts("人物 / 肖像", "精选 标签");
+        expect(fetcher).toHaveBeenCalledWith(
+            "https://api.example/api/public/v1/prompts?category=%E4%BA%BA%E7%89%A9+%2F+%E8%82%96%E5%83%8F&tag=%E7%B2%BE%E9%80%89+%E6%A0%87%E7%AD%BE",
+            expect.objectContaining({ credentials: "include" }),
+        );
+    });
+
     it("loads wallet and immutable ledger through authenticated requests", async () => {
         const fetcher = vi.fn(async () => Response.json({ data: [], requestId: "r6" }));
         const client = new CloudPlatformClient("", fetcher);

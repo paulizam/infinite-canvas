@@ -31,6 +31,16 @@ export type CloudAsset = {
     originalName: string;
     createdAt: string;
 };
+export type OperationalPrompt = {
+    id: string;
+    title: string;
+    content: string;
+    category: string;
+    tags: string[];
+    targets: ("agent" | "canvas" | "drama")[];
+    revision: number;
+    updatedAt: string;
+};
 export type WorkflowCompileIssue = {
     code: string;
     severity: "error" | "warning";
@@ -415,6 +425,13 @@ export class CloudPlatformClient {
 
     listAssets(workspaceId: string) {
         return this.request<CloudAsset[]>(`/api/v1/workspaces/${encodeURIComponent(workspaceId)}/assets`);
+    }
+
+    listOperationalPrompts(category?: string, tag?: string) {
+        const query = new URLSearchParams();
+        if (category?.trim()) query.set("category", category.trim());
+        if (tag?.trim()) query.set("tag", tag.trim());
+        return this.request<OperationalPrompt[]>(`/api/public/v1/prompts${query.size ? `?${query}` : ""}`);
     }
 
     async uploadAsset(workspaceId: string, blob: Blob, originalName: string, signal?: AbortSignal) {

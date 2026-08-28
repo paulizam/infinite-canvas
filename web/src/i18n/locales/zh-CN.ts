@@ -61,6 +61,8 @@ export default {
         loading: "加载中...",
         loadMore: "继续向下滚动加载更多",
         end: "已经到底了",
+        sendTo: { label: "发送到", agent: "Agent", canvas: "Canvas", drama: "短剧" },
+        sentTo: { agent: "已填入 Agent", canvas: "已送入 Canvas 素材", drama: "已创建短剧任务草稿" },
     },
     assets: {
         title: "我的资产",
