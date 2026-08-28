@@ -1,4 +1,5 @@
 import type { ModelCapability } from "@infinite-canvas/contracts";
+import { assertMediaKitRequestAllowed } from "./media-kit-capabilities.js";
 
 export type ProviderSpecificAdapter =
   "seedance" | "stable-diffusion" | "media-kit";
@@ -42,6 +43,7 @@ export function buildProviderSpecificRequest(
     throw new Error(
       "Media Kit adapter only supports image or video capability",
     );
+  assertMediaKitRequestAllowed(input.config.mediaKit, input.parameters);
   return json(input, path(input.config.submitPath, "/v1/media/enhance"), {
     model: input.upstreamModel,
     capability: input.capability,

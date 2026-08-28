@@ -69,6 +69,28 @@ describe("worker provider-specific routing", () => {
       buildOperationRequest(runtime, "video", "poll", "task/1").url,
     ).toContain("task%2F1");
   });
+  it("[GEN-018] merges channel MediaKit capability and endpoint config", () => {
+    const runtime = resolved("media-kit");
+    runtime.protocol.config = { submitPath: "/protocol-submit" };
+    runtime.channel.config = {
+      submitPath: "/channel-submit",
+      pollPath: "/channel-tasks/{taskId}",
+      mediaKit: {
+        enabled: true,
+        videoEnhance: { fast: true },
+        subtitleErase: {},
+      },
+    };
+    expect(
+      buildSubmitRequest(runtime, "video", {
+        operation: "video-enhance",
+        mode: "fast",
+      }).url,
+    ).toBe("https://provider.example/channel-submit");
+    expect(
+      buildOperationRequest(runtime, "video", "poll", "task/1").url,
+    ).toBe("https://provider.example/channel-tasks/task%2F1");
+  });
   it("normalizes A1111 output before asset persistence", () => {
     expect(
       normalizePayload(

@@ -55,7 +55,7 @@
 | GEN-015 | P1 | `apps/api/src/asset-service.test.ts`<br>`web/src/services/cloud-generation.test.ts` |
 | GEN-016 | P1 | `apps/api/src/generation-job-api.test.ts` |
 | GEN-017 | P2 | `apps/api/src/model-discovery.test.ts`<br>`packages/model-gateway/src/volcengine-resource-packages.test.ts`<br>`packages/model-gateway/src/volcengine-sandbox-runtime.integration.test.ts`<br>`packages/model-gateway/src/volcengine.test.ts` |
-| GEN-018 | P2 | `apps/worker/src/provider-sandbox-runtime.integration.test.ts`<br>`packages/model-gateway/src/provider-specific.test.ts` |
+| GEN-018 | P2 | `apps/worker/src/provider-runtime.test.ts`<br>`apps/worker/src/provider-sandbox-runtime.integration.test.ts`<br>`packages/model-gateway/src/media-kit-capabilities.test.ts`<br>`packages/model-gateway/src/provider-specific.test.ts` |
 | AGT-001 | P0 | `canvas-agent/src/canvas/session.test.ts` |
 | AGT-002 | P0 | `canvas-agent/src/canvas/session.test.ts` |
 | AGT-003 | P1 | `canvas-agent/src/agent/claude.test.ts` |

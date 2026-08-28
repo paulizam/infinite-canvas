@@ -145,6 +145,7 @@ pnpm --filter @infinite-canvas/api test -- src/payment-sandbox-runtime.integrati
 
 - Test：`apps/worker/src/provider-sandbox-runtime.integration.test.ts`
 - 支持 adapter：OpenAI-compatible、Gemini、Seedance、Stable Diffusion/A1111/Forge、MediaKit
+- MediaKit 确定性能力层：迁移 z3cz 的 `fast/standard/pro/llm` 视频增强与 `standard/refined` 字幕擦除矩阵；Admin 保存渠道级配置，Worker 合并 protocol/channel config，并对显式配置执行 operation + mode fail-closed gate。未配置的历史渠道保持兼容。
 - 真实链路：构建生产请求 → 实际 HTTPS submit → 可选 poll 至终态 → adapter normalize → 必须存在可用 text/media result
 - 凭据隔离：case file 只写 `apiKeyEnv` 环境变量名；密钥仅从进程环境读取，不写入 JSON、日志或仓库
 - 安全门槛：HTTP 2xx、poll deadline、失败终态和空结果均导致 test FAIL；没有 case file 时显式 skip，不能作为 Runtime PASS

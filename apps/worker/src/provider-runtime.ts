@@ -60,7 +60,10 @@ export function buildSubmitRequest(
     return buildProviderSpecificRequest(
       resolved.protocol.adapter as
         "seedance" | "stable-diffusion" | "media-kit",
-      { ...input, config: resolved.protocol.config },
+      {
+        ...input,
+        config: { ...resolved.protocol.config, ...resolved.channel.config },
+      },
     );
   if (resolved.protocol.adapter === "custom")
     return buildCustomProtocolRequest({
@@ -134,7 +137,7 @@ export function buildOperationRequest(
       {
         baseUrl: resolved.channel.baseUrl,
         apiKey: resolved.apiKey,
-        config: resolved.protocol.config,
+        config: { ...resolved.protocol.config, ...resolved.channel.config },
         allowInsecure: resolved.channel.config.allowInsecure === true,
         operation,
         taskId,

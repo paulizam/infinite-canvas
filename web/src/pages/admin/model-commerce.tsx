@@ -4,6 +4,8 @@ import { useCallback, useEffect, useState } from "react";
 import { adminPlatform, type AdminCommerce, type AdminModelCatalog } from "@/services/admin-platform";
 
 const capabilities = ["text", "image", "video", "audio"] as const;
+const mediaKitVideoModes = ["fast", "standard", "pro", "llm"] as const;
+const mediaKitSubtitleModes = ["standard", "refined"] as const;
 export function ModelAdmin() {
     const [step, setStep] = useState(0),
         [catalog, setCatalog] = useState<AdminModelCatalog | null>(null),
@@ -13,6 +15,7 @@ export function ModelAdmin() {
         [discovered, setDiscovered] = useState<Array<{ id: string; displayName?: string }>>([]),
         [selected, setSelected] = useState<string[]>([]),
         [capability, setCapability] = useState<Record<string, (typeof capabilities)[number]>>({}),
+        [mediaKitSummary, setMediaKitSummary] = useState<string | null>(null),
         [busy, setBusy] = useState(false),
         [error, setError] = useState<string | null>(null);
     const load = useCallback(async () => {
@@ -92,7 +95,14 @@ export function ModelAdmin() {
                 <Card title="2. 配置渠道（Secret 保存后不回显）">
                     <Form
                         layout="vertical"
-                        initialValues={{ name: "Primary Channel", baseUrl: "https://api.example.com/v1", apiKey: "" }}
+                        initialValues={{
+                            name: "Primary Channel",
+                            baseUrl: "https://api.example.com/v1",
+                            apiKey: "",
+                            mediaKitEnabled: true,
+                            videoEnhanceModes: ["fast", "standard"],
+                            subtitleEraseModes: ["standard"],
+                        }}
                         onFinish={(x) =>
                             void run(async () => {
                                 await adminPlatform.saveChannel(channelId, {
@@ -100,9 +110,27 @@ export function ModelAdmin() {
                                     protocolId,
                                     baseUrl: x.baseUrl,
                                     enabled: true,
-                                    config: protocolAdapter === "volcengine" ? { accessKeyId: x.accessKeyId, region: x.region || "cn-north-1", service: x.service || "ark" } : {},
+                                    config:
+                                        protocolAdapter === "volcengine"
+                                            ? { accessKeyId: x.accessKeyId, region: x.region || "cn-north-1", service: x.service || "ark" }
+                                            : protocolAdapter === "media-kit"
+                                              ? {
+                                                    mediaKit: {
+                                                        enabled: x.mediaKitEnabled === true,
+                                                        videoEnhance: Object.fromEntries(mediaKitVideoModes.map((mode) => [mode, x.videoEnhanceModes?.includes(mode) === true])),
+                                                        subtitleErase: Object.fromEntries(mediaKitSubtitleModes.map((mode) => [mode, x.subtitleEraseModes?.includes(mode) === true])),
+                                                    },
+                                                    ...(x.submitPath ? { submitPath: x.submitPath } : {}),
+                                                    ...(x.pollPath ? { pollPath: x.pollPath } : {}),
+                                                    ...(x.cancelPath ? { cancelPath: x.cancelPath } : {}),
+                                                }
+                                              : {},
                                     apiKey: x.apiKey,
                                 });
+                                if (protocolAdapter === "media-kit") {
+                                    const enabled = [...(x.videoEnhanceModes || []).map((mode: string) => `video-enhance:${mode}`), ...(x.subtitleEraseModes || []).map((mode: string) => `subtitle-erase:${mode}`)];
+                                    setMediaKitSummary(x.mediaKitEnabled ? enabled.join(" · ") : "MediaKit 已禁用");
+                                }
                                 setStep(2);
                             })
                         }
@@ -130,6 +158,29 @@ export function ModelAdmin() {
                                 <Alert className="mb-4" type="info" showIcon message="AK 作为非秘密标识保存在渠道 config；SK 加密保存且不回显。" />
                             </>
                         ) : null}
+                        {protocolAdapter === "media-kit" ? (
+                            <>
+                                <Form.Item name="mediaKitEnabled" label="启用 MediaKit" valuePropName="checked">
+                                    <Switch />
+                                </Form.Item>
+                                <Form.Item name="videoEnhanceModes" label="视频增强模式">
+                                    <Select mode="multiple" options={mediaKitVideoModes.map((value) => ({ value, label: value }))} />
+                                </Form.Item>
+                                <Form.Item name="subtitleEraseModes" label="字幕擦除模式">
+                                    <Select mode="multiple" options={mediaKitSubtitleModes.map((value) => ({ value, label: value }))} />
+                                </Form.Item>
+                                <Form.Item name="submitPath" label="Submit Path（可选）">
+                                    <Input placeholder="/v1/media/enhance" />
+                                </Form.Item>
+                                <Form.Item name="pollPath" label="Poll Path（可选）">
+                                    <Input placeholder="/v1/media/tasks/{taskId}" />
+                                </Form.Item>
+                                <Form.Item name="cancelPath" label="Cancel Path（可选）">
+                                    <Input placeholder="/v1/media/tasks/{taskId}/cancel" />
+                                </Form.Item>
+                                <Alert className="mb-4" type="info" showIcon message="显式配置后，Worker 将按 operation + mode 强制能力校验；未知或未启用模式会拒绝执行。" />
+                            </>
+                        ) : null}
                         <Button type="primary" htmlType="submit" loading={busy}>
                             保存并下一步
                         </Button>
@@ -138,6 +189,7 @@ export function ModelAdmin() {
             ) : null}
             {step === 2 ? (
                 <Card title="3. 连接测试">
+                    {protocolAdapter === "media-kit" && mediaKitSummary ? <Alert className="mb-4" type="success" showIcon message="MediaKit 能力矩阵" description={mediaKitSummary} /> : null}
                     <Space>
                         <Button
                             loading={busy}

@@ -90,4 +90,33 @@ describe("provider-specific adapters", () => {
       }),
     ).toThrow();
   });
+  it("[GEN-018] enforces the configured MediaKit operation matrix", () => {
+    const config = {
+      mediaKit: {
+        enabled: true,
+        videoEnhance: { fast: true },
+        subtitleErase: { refined: true },
+      },
+    };
+    expect(
+      JSON.parse(
+        String(
+          buildProviderSpecificRequest("media-kit", {
+            ...base,
+            capability: "video",
+            parameters: { operation: "video-enhance", mode: "fast" },
+            config,
+          }).init.body,
+        ),
+      ),
+    ).toMatchObject({ operation: "video-enhance", mode: "fast" });
+    expect(() =>
+      buildProviderSpecificRequest("media-kit", {
+        ...base,
+        capability: "video",
+        parameters: { operation: "video-enhance", mode: "pro" },
+        config,
+      }),
+    ).toThrow(/not enabled/);
+  });
 });

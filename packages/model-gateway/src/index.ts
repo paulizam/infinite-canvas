@@ -3,5 +3,6 @@ export * from "./capabilities.js";
 export * from "./openai-compatible.js";
 export * from "./provider-adapters.js";
 export * from "./provider-specific.js";
+export * from "./media-kit-capabilities.js";
 export * from "./volcengine.js";
 export * from "./volcengine-resource-packages.js";
