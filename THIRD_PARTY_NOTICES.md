@@ -964,6 +964,13 @@ Packages reported as `Unknown` are permitted only when explicitly documented in 
 
 ## Unknown
 
+- `@anthropic-ai/claude-agent-sdk-darwin-arm64@0.3.247`
+- `@anthropic-ai/claude-agent-sdk-darwin-x64@0.3.247`
+- `@anthropic-ai/claude-agent-sdk-linux-arm64-musl@0.3.247`
+- `@anthropic-ai/claude-agent-sdk-linux-arm64@0.3.247`
+- `@anthropic-ai/claude-agent-sdk-linux-x64-musl@0.3.247`
+- `@anthropic-ai/claude-agent-sdk-linux-x64@0.3.247`
+- `@anthropic-ai/claude-agent-sdk-win32-arm64@0.3.247`
 - `@anthropic-ai/claude-agent-sdk-win32-x64@0.3.247`
 - `@anthropic-ai/claude-agent-sdk@0.3.247`
 
