@@ -69,13 +69,24 @@ describe("Drama render runtime", () => {
     const zip = buildJianyingPackage(job, [
       { name: "media-0.mp4", bytes: Buffer.from("video") },
     ]);
-    expect(Buffer.from(zip).includes(Buffer.from("draft_content.json"))).toBe(
+    expect(Buffer.from(zip).includes(Buffer.from("draft_info.json"))).toBe(
       true,
     );
     expect(
       Buffer.from(zip).includes(Buffer.from("materials/media-0.mp4")),
     ).toBe(true);
     expect(Buffer.from(zip).includes(Buffer.from("format_version"))).toBe(true);
+  });
+  it("[DRM-008] emits Jianying 5 naming and rejects unsafe version values", () => {
+    const job = renderJob("jianying");
+    job.input.settings = { jianyingVersion: "5" };
+    const zip = buildJianyingPackage(job, [
+      { name: "../segment.mp4", bytes: Buffer.from("video") },
+    ]);
+    expect(Buffer.from(zip).includes(Buffer.from("draft_content.json"))).toBe(true);
+    expect(Buffer.from(zip).includes(Buffer.from("materials/segment.mp4"))).toBe(true);
+    job.input.settings = { jianyingVersion: "7" };
+    expect(() => buildJianyingPackage(job, [])).toThrow(/must be 5 or 6/);
   });
   it("uses an argv-only FFmpeg plan and rejects audio-only renders", () => {
     const args = buildFfmpegArgs(

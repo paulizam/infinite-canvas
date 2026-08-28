@@ -149,14 +149,18 @@ export function buildJianyingPackage(
   job: DramaRenderJob,
   assets: Array<{ name: string; bytes: Uint8Array }>,
 ) {
+  const version = jianyingVersion(job.input.settings);
+  const totalBytes = assets.reduce((sum, asset) => sum + asset.bytes.byteLength, 0);
+  if (totalBytes > 200 * 1024 * 1024)
+    throw new Error("Jianying package media exceeds 200 MiB");
   const materials = assets.map((x, i) => ({
     id: job.input.assetIds[i],
-    path: `materials/${x.name}`,
+    path: `materials/${safePackageName(x.name, i)}`,
   }));
   const content = Buffer.from(
     JSON.stringify(
       {
-        format_version: "6",
+        format_version: version,
         duration: timelineDuration(job.input.timeline),
         materials,
         tracks: job.input.timeline,
@@ -177,10 +181,27 @@ export function buildJianyingPackage(
     ),
   );
   return deterministicZip([
-    { name: "draft_content.json", bytes: content },
+    {
+      name: version === "6" ? "draft_info.json" : "draft_content.json",
+      bytes: content,
+    },
     { name: "draft_meta_info.json", bytes: meta },
-    ...assets.map((x) => ({ name: `materials/${x.name}`, bytes: x.bytes })),
+    ...assets.map((x, i) => ({
+      name: `materials/${safePackageName(x.name, i)}`,
+      bytes: x.bytes,
+    })),
   ]);
+}
+function jianyingVersion(settings: Record<string, unknown>) {
+  const value = settings.jianyingVersion ?? settings.version ?? "6";
+  if (value !== "5" && value !== "6")
+    throw new Error("Jianying version must be 5 or 6");
+  return value;
+}
+function safePackageName(value: string, index: number) {
+  const name = value.replaceAll("\\", "/").split("/").at(-1)?.trim() || "";
+  const safe = name.replace(/[\u0000-\u001f<>:"|?*]/g, "_").replace(/^\.+$/, "");
+  return safe || `media-${index}`;
 }
 export function buildFfmpegArgs(
   manifest: string,

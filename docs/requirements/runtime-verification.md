@@ -176,6 +176,12 @@ pnpm --filter @infinite-canvas/worker test -- src/provider-sandbox-runtime.integ
 
 2026-08-28 本机 Process/User/Machine 均未发现相关 sandbox endpoint/credential，且 A1111/Forge 常用端口无监听，因此 `GEN-008`、`GEN-018` 继续保持 `RUNTIME-PENDING`，没有把 skip 计为 PASS。
 
+## DRM-008 Jianying desktop import (pending desktop runtime)
+
+- Worker exporter 已对齐已授权 VOZEB-PRO 的确定性边界：剪映 5 输出 `draft_content.json`、剪映 6 输出 `draft_info.json`，两者均附 `draft_meta_info.json` 和本地素材。
+- 素材总量限制 200 MiB；版本只接受 `5`/`6`；素材文件名去除路径与危险字符，防止 ZIP entry traversal。
+- 本地单测只证明包结构与 Worker 生命周期，不等价于目标剪映桌面版成功导入；完成该项仍需在目标 Windows 剪映 5.x/6+ 执行真实导入。
+
 ## GEN-017 Volcengine AK/SK harness (pending credentials)
 
 - Test：`packages/model-gateway/src/volcengine-sandbox-runtime.integration.test.ts`
