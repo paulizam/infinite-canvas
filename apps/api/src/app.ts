@@ -623,13 +623,41 @@ export function createApp(services: AppServices) {
       ),
     );
     app.get("/api/v1/drama-projects/:dramaId/script-analyses", async (c) =>
-      c.json({ data: await services.drama!.listScriptAnalyses(c.get("user").id, c.req.param("dramaId")), requestId: requestId(c) }),
+      c.json({
+        data: await services.drama!.listScriptAnalyses(
+          c.get("user").id,
+          c.req.param("dramaId"),
+        ),
+        requestId: requestId(c),
+      }),
     );
     app.post("/api/v1/drama-projects/:dramaId/script-analyses", async (c) =>
-      c.json({ data: await services.drama!.createScriptAnalysis(c.get("user").id, c.req.param("dramaId"), dramaAnalysisCreateSchema.parse(await c.req.json())), requestId: requestId(c) }, 202),
+      c.json(
+        {
+          data: await services.drama!.createScriptAnalysis(
+            c.get("user").id,
+            c.req.param("dramaId"),
+            dramaAnalysisCreateSchema.parse(await c.req.json()),
+          ),
+          requestId: requestId(c),
+        },
+        202,
+      ),
     );
-    app.post("/api/v1/drama-projects/:dramaId/script-analyses/apply", async (c) =>
-      c.json({ data: await services.drama!.applyScriptAnalysis(c.get("user").id, c.req.param("dramaId"), dramaAnalysisApplySchema.parse(await c.req.json())), requestId: requestId(c) }, 201),
+    app.post(
+      "/api/v1/drama-projects/:dramaId/script-analyses/apply",
+      async (c) =>
+        c.json(
+          {
+            data: await services.drama!.applyScriptAnalysis(
+              c.get("user").id,
+              c.req.param("dramaId"),
+              dramaAnalysisApplySchema.parse(await c.req.json()),
+            ),
+            requestId: requestId(c),
+          },
+          201,
+        ),
     );
     app.post("/api/v1/drama-projects/:dramaId/entities", async (c) =>
       c.json(
@@ -2393,6 +2421,16 @@ const canvasOperationSchema = z.discriminatedUnion("type", [
         activeChatId: z.string().max(128).nullable().optional(),
         backgroundMode: z.enum(["lines", "dots", "blank"]).optional(),
         showImageInfo: z.boolean().optional(),
+        folderId: z.string().trim().min(1).max(256).nullable().optional(),
+        favorite: z.boolean().optional(),
+        coverUrl: z
+          .string()
+          .trim()
+          .max(2_048)
+          .regex(/^(?:https?:\/\/|data:image\/|blob:|\/)/i)
+          .optional(),
+        lastOpenedAt: z.iso.datetime().optional(),
+        templateId: z.string().trim().min(1).max(128).optional(),
         viewport: viewportSchema.optional(),
       })
       .strict(),
@@ -2405,6 +2443,16 @@ const canvasOperationSchema = z.discriminatedUnion("type", [
         backgroundMode: z.enum(["lines", "dots", "blank"]).optional(),
         showImageInfo: z.boolean().optional(),
         activeChatId: z.string().max(128).nullable().optional(),
+        folderId: z.string().trim().min(1).max(256).nullable().optional(),
+        favorite: z.boolean().optional(),
+        coverUrl: z
+          .string()
+          .trim()
+          .max(2_048)
+          .regex(/^(?:https?:\/\/|data:image\/|blob:|\/)/i)
+          .optional(),
+        lastOpenedAt: z.iso.datetime().optional(),
+        templateId: z.string().trim().min(1).max(128).optional(),
       })
       .strict(),
   }),
@@ -2439,6 +2487,16 @@ const canvasDocumentSchema = z
     backgroundMode: z.enum(["lines", "dots", "blank"]),
     showImageInfo: z.boolean(),
     viewport: viewportSchema,
+    folderId: z.string().trim().min(1).max(256).nullable().optional(),
+    favorite: z.boolean().optional(),
+    coverUrl: z
+      .string()
+      .trim()
+      .max(2_048)
+      .regex(/^(?:https?:\/\/|data:image\/|blob:|\/)/i)
+      .optional(),
+    lastOpenedAt: z.iso.datetime().optional(),
+    templateId: z.string().trim().min(1).max(128).optional(),
   })
   .strict();
 const createProjectSchema = z.object({
@@ -3336,15 +3394,19 @@ const dramaScriptSchema = z
     operation: z.enum(["revision", "split", "merge", "analysis"]),
   })
   .strict();
-const dramaAnalysisCreateSchema = z.object({
-  ...dramaMutationBase,
-  scriptVersionId: z.uuid(),
-  logicalModelId: z.string().trim().min(1).max(160),
-}).strict();
-const dramaAnalysisApplySchema = z.object({
-  ...dramaMutationBase,
-  jobId: z.uuid(),
-}).strict();
+const dramaAnalysisCreateSchema = z
+  .object({
+    ...dramaMutationBase,
+    scriptVersionId: z.uuid(),
+    logicalModelId: z.string().trim().min(1).max(160),
+  })
+  .strict();
+const dramaAnalysisApplySchema = z
+  .object({
+    ...dramaMutationBase,
+    jobId: z.uuid(),
+  })
+  .strict();
 const dramaEntitySchema = z
   .object({
     ...dramaMutationBase,

@@ -19,7 +19,8 @@ const project = {
 } as CanvasProject;
 
 describe("project media projection", () => {
-    it("projects node outputs and deduplicates identical variants", () => {
+    it("[CAN-012] projects the same project into Studio without mutating Canvas data", () => {
+        const before = structuredClone(project);
         const items = projectCanvasMedia(project);
         expect(items.map((item) => [item.kind, item.variant])).toEqual([
             ["text", "primary"],
@@ -28,6 +29,7 @@ describe("project media projection", () => {
             ["audio", "primary"],
         ]);
         expect(items.every((item) => item.projectRevision === 7 && item.source === "canvas")).toBe(true);
+        expect(project).toEqual(before);
     });
 
     it("labels workspace assets without claiming project ownership", () => {

@@ -322,6 +322,11 @@ export function diffCanvasOperations(base: CanvasProject, local: CanvasProject):
     if (base.backgroundMode !== local.backgroundMode) patch.backgroundMode = local.backgroundMode;
     if (base.showImageInfo !== local.showImageInfo) patch.showImageInfo = local.showImageInfo;
     if (base.activeChatId !== local.activeChatId) patch.activeChatId = local.activeChatId;
+    if (base.folderId !== local.folderId) patch.folderId = local.folderId || null;
+    if (base.favorite !== local.favorite) patch.favorite = Boolean(local.favorite);
+    if (base.coverUrl !== local.coverUrl) patch.coverUrl = local.coverUrl;
+    if (base.lastOpenedAt !== local.lastOpenedAt) patch.lastOpenedAt = local.lastOpenedAt;
+    if (base.templateId !== local.templateId) patch.templateId = local.templateId;
     if (Object.keys(patch).length) operations.push({ type: "document.patch", patch });
     if (!same(base.viewport, local.viewport)) operations.push({ type: "viewport.set", viewport: local.viewport });
     const baseConnections = new Map(base.connections.map((item) => [item.id, item]));

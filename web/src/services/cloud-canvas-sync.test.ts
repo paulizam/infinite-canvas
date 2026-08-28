@@ -36,6 +36,12 @@ class MemoryQueue implements CanvasOperationQueue {
 }
 
 describe("CloudCanvasSyncEngine", () => {
+    it("[CAN-015] synchronizes project organization metadata", () => {
+        const base = project();
+        const operations = diffCanvasOperations(base, { ...base, folderId: "campaign", favorite: true, coverUrl: "https://cdn.example/cover.png", lastOpenedAt: "2026-08-28T00:00:00.000Z", templateId: "storyboard" });
+        expect(operations).toEqual([{ type: "document.patch", patch: { folderId: "campaign", favorite: true, coverUrl: "https://cdn.example/cover.png", lastOpenedAt: "2026-08-28T00:00:00.000Z", templateId: "storyboard" } }]);
+    });
+
     it("persists after the default 500ms quiet window [COL-003]", async () => {
         vi.useFakeTimers();
         try {

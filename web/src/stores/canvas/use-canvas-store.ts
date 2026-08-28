@@ -10,6 +10,7 @@ import { cloudModeEnabled } from "@/services/cloud-platform";
 import type { CanvasBackgroundMode } from "@/lib/canvas-theme";
 import { canvasStorageName } from "@/lib/canvas/canvas-storage-scope";
 import type { CanvasAssistantSession, CanvasConnection, CanvasNodeData, ViewportTransform } from "@/types/canvas";
+import { buildCanvasTemplateNodes, type CanvasProjectTemplateId } from "@/lib/canvas/canvas-project-templates";
 
 export type CanvasProject = {
     id: string;
@@ -25,15 +26,22 @@ export type CanvasProject = {
     backgroundMode: CanvasBackgroundMode;
     showImageInfo: boolean;
     viewport: ViewportTransform;
+    folderId?: string | null;
+    favorite?: boolean;
+    coverUrl?: string;
+    lastOpenedAt?: string;
+    templateId?: string;
 };
 
 type CanvasStore = {
     hydrated: boolean;
     projects: CanvasProject[];
-    createProject: (title?: string) => string;
+    createProject: (title?: string, templateId?: CanvasProjectTemplateId) => string;
     importProject: (project: Partial<CanvasProject>) => string;
     openProject: (id: string) => CanvasProject | null;
     renameProject: (id: string, title: string) => void;
+    updateProjectOrganization: (id: string, patch: Partial<Pick<CanvasProject, "folderId" | "favorite" | "coverUrl" | "lastOpenedAt" | "templateId">>) => void;
+    markProjectOpened: (id: string) => void;
     deleteProjects: (ids: string[]) => void;
     replaceProjects: (projects: CanvasProject[]) => void;
     applyOperations: (id: string, operations: CanvasOperation[]) => void;
@@ -73,7 +81,7 @@ export const useCanvasStore = create<CanvasStore>()(
         (set, get) => ({
             hydrated: false,
             projects: [],
-            createProject: (title = i18n.t("canvas.project.untitled")) => {
+            createProject: (title = i18n.t("canvas.project.untitled"), templateId = "blank") => {
                 const now = new Date().toISOString();
                 const id = nanoid();
                 const project: CanvasProject = {
@@ -83,13 +91,17 @@ export const useCanvasStore = create<CanvasStore>()(
                     title,
                     createdAt: now,
                     updatedAt: now,
-                    nodes: [],
+                    nodes: buildCanvasTemplateNodes(templateId, nanoid),
                     connections: [],
                     chatSessions: [],
                     activeChatId: null,
                     backgroundMode: "lines",
                     showImageInfo: false,
                     viewport: initialViewport,
+                    folderId: null,
+                    favorite: false,
+                    lastOpenedAt: now,
+                    templateId,
                 };
                 set((state) => ({ projects: [project, ...state.projects] }));
                 return id;
@@ -105,12 +117,13 @@ export const useCanvasStore = create<CanvasStore>()(
             },
             renameProject: (id, title) =>
                 set((state) => ({
-                    projects: state.projects.map((project) =>
-                        project.id === id
-                            ? fromDocument(applyCanvasOperations(toDocument(project), [{ type: "document.patch", patch: { title: title.trim() || project.title } }]))
-                            : project,
-                    ),
+                    projects: state.projects.map((project) => (project.id === id ? fromDocument(applyCanvasOperations(toDocument(project), [{ type: "document.patch", patch: { title: title.trim() || project.title } }])) : project)),
                 })),
+            updateProjectOrganization: (id, patch) => set((state) => ({ projects: state.projects.map((project) => (project.id === id ? fromDocument(applyCanvasOperations(toDocument(project), [{ type: "document.patch", patch }])) : project)) })),
+            markProjectOpened: (id) => {
+                const lastOpenedAt = new Date().toISOString();
+                set((state) => ({ projects: state.projects.map((project) => (project.id === id ? { ...project, lastOpenedAt } : project)) }));
+            },
             deleteProjects: (ids) =>
                 set((state) => {
                     const projects = state.projects.filter((project) => !ids.includes(project.id));
@@ -121,9 +134,7 @@ export const useCanvasStore = create<CanvasStore>()(
             updateProject: (id, patch) =>
                 set((state) => ({
                     projects: state.projects.map((project) =>
-                        project.id === id
-                            ? fromDocument(applyCanvasOperations(toDocument(project), [{ type: "document.sync", patch: patch as unknown as Extract<CanvasOperation, { type: "document.sync" }>["patch"] }]))
-                            : project,
+                        project.id === id ? fromDocument(applyCanvasOperations(toDocument(project), [{ type: "document.sync", patch: patch as unknown as Extract<CanvasOperation, { type: "document.sync" }>["patch"] }])) : project,
                     ),
                 })),
         }),

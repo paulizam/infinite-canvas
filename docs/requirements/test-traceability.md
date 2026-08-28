@@ -5,8 +5,8 @@
 ## Summary
 
 - Requirements: 133
-- Direct test references: 63
-- Without direct test reference: 70
+- Direct test references: 66
+- Without direct test reference: 67
 
 ## Direct references
 
@@ -30,8 +30,11 @@
 | CAN-009 | P0 | `web/src/lib/canvas/canvas-media-geometry.test.ts` |
 | CAN-010 | P0 | `web/src/lib/canvas/canvas-generation-contracts.test.ts` |
 | CAN-011 | P0 | `web/src/lib/canvas/canvas-generation-contracts.test.ts` |
+| CAN-012 | P1 | `web/src/lib/studio/project-media-projection.test.ts` |
 | CAN-013 | P1 | `apps/api/src/app.test.ts` |
 | CAN-014 | P1 | `apps/api/src/app.test.ts` |
+| CAN-015 | P1 | `packages/canvas-core/src/core.test.ts`<br>`web/src/lib/canvas/canvas-project-organization.test.ts`<br>`web/src/services/cloud-canvas-sync.test.ts` |
+| CAN-016 | P2 | `web/src/lib/canvas/canvas-agent-ops.test.ts` |
 | GEN-001 | P0 | `apps/api/src/generation-job-api.test.ts`<br>`web/src/services/canvas-generation-provider.test.ts` |
 | GEN-002 | P0 | `web/src/services/canvas-generation-provider.test.ts` |
 | GEN-003 | P0 | `web/src/services/canvas-generation-provider.test.ts` |
@@ -81,9 +84,6 @@
 - BAS-009 (P2)
 - BAS-010 (P1)
 - CAN-006 (P0)
-- CAN-012 (P1)
-- CAN-015 (P1)
-- CAN-016 (P2)
 - GEN-005 (P0)
 - GEN-007 (P0)
 - GEN-008 (P1)

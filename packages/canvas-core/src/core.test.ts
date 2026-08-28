@@ -48,4 +48,32 @@ describe("canvas core", () => {
     ).toBe(4));
   it("rejects documents without ids", () =>
     expect(() => migrateCanvasDocument({})).toThrow(/id/));
+  it("[CAN-015] migrates project organization metadata with safe defaults", () => {
+    const migrated = migrateCanvasDocument({
+      id: "organized",
+      folderId: " campaign ",
+      favorite: true,
+      coverUrl: " https://cdn.example/cover.png ",
+      lastOpenedAt: "2026-01-02",
+      templateId: "storyboard",
+    });
+    expect(migrated).toMatchObject({
+      folderId: "campaign",
+      favorite: true,
+      coverUrl: "https://cdn.example/cover.png",
+      lastOpenedAt: "2026-01-02",
+      templateId: "storyboard",
+    });
+    expect(
+      migrateCanvasDocument({ id: "defaults" }, "2026-01-01"),
+    ).toMatchObject({
+      folderId: null,
+      favorite: false,
+      lastOpenedAt: "2026-01-01",
+    });
+    expect(
+      migrateCanvasDocument({ id: "unsafe", coverUrl: "javascript:alert(1)" })
+        .coverUrl,
+    ).toBeUndefined();
+  });
 });

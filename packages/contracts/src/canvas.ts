@@ -34,6 +34,11 @@ export type CanvasDocument = {
   backgroundMode: "lines" | "dots" | "blank";
   showImageInfo: boolean;
   viewport: ViewportTransform;
+  folderId?: string | null;
+  favorite?: boolean;
+  coverUrl?: string;
+  lastOpenedAt?: string;
+  templateId?: string;
 };
 export type CanvasOperation =
   | { type: "node.upsert"; node: CanvasNode }
@@ -63,7 +68,15 @@ export type CanvasOperation =
       patch: Partial<
         Pick<
           CanvasDocument,
-          "title" | "backgroundMode" | "showImageInfo" | "activeChatId"
+          | "title"
+          | "backgroundMode"
+          | "showImageInfo"
+          | "activeChatId"
+          | "folderId"
+          | "favorite"
+          | "coverUrl"
+          | "lastOpenedAt"
+          | "templateId"
         >
       >;
     };

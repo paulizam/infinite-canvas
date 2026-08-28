@@ -220,7 +220,7 @@ export default {
         deleteSelected: "删除选中",
         deleteAll: "删除全部",
         import: "导入画布",
-        create: "新建画布",
+        create: "新建画布",`r`n        templates: { blank: "空白画布", storyboard: "故事分镜模板", campaign: "营销创意模板" },
         empty: "还没有画布",
         emptyDescription: "新建一个画布后，就可以独立保存节点、连线和画布外观。",
         collapsePanel: "收起面板",
@@ -253,7 +253,7 @@ export default {
         },
         project: {
             untitled: "未命名画布", imported: "导入画布",
-            select: "选择 {{name}}", stats: "{{nodes}} 个节点 · {{connections}} 条连线", updated: "更新于 {{date}}", saveName: "保存名称", cancelRename: "取消重命名", export: "导出", rename: "重命名", delete: "删除",
+            select: "选择 {{name}}", stats: "{{nodes}} 个节点 · {{connections}} 条连线", updated: "更新于 {{date}}", saveName: "保存名称", cancelRename: "取消重命名", export: "导出", rename: "重命名", delete: "删除", search: "搜索画布", allFolders: "全部文件夹", rootFolder: "未分类", favorites: "仅收藏", favorite: "收藏画布",
             deleteTitle: "删除画布？", deleteDescription: "将删除 {{count}} 个画布，里面的节点和连线也会一起移除。",
         },
         export: { defaultProjectName: "无限画布", defaultNodesName: "画布元素", item: "元素" },
@@ -623,3 +623,4 @@ export default {
         enUS: "English",
     },
 };
+

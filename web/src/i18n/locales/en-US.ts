@@ -220,7 +220,7 @@ export default {
         deleteSelected: "Delete selected",
         deleteAll: "Delete all",
         import: "Import canvas",
-        create: "New canvas",
+        create: "New canvas",`r`n        templates: { blank: "Blank canvas", storyboard: "Storyboard template", campaign: "Campaign template" },
         empty: "No canvases yet",
         emptyDescription: "Create a canvas to save its nodes, connections, and appearance independently.",
         collapsePanel: "Collapse panel",
@@ -253,7 +253,7 @@ export default {
         },
         project: {
             untitled: "Untitled canvas", imported: "Imported canvas",
-            select: "Select {{name}}", stats: "{{nodes}} nodes · {{connections}} connections", updated: "Updated {{date}}", saveName: "Save name", cancelRename: "Cancel rename", export: "Export", rename: "Rename", delete: "Delete",
+            select: "Select {{name}}", stats: "{{nodes}} nodes · {{connections}} connections", updated: "Updated {{date}}", saveName: "Save name", cancelRename: "Cancel rename", export: "Export", rename: "Rename", delete: "Delete", search: "Search canvases", allFolders: "All folders", rootFolder: "Unfiled", favorites: "Favorites only", favorite: "Favorite canvas",
             deleteTitle: "Delete canvases?", deleteDescription: "This will delete {{count}} canvases along with their nodes and connections.",
         },
         export: { defaultProjectName: "Infinite Canvas", defaultNodesName: "Canvas elements", item: "Element" },
@@ -623,3 +623,4 @@ export default {
         enUS: "English",
     },
 };
+

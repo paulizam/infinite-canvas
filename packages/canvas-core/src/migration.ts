@@ -27,5 +27,22 @@ export function migrateCanvasDocument(
     backgroundMode: input.backgroundMode || "lines",
     showImageInfo: input.showImageInfo || false,
     viewport: input.viewport || { x: 0, y: 0, k: 1 },
+    folderId:
+      typeof input.folderId === "string" && input.folderId.trim()
+        ? input.folderId.trim()
+        : null,
+    favorite: Boolean(input.favorite),
+    coverUrl: normalizeCoverUrl(input.coverUrl),
+    lastOpenedAt: input.lastOpenedAt || input.updatedAt || now,
+    templateId:
+      typeof input.templateId === "string" && input.templateId.trim()
+        ? input.templateId.trim()
+        : undefined,
   };
+}
+
+function normalizeCoverUrl(value: unknown) {
+  if (typeof value !== "string") return undefined;
+  const url = value.trim();
+  return /^(?:https?:\/\/|data:image\/|blob:|\/)/i.test(url) ? url : undefined;
 }

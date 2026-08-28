@@ -84,6 +84,34 @@ export function applyCanvasAgentOps(snapshot: CanvasAgentSnapshot, ops?: CanvasA
     return { ...snapshot, nodes, connections, selectedNodeIds, viewport };
 }
 
+export function partitionCanvasAgentOps(ops?: CanvasAgentOp[]) {
+    const safe = Array.isArray(ops) ? ops.filter((op): op is CanvasAgentOp => Boolean(op?.type)) : [];
+    return {
+        mutations: safe.filter((op) => op.type !== "run_generation"),
+        generations: safe.filter((op): op is Extract<CanvasAgentOp, { type: "run_generation" }> => op.type === "run_generation" && Boolean(op.nodeId)),
+    };
+}
+
+export function analyzeCanvasNodeRelationships(nodeId: string, nodes: readonly CanvasNodeData[], connections: readonly CanvasConnection[]) {
+    const nodeIds = new Set(nodes.map((node) => node.id));
+    const walk = (direction: "upstream" | "downstream") => {
+        const visited = new Set<string>();
+        const queue = [nodeId];
+        while (queue.length) {
+            const current = queue.shift()!;
+            connections.forEach((connection) => {
+                const next = direction === "upstream" && connection.toNodeId === current ? connection.fromNodeId : direction === "downstream" && connection.fromNodeId === current ? connection.toNodeId : "";
+                if (next && nodeIds.has(next) && next !== nodeId && !visited.has(next)) {
+                    visited.add(next);
+                    queue.push(next);
+                }
+            });
+        }
+        return [...visited];
+    };
+    return { nodeId, upstreamNodeIds: walk("upstream"), downstreamNodeIds: walk("downstream"), connectionIds: connections.filter((connection) => connection.fromNodeId === nodeId || connection.toNodeId === nodeId).map((connection) => connection.id) };
+}
+
 function opLabel(type: string) {
     return i18n.t(`canvas.agentOps.${type}`, { defaultValue: type });
 }
