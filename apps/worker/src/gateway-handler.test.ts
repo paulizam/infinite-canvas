@@ -132,6 +132,72 @@ describe("model gateway worker handler", () => {
     );
   });
 
+  it("blocks provider media whose public hostname resolves to loopback", async () => {
+    const client = {
+      resolveModel: vi.fn(async () => resolved),
+      transition: vi.fn(async (_w, _id, phase, patch) => ({
+        ...job,
+        ...patch,
+        phase,
+      })),
+      persistAsset: vi.fn(),
+      reportModelHealth: vi.fn(async () => ({ accepted: true as const })),
+    } as unknown as WorkerApiClient;
+    const fetcher = vi.fn(async () =>
+      Response.json({ data: [{ url: "https://media.example/private.png" }] }),
+    );
+    await createModelGatewayHandler(fetcher as typeof fetch, async () => [
+      "127.0.0.1",
+    ])(job, client, "worker-a");
+    expect(fetcher).toHaveBeenCalledOnce();
+    expect(client.persistAsset).not.toHaveBeenCalled();
+    expect(client.transition).toHaveBeenLastCalledWith(
+      "worker-a",
+      job.id,
+      "needs_review",
+      expect.objectContaining({
+        errorMessage: expect.stringContaining("private host"),
+      }),
+      undefined,
+    );
+  });
+
+  it("rejects oversized provider media before buffering the body", async () => {
+    const client = {
+      resolveModel: vi.fn(async () => resolved),
+      transition: vi.fn(async (_w, _id, phase, patch) => ({
+        ...job,
+        ...patch,
+        phase,
+      })),
+      persistAsset: vi.fn(),
+      reportModelHealth: vi.fn(async () => ({ accepted: true as const })),
+    } as unknown as WorkerApiClient;
+    const fetcher = vi
+      .fn()
+      .mockResolvedValueOnce(
+        Response.json({ data: [{ url: "https://media.example/huge.png" }] }),
+      )
+      .mockResolvedValueOnce(
+        new Response(new Uint8Array(), {
+          headers: { "content-length": String(64 * 1024 * 1024 + 1) },
+        }),
+      );
+    await createModelGatewayHandler(fetcher as typeof fetch, async () => [
+      "203.0.113.10",
+    ])(job, client, "worker-a");
+    expect(client.persistAsset).not.toHaveBeenCalled();
+    expect(client.transition).toHaveBeenLastCalledWith(
+      "worker-a",
+      job.id,
+      "needs_review",
+      expect.objectContaining({
+        errorMessage: expect.stringContaining("64MiB"),
+      }),
+      undefined,
+    );
+  });
+
   it("persists a binary audio response without parsing it as JSON", async () => {
     const audioJob = {
       ...job,

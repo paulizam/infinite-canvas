@@ -21,8 +21,18 @@ import {
 } from "./provider-runtime.js";
 import { materializeInputAssets } from "./input-asset-materializer.js";
 import { consumeAndPersistTextStream } from "./provider-sse.js";
+import { lookup } from "node:dns/promises";
 
-export function createModelGatewayHandler(fetcher: typeof fetch = fetch) {
+type ResolveHost = (hostname: string) => Promise<string[]>;
+const systemResolveHost: ResolveHost = async (hostname) =>
+  (await lookup(hostname, { all: true })).map((entry) => entry.address);
+
+export function createModelGatewayHandler(
+  fetcher: typeof fetch = fetch,
+  resolveHost: ResolveHost = fetcher === fetch
+    ? systemResolveHost
+    : async () => ["203.0.113.10"],
+) {
   return async (
     job: GenerationJob,
     client: WorkerApiClient,
@@ -56,10 +66,10 @@ export function createModelGatewayHandler(fetcher: typeof fetch = fetch) {
         return;
       }
       if (job.phase === "submitted" || job.phase === "polling") {
-        await poll(job, client, workerId, fetcher, signal);
+        await poll(job, client, workerId, fetcher, resolveHost, signal);
         return;
       }
-      await submit(job, client, workerId, fetcher, signal);
+      await submit(job, client, workerId, fetcher, resolveHost, signal);
     } catch (error) {
       const message =
         error instanceof Error
@@ -81,6 +91,7 @@ async function submit(
   client: WorkerApiClient,
   workerId: string,
   fetcher: typeof fetch,
+  resolveHost: ResolveHost,
   signal?: AbortSignal,
 ) {
   const capability = job.capability === "agent" ? "text" : job.capability;
@@ -209,6 +220,7 @@ async function submit(
     fetcher,
     signal,
     binary,
+    resolveHost,
   );
   await reportHealth(client, resolved.upstreamModel.id, "success", signal);
 }
@@ -218,6 +230,7 @@ async function poll(
   client: WorkerApiClient,
   workerId: string,
   fetcher: typeof fetch,
+  resolveHost: ResolveHost,
   signal?: AbortSignal,
 ) {
   if (!job.upstreamTaskId || !job.channelId)
@@ -279,7 +292,17 @@ async function poll(
     );
     return;
   }
-  await complete(job, payload, capability, client, workerId, fetcher, signal);
+  await complete(
+    job,
+    payload,
+    capability,
+    client,
+    workerId,
+    fetcher,
+    signal,
+    undefined,
+    resolveHost,
+  );
   await reportHealth(client, resolved.upstreamModel.id, "success", signal);
 }
 
@@ -349,6 +372,7 @@ async function complete(
   fetcher: typeof fetch,
   signal?: AbortSignal,
   binary?: Uint8Array,
+  resolveHost: ResolveHost = systemResolveHost,
 ) {
   const result =
     capability === "text"
@@ -363,6 +387,7 @@ async function complete(
             fetcher,
             signal,
             binary,
+            resolveHost,
           ),
           ...(providerUsage(payload)
             ? { providerUsage: providerUsage(payload) }
@@ -401,10 +426,17 @@ async function persistMediaResult(
   fetcher: typeof fetch,
   signal?: AbortSignal,
   binary?: Uint8Array,
+  resolveHost: ResolveHost = systemResolveHost,
 ): Promise<AssetRef[]> {
   const artifacts = binary
     ? [{ bytes: binary, name: `${job.id}.${extensionFor(capability)}` }]
-    : await materializeArtifacts(payload, capability, fetcher, signal);
+    : await materializeArtifacts(
+        payload,
+        capability,
+        fetcher,
+        resolveHost,
+        signal,
+      );
   if (!artifacts.length)
     throw new Error(`Provider returned no ${capability} artifact`);
   const refs: AssetRef[] = [];
@@ -425,6 +457,7 @@ async function materializeArtifacts(
   payload: Record<string, unknown>,
   capability: Exclude<ModelCapability, "text">,
   fetcher: typeof fetch,
+  resolveHost: ResolveHost,
   signal?: AbortSignal,
 ) {
   const items = Array.isArray(payload.data)
@@ -447,7 +480,7 @@ async function materializeArtifacts(
     const url = item.url ?? item.uri ?? item.download_url;
     if (typeof url === "string" && url.trim())
       artifacts.push({
-        bytes: await downloadPublicMedia(url, fetcher, signal),
+        bytes: await downloadPublicMedia(url, fetcher, resolveHost, signal),
         name: safeRemoteName(url, capability, index),
       });
   }
@@ -457,11 +490,17 @@ async function materializeArtifacts(
 async function downloadPublicMedia(
   value: string,
   fetcher: typeof fetch,
+  resolveHost: ResolveHost,
   signal?: AbortSignal,
 ) {
   let url = publicMediaUrl(value);
   for (let redirects = 0; redirects <= 3; redirects++) {
-    const response = await fetcher(url, { signal, redirect: "manual" });
+    await assertPublicMediaHost(url, resolveHost);
+    const timeout = AbortSignal.timeout(30_000);
+    const response = await fetcher(url, {
+      signal: signal ? AbortSignal.any([signal, timeout]) : timeout,
+      redirect: "manual",
+    });
     if (response.status >= 300 && response.status < 400) {
       const location = response.headers.get("location");
       if (!location || redirects === 3)
@@ -473,9 +512,59 @@ async function downloadPublicMedia(
       throw new Error(
         `Provider media download failed with HTTP ${response.status}`,
       );
-    return new Uint8Array(await response.arrayBuffer());
+    return readMediaLimited(response, 64 * 1024 * 1024);
   }
   throw new Error("Provider media redirect limit exceeded");
+}
+
+async function assertPublicMediaHost(url: URL, resolveHost: ResolveHost) {
+  const addresses = await resolveHost(url.hostname);
+  if (!addresses.length || addresses.some(isPrivateAddress))
+    throw new Error("Provider media URL resolves to a private host");
+}
+
+function isPrivateAddress(value: string) {
+  const host = value.toLowerCase().replace(/^::ffff:/, "");
+  return (
+    host === "::" ||
+    host === "::1" ||
+    host.startsWith("fc") ||
+    host.startsWith("fd") ||
+    host.startsWith("fe8") ||
+    host.startsWith("fe9") ||
+    host.startsWith("fea") ||
+    host.startsWith("feb") ||
+    /^(127\.|10\.|169\.254\.|192\.168\.|0\.)/.test(host) ||
+    /^172\.(1[6-9]|2\d|3[01])\./.test(host)
+  );
+}
+
+async function readMediaLimited(response: Response, limit: number) {
+  const declared = Number(response.headers.get("content-length"));
+  if (Number.isFinite(declared) && declared > limit)
+    throw new Error("Provider media exceeds 64MiB limit");
+  if (!response.body) return new Uint8Array();
+  const reader = response.body.getReader();
+  const chunks: Uint8Array[] = [];
+  let total = 0;
+  try {
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      total += value.byteLength;
+      if (total > limit) throw new Error("Provider media exceeds 64MiB limit");
+      chunks.push(value);
+    }
+  } finally {
+    reader.releaseLock();
+  }
+  const bytes = new Uint8Array(total);
+  let offset = 0;
+  for (const chunk of chunks) {
+    bytes.set(chunk, offset);
+    offset += chunk.length;
+  }
+  return bytes;
 }
 
 function publicMediaUrl(value: string) {

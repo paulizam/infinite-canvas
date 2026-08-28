@@ -259,7 +259,28 @@ export async function binaryMediaResponse(
   if (capability !== "audio") return undefined;
   const type = response.headers.get("content-type")?.toLowerCase() || "";
   if (type.includes("json")) return undefined;
-  return new Uint8Array(await response.arrayBuffer());
+  const declared = Number(response.headers.get("content-length"));
+  if (Number.isFinite(declared) && declared > 64 * 1024 * 1024)
+    throw new Error("Provider media exceeds 64MiB limit");
+  if (!response.body) return new Uint8Array();
+  const reader = response.body.getReader();
+  const chunks: Uint8Array[] = [];
+  let total = 0;
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    total += value.byteLength;
+    if (total > 64 * 1024 * 1024)
+      throw new Error("Provider media exceeds 64MiB limit");
+    chunks.push(value);
+  }
+  const bytes = new Uint8Array(total);
+  let offset = 0;
+  for (const chunk of chunks) {
+    bytes.set(chunk, offset);
+    offset += chunk.length;
+  }
+  return bytes;
 }
 export function extensionFor(capability: Exclude<ModelCapability, "text">) {
   return capability === "image"
