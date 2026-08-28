@@ -20,7 +20,7 @@ const evidence = {
   OPS: [".github/workflows/quality-security.yml", "ops/README.md"],
 };
 const runtimePending = new Set([
-  "GEN-008", "GEN-017", "GEN-018", "AST-002", "AST-007",
+  "GEN-008", "GEN-017", "GEN-018", "AST-002",
   "PLG-005", "DRM-008", "BIL-005", "BIL-006", "BIL-007",
 ]);
 

@@ -52,12 +52,6 @@
     "command": "pnpm --filter @infinite-canvas/api test",
     "runtime": "PostgreSQL plus S3-compatible object store"
   },
-  "AST-007": {
-    "sources": ["web/src/services/webdav-sync.ts"],
-    "tests": ["web/src/services/webdav-sync.test.ts"],
-    "command": "pnpm --dir web test -- web/src/services/webdav-sync.test.ts",
-    "runtime": "CORS-enabled WebDAV test account"
-  },
   "PLG-005": {
     "sources": [
       "web/src/lib/canvas/plugin-loader.ts",

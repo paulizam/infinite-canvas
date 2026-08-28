@@ -54,3 +54,25 @@ pnpm --filter @infinite-canvas/api test -- src/blob-store-runtime.integration.te
 ```
 
 未设置 `S3_TEST_ENDPOINT` 时该 integration test 显式 skip，不能作为 Runtime PASS。
+
+## AST-007 WebDAV browser protocol
+
+- 验证日期：2026-08-28
+- 本机服务：WsgiDAV `4.3.3`、Cheroot `11.0.0`、Python `3.11.9`
+- 隔离 endpoint：`http://127.0.0.1:19080`（验收后已停止并确认端口释放）
+- Test：`web/src/services/webdav-runtime.integration.test.ts`
+- 认证：隔离 Basic Auth 测试账户，凭据仅写入本机临时目录
+- 数据链路：MKCOL → PROPFIND → PUT binary → GET binary → byte equality
+- CORS：来自 `http://127.0.0.1:3000` 的 OPTIONS preflight 返回 204，并允许 PROPFIND、Authorization 与 Depth
+- 结果：2 tests PASS；Unicode 路径与 `application/octet-stream` 内容保持一致
+
+复验时设置：
+
+```powershell
+$env:WEBDAV_TEST_ENDPOINT = "http://127.0.0.1:19080"
+$env:WEBDAV_TEST_USERNAME = "<sandbox-user>"
+$env:WEBDAV_TEST_PASSWORD = "<sandbox-password>"
+pnpm --dir web test -- src/services/webdav-runtime.integration.test.ts
+```
+
+未设置 `WEBDAV_TEST_ENDPOINT` 时该 integration test 显式 skip，不能作为 Runtime PASS。
