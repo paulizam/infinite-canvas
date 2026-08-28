@@ -1,4 +1,5 @@
 import { createBrowserRouter, Outlet } from "react-router-dom";
+import { lazy, Suspense } from "react";
 
 import { AnalyticsTracker } from "@/components/layout/analytics-tracker";
 import UserLayout from "@/layouts/user-layout";
@@ -13,7 +14,7 @@ import ImagePage from "@/pages/image";
 import NotFound from "@/pages/not-found";
 import PromptsPage from "@/pages/prompts";
 import VideoPage from "@/pages/video";
-import AdminPage from "@/pages/admin";
+const AdminPage = lazy(() => import("@/pages/admin"));
 
 export const router = createBrowserRouter([
     {
@@ -34,7 +35,14 @@ export const router = createBrowserRouter([
             { path: "/canvas/:id/studio", element: <StudioProjectPage /> },
             { path: "/config", element: <ConfigPage /> },
             { path: "/account", element: <AccountPage /> },
-            { path: "/admin", element: <AdminPage /> },
+            {
+                path: "/admin",
+                element: (
+                    <Suspense fallback={<div className="p-8 text-sm text-stone-500">正在加载管理后台…</div>}>
+                        <AdminPage />
+                    </Suspense>
+                ),
+            },
         ],
     },
     { path: "*", element: <NotFound /> },

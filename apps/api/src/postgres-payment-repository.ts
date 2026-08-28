@@ -13,6 +13,20 @@ export class PostgresPaymentRepository implements PaymentRepository {
   constructor(url: string) {
     this.pool = new pg.Pool({ connectionString: url });
   }
+  async orders(status: BillingOrder["status"] | undefined, limit: number) {
+    const r = await this.pool.query(
+      "SELECT * FROM billing_orders WHERE ($1::text IS NULL OR status=$1) ORDER BY created_at DESC,id DESC LIMIT $2",
+      [status || null, limit],
+    );
+    return r.rows.map(mapOrder);
+  }
+  async refunds(status: BillingRefund["status"] | undefined, limit: number) {
+    const r = await this.pool.query(
+      "SELECT * FROM billing_refunds WHERE ($1::text IS NULL OR status=$1) ORDER BY created_at DESC,id DESC LIMIT $2",
+      [status || null, limit],
+    );
+    return r.rows.map(mapRefund);
+  }
   async createOrder(i: Parameters<PaymentRepository["createOrder"]>[0]) {
     const c = await this.pool.connect();
     try {

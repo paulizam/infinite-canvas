@@ -42,6 +42,8 @@ const refund: BillingRefund = {
 };
 function repository(): PaymentRepository {
   return {
+    orders: vi.fn(async () => []),
+    refunds: vi.fn(async () => []),
     createOrder: vi.fn(async () => ({ order, replayed: false })),
     attachCheckout: vi.fn(
       async (_id, providerOrderId, checkoutUrl, qrCode) => ({

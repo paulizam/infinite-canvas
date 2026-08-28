@@ -2,6 +2,7 @@ import { Alert, Button, Card, Col, Form, Input, InputNumber, Popconfirm, Row, Se
 import { Download, RefreshCw, ShieldCheck } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { adminPlatform, type AdminAudit, type AdminContent, type AdminDashboard, type AdminJob, type AdminSetting, type AdminUser } from "@/services/admin-platform";
+import { CommerceAdmin, ModelAdmin } from "./model-commerce";
 
 export default function AdminPage() {
     const [dashboard, setDashboard] = useState<AdminDashboard | null>(null),
@@ -48,6 +49,8 @@ export default function AdminPage() {
             { key: "dashboard", label: "Dashboard", children: <Dashboard value={dashboard} storage={storage} /> },
             { key: "users", label: "用户与 Session", children: <Users rows={users} busy={loading} mutate={mutate} /> },
             { key: "jobs", label: "生成任务", children: <Jobs rows={jobs} busy={loading} mutate={mutate} /> },
+            { key: "models", label: "模型渠道", children: <ModelAdmin /> },
+            { key: "commerce", label: "商业运营", children: <CommerceAdmin /> },
             { key: "settings", label: "站点配置", children: <Settings rows={settings} mutate={mutate} /> },
             { key: "governance", label: "运营治理", children: <Governance rows={content} mutate={mutate} /> },
             { key: "audit", label: "审计日志", children: <Audit rows={audit} /> },

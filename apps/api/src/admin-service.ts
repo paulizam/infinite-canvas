@@ -28,6 +28,21 @@ export class AdminService {
     if (!(await this.repository.isAdmin(userId)))
       throw new DomainError("ADMIN_FORBIDDEN", 403, "需要平台管理员权限");
   }
+  record(
+    actor: AdminActor,
+    action: string,
+    resourceType: string,
+    resourceId: string,
+    details?: unknown,
+  ) {
+    return this.repository.recordAudit(
+      actor,
+      action,
+      resourceType,
+      resourceId,
+      details,
+    );
+  }
   dashboard() {
     return this.repository.dashboard();
   }

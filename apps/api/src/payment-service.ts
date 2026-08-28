@@ -143,6 +143,18 @@ export class PaymentService {
     if (Buffer.byteLength(webhookSecret) < 32)
       throw new Error("PAYMENT_WEBHOOK_SECRET must contain at least 32 bytes");
   }
+  orders(
+    status?: import("./payment-repository.js").BillingOrderStatus,
+    limit = 100,
+  ) {
+    return this.repository.orders(status, Math.min(Math.max(limit, 1), 1000));
+  }
+  refunds(
+    status?: import("./payment-repository.js").BillingRefund["status"],
+    limit = 100,
+  ) {
+    return this.repository.refunds(status, Math.min(Math.max(limit, 1), 1000));
+  }
   async createOrder(
     userId: string,
     input: { productId: string; idempotencyKey: string },

@@ -8,6 +8,7 @@ function repository() {
   const settings: AdminSetting[] = [];
   const repo: AdminRepository = {
     isAdmin: vi.fn(async () => true),
+    recordAudit: vi.fn(async () => undefined),
     dashboard: vi.fn(async () => ({ users: { total: 1 } })),
     users: vi.fn(async () => ({ items: [], nextCursor: null })),
     updateUser: vi.fn(async (id, patch) => ({ id, ...patch })),

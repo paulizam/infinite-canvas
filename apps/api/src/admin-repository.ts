@@ -16,6 +16,13 @@ export type AdminSetting = {
 };
 export interface AdminRepository {
   isAdmin(userId: string): Promise<boolean>;
+  recordAudit(
+    actor: AdminActor,
+    action: string,
+    resourceType: string,
+    resourceId: string,
+    details?: unknown,
+  ): Promise<void>;
   dashboard(): Promise<Record<string, unknown>>;
   users(
     query: string | undefined,

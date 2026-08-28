@@ -12,6 +12,39 @@ export class PostgresCommerceRepository implements CommerceRepository {
   constructor(url: string) {
     this.pool = new pg.Pool({ connectionString: url });
   }
+  async listCodes() {
+    const r = await this.pool.query(
+      "SELECT id,kind,label,discount_bps,bonus_units,max_redemptions,redeemed_count,per_user_limit,starts_at,expires_at,active,created_at FROM billing_redemption_codes ORDER BY created_at DESC",
+    );
+    return r.rows.map((x) => ({
+      id: x.id,
+      kind: x.kind,
+      label: x.label,
+      discountBps: Number(x.discount_bps),
+      bonusUnits: Number(x.bonus_units),
+      maxRedemptions: Number(x.max_redemptions),
+      redeemedCount: Number(x.redeemed_count),
+      perUserLimit: Number(x.per_user_limit),
+      startsAt: iso(x.starts_at),
+      expiresAt: iso(x.expires_at),
+      active: x.active,
+      createdAt: iso(x.created_at),
+    }));
+  }
+  async listReferrals(limit: number) {
+    const r = await this.pool.query(
+      "SELECT id,inviter_id,invitee_id,inviter_reward_units,invitee_reward_units,created_at FROM billing_referrals ORDER BY created_at DESC,id DESC LIMIT $1",
+      [limit],
+    );
+    return r.rows.map((x) => ({
+      id: x.id,
+      inviterId: x.inviter_id,
+      inviteeId: x.invitee_id,
+      inviterRewardUnits: Number(x.inviter_reward_units),
+      inviteeRewardUnits: Number(x.invitee_reward_units),
+      createdAt: iso(x.created_at),
+    }));
+  }
   async products(active: boolean) {
     const r = await this.pool.query(
       "SELECT * FROM billing_products WHERE NOT $1 OR active ORDER BY price_minor,code",

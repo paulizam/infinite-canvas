@@ -26,6 +26,18 @@ export class MemoryCommerceRepository implements CommerceRepository {
   balances = new Map<string, number>();
   promotionMap = new Map<string, BillingPromotion>();
   private grants = new Set<string>();
+  async listCodes() {
+    return [...this.codes.values()].map(({ codeHash: _, count, ...x }) => ({
+      ...x,
+      redeemedCount: count,
+    }));
+  }
+  async listReferrals(limit: number) {
+    return [...this.referrals.entries()]
+      .slice(-limit)
+      .reverse()
+      .map(([id, x]) => ({ id, inviterId: x.inviter, inviteeId: x.invitee }));
+  }
   async products(a: boolean) {
     return [...this.productsMap.values()].filter((x) => !a || x.active);
   }

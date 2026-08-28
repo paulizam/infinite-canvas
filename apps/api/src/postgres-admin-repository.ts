@@ -20,6 +20,15 @@ export class PostgresAdminRepository implements AdminRepository {
       )
     ).rows[0];
   }
+  async recordAudit(
+    actor: AdminActor,
+    action: string,
+    resourceType: string,
+    resourceId: string,
+    details: unknown = {},
+  ) {
+    await audit(this.pool, actor, action, resourceType, resourceId, details);
+  }
   async dashboard() {
     const [users, jobs, assets, billing, health, governance] =
       await Promise.all([
@@ -336,7 +345,7 @@ export class PostgresAdminRepository implements AdminRepository {
   }
 }
 async function audit(
-  c: PoolClient,
+  c: Pick<PoolClient, "query">,
   a: AdminActor,
   action: string,
   type: string,

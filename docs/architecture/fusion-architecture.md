@@ -243,6 +243,8 @@ queued -> claimed -> submitting -> submitted -> polling
 
 平台设置按 allowlist 做类型与范围验证并使用 revision 防并发覆盖。Secret 使用 AES-256-GCM + setting-specific AAD，API 只返回配置状态。失败任务恢复创建新 attempt 并重新原子预留积分；仍持有 reserve 的 `needs_review` 才可原地恢复，禁止以已退款 attempt 免费重跑。
 
+Admin Web 通过同一控制面编排 Model Gateway、Discovery、Commerce 与 Payment：模型渠道按协议→渠道/Secret→连接测试→模型同步→逻辑模型绑定五步配置；商业运营覆盖套餐、促销、优惠券/CDK、订单、退款、对账和财务统计。桥接层不复制领域数据，所有写操作仍落到原领域 Service/Repository，并追加不含 Secret 的管理员审计事件。
+
 ## 7. 关键数据契约
 
 ```ts

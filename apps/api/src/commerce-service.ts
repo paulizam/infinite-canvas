@@ -32,6 +32,15 @@ export class CommerceService {
       };
     });
   }
+  promotions(activeOnly = false) {
+    return this.repository.promotions(activeOnly, new Date().toISOString());
+  }
+  codes() {
+    return this.repository.listCodes();
+  }
+  referrals(limit = 100) {
+    return this.repository.listReferrals(Math.min(Math.max(limit, 1), 1000));
+  }
   saveProduct(i: {
     code: string;
     name: string;

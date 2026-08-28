@@ -36,6 +36,10 @@ export type BillingPromotion = {
   productId: string | null;
 };
 export interface CommerceRepository {
+  listCodes(): Promise<
+    Array<Omit<RedemptionCodeInput, "codeHash"> & { redeemedCount: number }>
+  >;
+  listReferrals(limit: number): Promise<unknown[]>;
   products(activeOnly: boolean): Promise<BillingProduct[]>;
   saveProduct(x: BillingProduct): Promise<BillingProduct>;
   promotions(activeOnly: boolean, now: string): Promise<BillingPromotion[]>;

@@ -45,6 +45,14 @@ export type ReconciliationLine = {
   amountMinor: number;
 };
 export interface PaymentRepository {
+  orders(
+    status: BillingOrderStatus | undefined,
+    limit: number,
+  ): Promise<BillingOrder[]>;
+  refunds(
+    status: BillingRefund["status"] | undefined,
+    limit: number,
+  ): Promise<BillingRefund[]>;
   createOrder(input: {
     id: string;
     userId: string;

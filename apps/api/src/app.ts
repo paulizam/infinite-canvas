@@ -2155,9 +2155,25 @@ export function createApp(services: AppServices) {
     );
   }
   if (services.admin)
-    app.route("/api/v1/admin", createAdminApi(services.admin, "user"));
+    app.route(
+      "/api/v1/admin",
+      createAdminApi(services.admin, "user", {
+        modelGateway: services.modelGateway,
+        modelDiscovery,
+        commerce: services.commerce,
+        payments: services.payments,
+      }),
+    );
   if (services.admin)
-    app.route("/internal/v1/maintenance/admin", createAdminApi(services.admin));
+    app.route(
+      "/internal/v1/maintenance/admin",
+      createAdminApi(services.admin, "maintenance", {
+        modelGateway: services.modelGateway,
+        modelDiscovery,
+        commerce: services.commerce,
+        payments: services.payments,
+      }),
+    );
   return app;
 }
 

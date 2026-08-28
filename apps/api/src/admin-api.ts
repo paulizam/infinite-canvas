@@ -2,6 +2,10 @@ import { Hono } from "hono";
 import { z } from "zod";
 import type { AdminActor } from "./admin-repository.js";
 import type { AdminService } from "./admin-service.js";
+import type { ModelGatewayRepository } from "./model-gateway-repository.js";
+import type { ModelDiscoveryService } from "./model-discovery.js";
+import type { CommerceService } from "./commerce-service.js";
+import type { PaymentService } from "./payment-service.js";
 
 type Env = {
   Variables: {
@@ -12,6 +16,12 @@ type Env = {
 export function createAdminApi(
   service: AdminService,
   mode: "maintenance" | "user" = "maintenance",
+  domains?: {
+    modelGateway: ModelGatewayRepository;
+    modelDiscovery: ModelDiscoveryService;
+    commerce?: CommerceService;
+    payments?: PaymentService;
+  },
 ) {
   const app = new Hono<Env>();
   if (mode === "user")
@@ -135,6 +145,206 @@ export function createAdminApi(
       201,
     ),
   );
+  if (domains) {
+    app.get("/models/catalog", async (c) =>
+      ok(c, await domains.modelGateway.catalog()),
+    );
+    app.put("/models/protocols/:id", async (c) => {
+      const id = z.string().trim().min(1).max(160).parse(c.req.param("id")),
+        value = await domains.modelGateway.saveProtocol({
+          ...protocolBody.parse(await c.req.json()),
+          id,
+        });
+      await service.record(
+        actor(c),
+        "model.protocol.update",
+        "model_protocol",
+        id,
+      );
+      return ok(c, value);
+    });
+    app.put("/models/channels/:id", async (c) => {
+      const id = z.uuid().parse(c.req.param("id")),
+        value = await domains.modelGateway.saveChannel({
+          ...channelBody.parse(await c.req.json()),
+          id,
+          credentialConfigured: false,
+        });
+      await service.record(
+        actor(c),
+        "model.channel.update",
+        "model_channel",
+        id,
+        { credentialConfigured: value.credentialConfigured },
+      );
+      return ok(c, value);
+    });
+    app.post("/models/channels/:id/:action", async (c) => {
+      const id = z.uuid().parse(c.req.param("id")),
+        action = z.enum(["test", "discover"]).parse(c.req.param("action")),
+        result = await domains.modelDiscovery.discover(id);
+      await service.record(
+        actor(c),
+        `model.channel.${action}`,
+        "model_channel",
+        id,
+        { modelCount: result.models.length, latencyMs: result.latencyMs },
+      );
+      return ok(
+        c,
+        action === "test"
+          ? {
+              ok: true,
+              modelCount: result.models.length,
+              latencyMs: result.latencyMs,
+            }
+          : result,
+      );
+    });
+    app.put("/models/upstream/:id", async (c) => {
+      const id = z.uuid().parse(c.req.param("id")),
+        value = await domains.modelGateway.saveUpstreamModel({
+          ...upstreamBody.parse(await c.req.json()),
+          id,
+        });
+      await service.record(
+        actor(c),
+        "model.upstream.update",
+        "upstream_model",
+        id,
+      );
+      return ok(c, value);
+    });
+    app.put("/models/logical/:id", async (c) => {
+      const id = z.string().trim().min(1).max(160).parse(c.req.param("id")),
+        value = await domains.modelGateway.saveLogicalModel({
+          ...logicalBody.parse(await c.req.json()),
+          id,
+        });
+      await service.record(
+        actor(c),
+        "model.logical.update",
+        "logical_model",
+        id,
+      );
+      return ok(c, value);
+    });
+    app.put("/models/bindings/:id", async (c) => {
+      const id = z.uuid().parse(c.req.param("id")),
+        value = await domains.modelGateway.saveBinding({
+          ...bindingBody.parse(await c.req.json()),
+          id,
+        });
+      await service.record(
+        actor(c),
+        "model.binding.update",
+        "model_binding",
+        id,
+      );
+      return ok(c, value);
+    });
+  }
+  if (domains?.commerce) {
+    app.get("/commerce", async (c) =>
+      ok(c, {
+        products: await domains.commerce!.products(false),
+        promotions: await domains.commerce!.promotions(false),
+        codes: await domains.commerce!.codes(),
+        referrals: await domains.commerce!.referrals(),
+      }),
+    );
+    app.put("/commerce/products", async (c) => {
+      const value = await domains.commerce!.saveProduct(
+        productBody.parse(await c.req.json()),
+      );
+      await service.record(
+        actor(c),
+        "commerce.product.update",
+        "billing_product",
+        value.id,
+      );
+      return ok(c, value);
+    });
+    app.put("/commerce/promotions", async (c) => {
+      const value = await domains.commerce!.savePromotion(
+        promotionBody.parse(await c.req.json()),
+      );
+      await service.record(
+        actor(c),
+        "commerce.promotion.update",
+        "billing_promotion",
+        value.id,
+      );
+      return ok(c, value);
+    });
+    app.post("/commerce/codes", async (c) => {
+      const value = await domains.commerce!.createCode(
+        codeBody.parse(await c.req.json()),
+      );
+      await service.record(
+        actor(c),
+        "commerce.code.create",
+        "billing_code",
+        value.id,
+        { kind: value.kind },
+      );
+      return ok(c, value, 201);
+    });
+  }
+  if (domains?.payments) {
+    app.get("/commerce/orders", async (c) =>
+      ok(
+        c,
+        await domains.payments!.orders(
+          orderStatus.optional().parse(c.req.query("status")),
+          Number(c.req.query("limit") || 100),
+        ),
+      ),
+    );
+    app.get("/commerce/refunds", async (c) =>
+      ok(
+        c,
+        await domains.payments!.refunds(
+          refundStatus.optional().parse(c.req.query("status")),
+          Number(c.req.query("limit") || 100),
+        ),
+      ),
+    );
+    app.post("/commerce/refunds", async (c) => {
+      const x = adminRefundBody.parse(await c.req.json()),
+        value = await domains.payments!.refund(x.userId, x);
+      await service.record(
+        actor(c),
+        "commerce.refund.create",
+        "billing_order",
+        x.orderId,
+      );
+      return ok(c, value, 201);
+    });
+    app.post("/commerce/orders/expire", async (c) =>
+      ok(c, { expired: await domains.payments!.expire() }),
+    );
+    app.post("/commerce/reconciliation", async (c) => {
+      const x = reconciliationBody.parse(await c.req.json());
+      const value = await domains.payments!.reconcile(x.date, x.lines);
+      await service.record(
+        actor(c),
+        "commerce.reconcile",
+        "billing_reconciliation",
+        x.date,
+      );
+      return ok(c, value);
+    });
+    app.get("/commerce/report", async (c) =>
+      ok(
+        c,
+        await domains.payments!.report(
+          z.iso.datetime().parse(c.req.query("from")),
+          z.iso.datetime().parse(c.req.query("to")),
+        ),
+      ),
+    );
+  }
   return app;
 }
 const userPatch = z
@@ -170,6 +380,151 @@ const contentBody = z
     startsAt: z.iso.datetime().nullable().optional(),
     endsAt: z.iso.datetime().nullable().optional(),
     expectedRevision: z.number().int().nonnegative().optional(),
+  })
+  .strict();
+const capability = z.enum(["text", "image", "video", "audio"]);
+const protocolBody = z
+  .object({
+    name: z.string().trim().min(1).max(160),
+    adapter: z.enum(["openai-compatible", "gemini", "custom"]),
+    enabled: z.boolean(),
+    config: z.record(z.string(), z.unknown()).default({}),
+  })
+  .strict();
+const channelBody = z
+  .object({
+    name: z.string().trim().min(1).max(160),
+    protocolId: z.string().trim().min(1).max(160),
+    baseUrl: z.url().max(2000),
+    enabled: z.boolean(),
+    config: z.record(z.string(), z.unknown()).default({}),
+    apiKey: z.string().min(1).max(8000).optional(),
+    clearCredential: z.boolean().optional(),
+  })
+  .strict()
+  .superRefine((x, c) => {
+    const u = new URL(x.baseUrl);
+    if (u.username || u.password || u.search || u.hash)
+      c.addIssue({
+        code: "custom",
+        message: "URL 不能包含凭据、query 或 fragment",
+        path: ["baseUrl"],
+      });
+    if (
+      u.protocol !== "https:" &&
+      !(u.protocol === "http:" && x.config.allowInsecure === true)
+    )
+      c.addIssue({
+        code: "custom",
+        message: "渠道默认必须使用 HTTPS",
+        path: ["baseUrl"],
+      });
+  })
+  .refine((x) => !(x.apiKey && x.clearCredential), "不能同时设置和清除凭据");
+const upstreamBody = z
+  .object({
+    channelId: z.uuid(),
+    modelId: z.string().trim().min(1).max(500),
+    capability,
+    enabled: z.boolean(),
+    healthState: z.enum(["healthy", "degraded", "cooldown", "disabled"]),
+    cooldownUntil: z.iso.datetime().nullable(),
+    config: z.record(z.string(), z.unknown()).default({}),
+  })
+  .strict();
+const logicalBody = z
+  .object({
+    name: z.string().trim().min(1).max(160),
+    capability,
+    enabled: z.boolean(),
+    isDefault: z.boolean(),
+  })
+  .strict();
+const bindingBody = z
+  .object({
+    logicalModelId: z.string().trim().min(1).max(160),
+    upstreamModelId: z.uuid(),
+    enabled: z.boolean(),
+    priority: z.number().int().nonnegative(),
+    weight: z.number().int().min(1).max(10000),
+    capabilityProfile: z.record(z.string(), z.unknown()).default({}),
+  })
+  .strict();
+const productBody = z
+  .object({
+    code: z
+      .string()
+      .trim()
+      .regex(/^[a-z0-9_-]{2,80}$/i),
+    name: z.string().trim().min(1).max(160),
+    description: z.string().max(4000).optional(),
+    units: z.number().int().safe().nonnegative(),
+    priceMinor: z.number().int().safe().nonnegative(),
+    currency: z.string().regex(/^[A-Za-z]{3}$/),
+    active: z.boolean(),
+    metadata: z.record(z.string(), z.unknown()).optional(),
+  })
+  .strict();
+const promotionBody = z
+  .object({
+    id: z.uuid().optional(),
+    name: z.string().trim().min(1).max(160),
+    discountBps: z.number().int().min(0).max(10000),
+    bonusUnits: z.number().int().safe().nonnegative(),
+    startsAt: z.iso.datetime(),
+    endsAt: z.iso.datetime(),
+    active: z.boolean(),
+    productId: z.uuid().nullable().optional(),
+  })
+  .strict()
+  .refine((x) => x.endsAt > x.startsAt, "促销结束时间必须晚于开始时间");
+const codeBody = z
+  .object({
+    kind: z.enum(["coupon", "cdk"]),
+    label: z.string().trim().min(1).max(160),
+    discountBps: z.number().int().min(0).max(10000),
+    bonusUnits: z.number().int().safe().nonnegative(),
+    maxRedemptions: z.number().int().positive().max(1000000),
+    perUserLimit: z.number().int().positive().max(100),
+    startsAt: z.iso.datetime(),
+    expiresAt: z.iso.datetime(),
+    active: z.boolean(),
+  })
+  .strict()
+  .refine((x) => x.expiresAt > x.startsAt, "兑换码过期时间必须晚于开始时间");
+const orderStatus = z.enum([
+  "pending",
+  "paid",
+  "fulfilled",
+  "expired",
+  "cancelled",
+  "refund_pending",
+  "refunded",
+  "refund_failed",
+  "needs_review",
+]);
+const refundStatus = z.enum(["pending", "succeeded", "failed", "needs_review"]);
+const adminRefundBody = z
+  .object({
+    userId: z.uuid(),
+    orderId: z.uuid(),
+    idempotencyKey: z.string().trim().min(8).max(200),
+    reason: z.string().trim().min(1).max(500),
+  })
+  .strict();
+const reconciliationBody = z
+  .object({
+    date: z.iso.date(),
+    lines: z
+      .array(
+        z
+          .object({
+            providerTransactionId: z.string().trim().min(1).max(200),
+            amountMinor: z.number().int().safe().positive(),
+          })
+          .strict(),
+      )
+      .max(10000),
   })
   .strict();
 const optionalUuid = (x: string | undefined) =>
