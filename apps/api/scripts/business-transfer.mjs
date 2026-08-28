@@ -1,4 +1,3 @@
-#!/usr/bin/env node
 import { createHash, randomBytes } from "node:crypto";
 import { chmod, readFile, rename, writeFile } from "node:fs/promises";
 import { resolve } from "node:path";

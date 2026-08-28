@@ -12,6 +12,26 @@ const inventory = JSON.parse(
 const policy = JSON.parse(
   readFileSync(new URL("./license-policy.json", import.meta.url), "utf8"),
 );
+// pnpm reports only the native Agent SDK package for the current OS. Normalize
+// approved platform packages so THIRD_PARTY_NOTICES.md is reproducible across
+// Windows, Linux and macOS runners.
+const agentSdkName = "@anthropic-ai/claude-agent-sdk";
+const agentSdkVersions = Object.values(inventory)
+  .flat()
+  .find((entry) => entry.name === agentSdkName)?.versions;
+const agentSdkPlatforms = Object.keys(policy.allowedUnknown).filter((name) =>
+  name.startsWith(`${agentSdkName}-`),
+);
+for (const packages of Object.values(inventory))
+  packages.splice(
+    0,
+    packages.length,
+    ...packages.filter((entry) => !entry.name.startsWith(`${agentSdkName}-`)),
+  );
+inventory.Unknown = [
+  ...(inventory.Unknown || []),
+  ...agentSdkPlatforms.map((name) => ({ name, versions: agentSdkVersions })),
+];
 const unknown = (inventory.Unknown || []).map((x) => x.name);
 const unapprovedUnknown = unknown.filter(
   (name) => !policy.allowedUnknown[name],

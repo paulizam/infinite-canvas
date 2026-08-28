@@ -5,7 +5,8 @@
   "scripts": {
     "build": "pnpm -r --if-present build",
     "typecheck": "pnpm -r --if-present typecheck",
-    "test": "pnpm -r --if-present test",
+    "test": "pnpm plugins:build && pnpm -r --if-present test",
+    "plugins:build": "pnpm --filter canvas-plugin-html build && pnpm --filter canvas-plugin-markdown build && pnpm --filter canvas-plugin-svg build && pnpm --filter canvas-plugin-panorama build && pnpm --filter canvas-plugin-sticky-note build",
     "format:check": "prettier --check apps/api apps/worker packages/contracts packages/canvas-core packages/model-gateway",
     "quality": "pnpm format:check && pnpm typecheck && pnpm test && pnpm build",
     "security:secrets": "node ops/secret-scan.mjs",
