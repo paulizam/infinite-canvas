@@ -22,9 +22,10 @@
     ],
     "tests": [
       "packages/model-gateway/src/volcengine.test.ts",
+      "packages/model-gateway/src/volcengine-sandbox-runtime.integration.test.ts",
       "apps/api/src/model-discovery.test.ts"
     ],
-    "command": "pnpm --filter @infinite-canvas/model-gateway test && pnpm --filter @infinite-canvas/api test",
+    "command": "pnpm --filter @infinite-canvas/model-gateway test -- src/volcengine-sandbox-runtime.integration.test.ts",
     "runtime": "Volcengine sandbox AK/SK"
   },
   "GEN-018": {

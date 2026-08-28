@@ -174,3 +174,19 @@ pnpm --filter @infinite-canvas/worker test -- src/provider-sandbox-runtime.integ
 ```
 
 2026-08-28 本机 Process/User/Machine 均未发现相关 sandbox endpoint/credential，且 A1111/Forge 常用端口无监听，因此 `GEN-008`、`GEN-018` 继续保持 `RUNTIME-PENDING`，没有把 skip 计为 PASS。
+
+## GEN-017 Volcengine AK/SK harness (pending credentials)
+
+- Test：`packages/model-gateway/src/volcengine-sandbox-runtime.integration.test.ts`
+- 真链：使用生产 HMAC-SHA256 signer 分别请求 models、resource packages、usage；要求 HTTP 2xx、JSON 小于 2 MiB、无 `ResponseMetadata.Error`
+- 配置：`VOLCENGINE_SANDBOX_BASE_URL`、`VOLCENGINE_SANDBOX_ACCESS_KEY_ID`、`VOLCENGINE_SANDBOX_SECRET_ACCESS_KEY`；region/service/version/action 可用同名前缀变量覆盖
+- 密钥只从进程环境读取，不写入 case、日志或仓库
+
+```powershell
+$env:VOLCENGINE_SANDBOX_BASE_URL = "https://open.volcengineapi.com"
+$env:VOLCENGINE_SANDBOX_ACCESS_KEY_ID = "<sandbox-ak>"
+$env:VOLCENGINE_SANDBOX_SECRET_ACCESS_KEY = "<sandbox-sk>"
+pnpm --filter @infinite-canvas/model-gateway test -- src/volcengine-sandbox-runtime.integration.test.ts
+```
+
+未同时设置三项变量时 3 tests 显式 skip，不能作为 Runtime PASS；2026-08-28 本机未发现 AK/SK，因此 `GEN-017` 继续保持 `RUNTIME-PENDING`。
