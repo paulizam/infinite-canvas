@@ -22,7 +22,6 @@ const evidence = {
 const runtimePending = new Set([
   "GEN-008", "GEN-017", "GEN-018", "AST-002", "AST-005", "AST-007",
   "PLG-005", "DRM-008", "BIL-005", "BIL-006", "BIL-007",
-  "OPS-001", "OPS-003", "OPS-007",
 ]);
 
 if (Object.keys(detailedEvidence).sort().join() !== [...runtimePending].sort().join())

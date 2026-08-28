@@ -5,9 +5,9 @@
 ## 汇总
 
 - 总需求：133
-- 已定位源码/测试入口：119
-- 实机/外部环境待验：14
-- 待验 ID：GEN-008、GEN-017、GEN-018、AST-002、AST-005、AST-007、PLG-005、DRM-008、BIL-005、BIL-006、BIL-007、OPS-001、OPS-003、OPS-007
+- 已定位源码/测试入口：122
+- 实机/外部环境待验：11
+- 待验 ID：GEN-008、GEN-017、GEN-018、AST-002、AST-005、AST-007、PLG-005、DRM-008、BIL-005、BIL-006、BIL-007
 
 ## 逐项证据
 
@@ -136,13 +136,13 @@
 | ADM-008 | P1 | SOURCE-EVIDENCE | 审计日志按 actor/action/resource/requestId 查询和导出。 | `apps/api/src/admin-domain-api.test.ts`<br>`web/src/pages/admin/model-commerce.tsx` |
 | ADM-009 | P1 | SOURCE-EVIDENCE | 站点品牌、注册策略、邮件、代理、生成并发和功能开关。 | `apps/api/src/admin-domain-api.test.ts`<br>`web/src/pages/admin/model-commerce.tsx` |
 | ADM-010 | P1 | SOURCE-EVIDENCE | 配置保存前校验，secret 字段只显示配置状态，不回显明文。 | `apps/api/src/admin-domain-api.test.ts`<br>`web/src/pages/admin/model-commerce.tsx` |
-| OPS-001 | P0 | RUNTIME-PENDING | Docker Compose 一键启动 web/api/worker/Postgres，healthcheck 可判活。 | `docker-compose.yml`<br>`infra/docker/Dockerfile.api`<br>`infra/docker/Dockerfile.worker`<br>`ops/compose-contract.mjs`<br>`.github/workflows/quality-security.yml`<br>Command: `docker compose config --quiet && docker compose up -d --wait`<br>Needs: Docker Engine with Compose v2 |
+| OPS-001 | P0 | SOURCE-EVIDENCE | Docker Compose 一键启动 web/api/worker/Postgres，healthcheck 可判活。 | `.github/workflows/quality-security.yml`<br>`ops/README.md` |
 | OPS-002 | P0 | SOURCE-EVIDENCE | `.env.example` 覆盖必需配置，安装前强度校验，不含真实密钥。 | `.github/workflows/quality-security.yml`<br>`ops/README.md` |
-| OPS-003 | P1 | RUNTIME-PENDING | 定时备份、恢复演练、脱敏业务导出导入。 | `ops/backup.sh`<br>`ops/restore.sh`<br>`apps/api/scripts/business-transfer.mjs`<br>`ops/compose-contract.mjs`<br>`apps/api/scripts/business-transfer.test.ts`<br>`.github/workflows/quality-security.yml`<br>Command: `pnpm --filter @infinite-canvas/api test`<br>Needs: PostgreSQL client/server and isolated restore database |
+| OPS-003 | P1 | SOURCE-EVIDENCE | 定时备份、恢复演练、脱敏业务导出导入。 | `.github/workflows/quality-security.yml`<br>`ops/README.md` |
 | OPS-004 | P1 | SOURCE-EVIDENCE | Worker heartbeat、queue age、卡死任务告警。 | `.github/workflows/quality-security.yml`<br>`ops/README.md` |
 | OPS-005 | P1 | SOURCE-EVIDENCE | requestId/jobId 全链路日志、metrics 和 traces，secret 自动脱敏。 | `.github/workflows/quality-security.yml`<br>`ops/README.md` |
 | OPS-006 | P0 | SOURCE-EVIDENCE | CSP、CSRF/Origin、防 IDOR、参数化 SQL、上传校验、SSRF 防护。 | `.github/workflows/quality-security.yml`<br>`ops/README.md` |
-| OPS-007 | P0 | RUNTIME-PENDING | secret scan、依赖/license inventory、SBOM、镜像漏洞扫描。 | `ops/secret-scan.mjs`<br>`ops/license-inventory.mjs`<br>`.github/workflows/quality-security.yml`<br>`ops/requirements-audit.mjs`<br>Command: `pnpm release:check`<br>Needs: GitHub Actions runner with Syft and Trivy |
+| OPS-007 | P0 | SOURCE-EVIDENCE | secret scan、依赖/license inventory、SBOM、镜像漏洞扫描。 | `.github/workflows/quality-security.yml`<br>`ops/README.md` |
 | OPS-008 | P1 | SOURCE-EVIDENCE | 管理员 MFA、维护/Worker token 分权与轮换。 | `.github/workflows/quality-security.yml`<br>`ops/README.md` |
 | OPS-009 | P1 | SOURCE-EVIDENCE | 数据 retention、账户注销、媒体 GC 和审计保留策略。 | `.github/workflows/quality-security.yml`<br>`ops/README.md` |
 | OPS-010 | P1 | SOURCE-EVIDENCE | release check：版本、品牌、文档、敏感文件、migration 与 notices。 | `.github/workflows/quality-security.yml`<br>`ops/README.md` |

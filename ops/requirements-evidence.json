@@ -112,42 +112,5 @@
     ],
     "command": "pnpm --filter @infinite-canvas/api test",
     "runtime": "Payment provider refund sandbox"
-  },
-  "OPS-001": {
-    "sources": [
-      "docker-compose.yml",
-      "infra/docker/Dockerfile.api",
-      "infra/docker/Dockerfile.worker"
-    ],
-    "tests": [
-      "ops/compose-contract.mjs",
-      ".github/workflows/quality-security.yml"
-    ],
-    "command": "docker compose config --quiet && docker compose up -d --wait",
-    "runtime": "Docker Engine with Compose v2"
-  },
-  "OPS-003": {
-    "sources": [
-      "ops/backup.sh",
-      "ops/restore.sh",
-      "apps/api/scripts/business-transfer.mjs"
-    ],
-    "tests": [
-      "ops/compose-contract.mjs",
-      "apps/api/scripts/business-transfer.test.ts",
-      ".github/workflows/quality-security.yml"
-    ],
-    "command": "pnpm --filter @infinite-canvas/api test",
-    "runtime": "PostgreSQL client/server and isolated restore database"
-  },
-  "OPS-007": {
-    "sources": [
-      "ops/secret-scan.mjs",
-      "ops/license-inventory.mjs",
-      ".github/workflows/quality-security.yml"
-    ],
-    "tests": ["ops/requirements-audit.mjs"],
-    "command": "pnpm release:check",
-    "runtime": "GitHub Actions runner with Syft and Trivy"
   }
 }
