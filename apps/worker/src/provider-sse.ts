@@ -1,5 +1,6 @@
 const MAX_EVENT_BYTES = 256 * 1024;
 const MAX_TEXT_CHARS = 2_000_000;
+export const MAX_SSE_BYTES = 64 * 1024 * 1024;
 
 export type ProviderDelta = {
   text?: string;
@@ -91,11 +92,17 @@ export async function consumeProviderSse(
   const reader = response.body.getReader();
   const decoder = new TextDecoder();
   let buffer = "";
+  let bytesRead = 0;
   let total = 0;
   let usage: Record<string, unknown> | undefined;
   try {
     while (true) {
       const { done, value } = await reader.read();
+      if (value) {
+        bytesRead += value.byteLength;
+        if (bytesRead > MAX_SSE_BYTES)
+          throw new Error("Provider SSE response exceeds limit");
+      }
       buffer += decoder.decode(value, { stream: !done }).replace(/\r\n/g, "\n");
       if (buffer.length > MAX_EVENT_BYTES && !buffer.includes("\n\n"))
         throw new Error("Provider SSE event exceeds limit");

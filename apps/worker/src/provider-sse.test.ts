@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import { consumeProviderSse } from "./provider-sse.js";
+import { consumeProviderSse, MAX_SSE_BYTES } from "./provider-sse.js";
 
 describe("provider SSE", () => {
   it("parses OpenAI text, reasoning and usage across chunks", async () => {
@@ -40,5 +40,16 @@ describe("provider SSE", () => {
     await expect(
       consumeProviderSse(response, "gemini", vi.fn()),
     ).rejects.toThrow("malformed SSE JSON");
+  });
+  it("rejects oversized streams even when frames contain no output text", async () => {
+    const body = new ReadableStream({
+      start(controller) {
+        controller.enqueue(new Uint8Array(MAX_SSE_BYTES + 1));
+        controller.close();
+      },
+    });
+    await expect(
+      consumeProviderSse(new Response(body), "openai-compatible", vi.fn()),
+    ).rejects.toThrow("SSE response exceeds limit");
   });
 });
