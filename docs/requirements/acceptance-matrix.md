@@ -5,9 +5,9 @@
 ## 汇总
 
 - 总需求：133
-- 已定位源码/测试入口：118
-- 实机/外部环境待验：15
-- 待验 ID：GEN-008、GEN-017、GEN-018、AST-002、AST-005、AST-007、PLG-005、DRM-007、DRM-008、BIL-005、BIL-006、BIL-007、OPS-001、OPS-003、OPS-007
+- 已定位源码/测试入口：119
+- 实机/外部环境待验：14
+- 待验 ID：GEN-008、GEN-017、GEN-018、AST-002、AST-005、AST-007、PLG-005、DRM-008、BIL-005、BIL-006、BIL-007、OPS-001、OPS-003、OPS-007
 
 ## 逐项证据
 
@@ -108,7 +108,7 @@
 | DRM-004 | P2 | SOURCE-EVIDENCE | 分镜/镜头列表、Prompt、景别、运镜、时长和顺序。 | `apps/api/src/drama-api.test.ts`<br>`apps/worker/src/drama-render-runtime.test.ts` |
 | DRM-005 | P2 | SOURCE-EVIDENCE | 镜头图片/视频生成、版本选择、失败重试与成本汇总。 | `apps/api/src/drama-api.test.ts`<br>`apps/worker/src/drama-render-runtime.test.ts` |
 | DRM-006 | P2 | SOURCE-EVIDENCE | 配音、音色、对白、背景音、字幕与时间轴。 | `apps/api/src/drama-api.test.ts`<br>`apps/worker/src/drama-render-runtime.test.ts` |
-| DRM-007 | P2 | RUNTIME-PENDING | FFmpeg 合成、进度、失败恢复、成片版本和原件下载。 | `apps/worker/src/drama-render-runtime.ts`<br>`apps/api/src/drama-render-service.ts`<br>`apps/worker/src/drama-render-runtime.test.ts`<br>Command: `pnpm --filter @infinite-canvas/worker test`<br>Needs: FFmpeg binary and sample media |
+| DRM-007 | P2 | SOURCE-EVIDENCE | FFmpeg 合成、进度、失败恢复、成片版本和原件下载。 | `apps/api/src/drama-api.test.ts`<br>`apps/worker/src/drama-render-runtime.test.ts` |
 | DRM-008 | P2 | RUNTIME-PENDING | 剪映草稿导出；输出可被目标版本正常导入。 | `apps/worker/src/drama-render-runtime.ts`<br>`apps/worker/src/drama-render-runtime.test.ts`<br>Command: `pnpm --filter @infinite-canvas/worker test`<br>Needs: Target Jianying desktop version |
 | DRM-009 | P2 | SOURCE-EVIDENCE | 短剧资产与通用素材库/Canvas 双向发送。 | `apps/api/src/drama-api.test.ts`<br>`apps/worker/src/drama-render-runtime.test.ts` |
 | DRM-010 | P3 | SOURCE-EVIDENCE | 团队批注、镜头审批和生产状态看板。 | `apps/api/src/drama-api.test.ts`<br>`apps/worker/src/drama-render-runtime.test.ts` |

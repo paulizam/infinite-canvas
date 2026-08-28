@@ -78,15 +78,6 @@
     "command": "pnpm --dir web test",
     "runtime": "Published registry and browser sandbox"
   },
-  "DRM-007": {
-    "sources": [
-      "apps/worker/src/drama-render-runtime.ts",
-      "apps/api/src/drama-render-service.ts"
-    ],
-    "tests": ["apps/worker/src/drama-render-runtime.test.ts"],
-    "command": "pnpm --filter @infinite-canvas/worker test",
-    "runtime": "FFmpeg binary and sample media"
-  },
   "DRM-008": {
     "sources": ["apps/worker/src/drama-render-runtime.ts"],
     "tests": ["apps/worker/src/drama-render-runtime.test.ts"],

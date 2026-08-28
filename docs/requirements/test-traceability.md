@@ -107,7 +107,7 @@
 | DRM-004 | P2 | `web/src/services/cloud-platform.test.ts` |
 | DRM-005 | P2 | `web/src/services/cloud-platform.test.ts` |
 | DRM-006 | P2 | `web/src/services/cloud-platform.test.ts` |
-| DRM-007 | P2 | `web/src/services/cloud-platform.test.ts` |
+| DRM-007 | P2 | `apps/worker/src/drama-render-runtime.integration.test.ts`<br>`web/src/services/cloud-platform.test.ts` |
 | DRM-008 | P2 | `web/src/services/cloud-platform.test.ts` |
 | DRM-009 | P2 | `web/src/services/cloud-platform.test.ts` |
 | DRM-010 | P3 | `web/src/services/cloud-platform.test.ts` |

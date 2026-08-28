@@ -21,6 +21,11 @@ jobs:
         with: { node-version: 22, cache: pnpm }
       - run: pnpm install --frozen-lockfile
       - run: pnpm quality
+      - name: Exercise real FFmpeg drama rendering
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y ffmpeg
+          FFMPEG_PATH="$(command -v ffmpeg)" pnpm --filter @infinite-canvas/worker test -- src/drama-render-runtime.integration.test.ts
       - run: pnpm release:check
 
   migration:
@@ -94,25 +99,47 @@ jobs:
 
   containers:
     runs-on: ubuntu-latest
+    env:
+      POSTGRES_PASSWORD: ci-database-password-url-safe
+      INSTALL_TOKEN: ci-install-token-32-characters-long
+      PUBLIC_ORIGIN: http://localhost:3000
+      WORKER_TOKEN: ci-worker-token-32-characters-long
+      MAINTENANCE_TOKEN: ci-maintenance-token-distinct-32-chars
+      MODEL_SECRET_KEY: MDEyMzQ1Njc4OWFiY2RlZjAxMjM0NTY3ODlhYmNkZWY=
+      BILLING_CODE_SECRET: ci-billing-code-secret-32-characters
+      PAYMENT_PROVIDER: sandbox
+      PAYMENT_API_BASE_URL: https://payments.invalid/
+      PAYMENT_API_TOKEN: ci-payment-api-token-32-characters
+      PAYMENT_WEBHOOK_SECRET: ci-webhook-secret-32-characters-long
+      MFA_SECRET_KEY: MDEyMzQ1Njc4OWFiY2RlZjAxMjM0NTY3ODlhYmNkZWY=
+      MFA_RECOVERY_PEPPER: ci-mfa-recovery-pepper-32-characters
     steps:
       - uses: actions/checkout@v4
       - name: Validate Compose interpolation
-        env:
-          POSTGRES_PASSWORD: ci-database-password-url-safe
-          WORKER_TOKEN: ci-worker-token-32-characters-long
-          MAINTENANCE_TOKEN: ci-maintenance-token-distinct-32-chars
-          MODEL_SECRET_KEY: MDEyMzQ1Njc4OWFiY2RlZjAxMjM0NTY3ODlhYmNkZWY=
-          BILLING_CODE_SECRET: ci-billing-code-secret-32-characters
-          PAYMENT_PROVIDER: sandbox
-          PAYMENT_API_BASE_URL: https://payments.invalid/
-          PAYMENT_API_TOKEN: ci-payment-api-token-32-characters
-          PAYMENT_WEBHOOK_SECRET: ci-webhook-secret-32-characters-long
-          MFA_SECRET_KEY: MDEyMzQ1Njc4OWFiY2RlZjAxMjM0NTY3ODlhYmNkZWY=
-          MFA_RECOVERY_PEPPER: ci-mfa-recovery-pepper-32-characters
         run: docker compose config --quiet
       - run: docker build -t infinite-canvas-web:ci .
       - run: docker build -f infra/docker/Dockerfile.api -t infinite-canvas-api:ci .
       - run: docker build -f infra/docker/Dockerfile.worker -t infinite-canvas-worker:ci .
+      - name: Compose health and isolated backup restore smoke
+        run: |
+          set -euo pipefail
+          docker compose up -d --build --wait
+          curl --fail --retry 10 --retry-delay 2 http://127.0.0.1:3000/health
+          docker compose exec -T api node -e "fetch('http://127.0.0.1:3001/health').then(async r=>{if(!r.ok)throw new Error(await r.text())})"
+          docker compose exec -T postgres psql -U infinite_canvas -d infinite_canvas -v ON_ERROR_STOP=1 -c "CREATE TABLE runtime_backup_probe(id integer primary key, value text not null); INSERT INTO runtime_backup_probe VALUES (1, 'before-backup');"
+          docker compose exec -T api sh -c "printf 'asset-before-backup' > /data/assets/runtime-backup-probe.txt"
+          BACKUP_DIR=.runtime-backups sh ops/backup.sh
+          backup="$(find .runtime-backups -name '*.dump' -type f | head -n 1)"
+          test -n "$backup"
+          docker compose exec -T postgres psql -U infinite_canvas -d infinite_canvas -v ON_ERROR_STOP=1 -c "UPDATE runtime_backup_probe SET value='after-backup' WHERE id=1;"
+          docker compose exec -T api sh -c "printf 'asset-after-backup' > /data/assets/runtime-backup-probe.txt"
+          CONFIRM_RESTORE=RESTORE sh ops/restore.sh "$backup"
+          test "$(docker compose exec -T postgres psql -U infinite_canvas -d infinite_canvas -Atc 'SELECT value FROM runtime_backup_probe WHERE id=1')" = "before-backup"
+          test "$(docker compose exec -T api cat /data/assets/runtime-backup-probe.txt)" = "asset-before-backup"
+          docker compose up -d --wait
+          curl --fail --retry 10 --retry-delay 2 http://127.0.0.1:3000/health
+      - if: always()
+        run: docker compose down -v --remove-orphans
       - uses: aquasecurity/trivy-action@0.33.1
         with:
           image-ref: infinite-canvas-api:ci
