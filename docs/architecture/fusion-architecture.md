@@ -422,3 +422,7 @@ Drama 可将来源、实体参考、镜头选择、时间轴或成片 Asset 投�
 ### COM-006 社交层（2026-08-28）
 
 评论支持回复、游标读取、幂等创建、举报、隐藏与恢复；隐藏内容不会出现在公开 API。收藏采用唯一集合语义并实时计数。合集采用 owner revision + mutationId/request hash，支持公开/非公开可见性、作品增删和显式排序。评论、举报、收藏均配置分钟级反滥用限制，治理操作进入 audit trail。
+
+## Provider-specific Runtime（2026-08-28）
+
+Model Protocol 除 OpenAI-compatible、Gemini 与声明式 Custom 外，新增独立 `seedance`、`stable-diffusion`、`media-kit` adapter。Worker 按 adapter 构造请求、轮询/取消并归一化媒体结果；Seedance 使用异步任务语义，Stable Diffusion 同时覆盖 A1111/Forge 的 txt2img 与 img2img，MediaKit 提供画质增强类 image/video capability。渠道凭据继续只在 Worker 租约执行期间解密，用户参数不能覆盖权威 upstream model，所有路径仍受 HTTPS/无凭据 URL/安全相对路径约束。

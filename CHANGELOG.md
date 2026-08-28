@@ -2,6 +2,7 @@
 
 ## Unreleased
 
++ [新增] Model Gateway 新增 Seedance、Stable Diffusion/A1111/Forge 与 MediaKit provider-specific adapters，贯通 Admin、Worker 请求、任务操作和结果归一化。
 + [运维] 新增带 SHA-256、敏感表排除、身份匿名化、外键复验和事务回滚的脱敏业务迁移包导出/校验/导入 CLI。
 + [安全] 插件生态新增 HTTPS manifest、SRI、权限增量确认、手动版本固定、Registry 撤销、沙箱资源限额与持久诊断。
 + [安全] 新增跨平台 Secret/License/Migration/Release 检查与 CI 供应链门禁，覆盖 Gitleaks、官方依赖审计、Syft SPDX SBOM、Trivy 文件系统/镜像扫描、PostgreSQL migration integration 和三镜像构建。

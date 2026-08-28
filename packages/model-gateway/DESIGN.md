@@ -15,7 +15,7 @@ Separate Protocol, Channel, Upstream Model, Logical Model, Capability Profile an
 
 ## Limitations
 
-Connection tests/model discovery UI, provider-specific Seedance/Stable Diffusion/A1111 adapters,
+Connection tests/model discovery UI,
 SSE text streaming, and administrator-configurable status/result mappings remain subsequent work.
 
 ## Security

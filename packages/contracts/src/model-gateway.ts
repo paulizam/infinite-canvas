@@ -1,5 +1,11 @@
 export type ModelCapability = "text" | "image" | "video" | "audio";
-export type ModelProtocolAdapter = "openai-compatible" | "gemini" | "custom";
+export type ModelProtocolAdapter =
+  | "openai-compatible"
+  | "gemini"
+  | "seedance"
+  | "stable-diffusion"
+  | "media-kit"
+  | "custom";
 export type ModelHealthState = "healthy" | "degraded" | "cooldown" | "disabled";
 
 export type ModelProtocol = {

@@ -6,6 +6,9 @@ import {
   openAiCompatibleEndpoint,
   parseCustomProtocolConfig,
   providerOperationRequest,
+  buildProviderSpecificRequest,
+  providerSpecificOperation,
+  normalizeProviderSpecificPayload,
 } from "@infinite-canvas/model-gateway";
 import type { WorkerResolvedModel } from "./client.js";
 
@@ -23,6 +26,16 @@ export function buildSubmitRequest(
     allowInsecure: resolved.channel.config.allowInsecure === true,
   };
   if (resolved.protocol.adapter === "gemini") return buildGeminiRequest(input);
+  if (
+    ["seedance", "stable-diffusion", "media-kit"].includes(
+      resolved.protocol.adapter,
+    )
+  )
+    return buildProviderSpecificRequest(
+      resolved.protocol.adapter as
+        "seedance" | "stable-diffusion" | "media-kit",
+      { ...input, config: resolved.protocol.config },
+    );
   if (resolved.protocol.adapter === "custom")
     return buildCustomProtocolRequest({
       ...input,
@@ -75,10 +88,27 @@ export function buildOperationRequest(
         headers: { authorization: `Bearer ${resolved.apiKey}` },
       } satisfies RequestInit,
     };
+  if (
+    ["seedance", "stable-diffusion", "media-kit"].includes(
+      resolved.protocol.adapter,
+    )
+  )
+    return providerSpecificOperation(
+      resolved.protocol.adapter as
+        "seedance" | "stable-diffusion" | "media-kit",
+      {
+        baseUrl: resolved.channel.baseUrl,
+        apiKey: resolved.apiKey,
+        config: resolved.protocol.config,
+        allowInsecure: resolved.channel.config.allowInsecure === true,
+        operation,
+        taskId,
+      },
+    );
   return providerOperationRequest({
     baseUrl: resolved.channel.baseUrl,
     apiKey: resolved.apiKey,
-    adapter: resolved.protocol.adapter,
+    adapter: resolved.protocol.adapter as "gemini" | "custom",
     operation,
     taskId,
     config: resolved.protocol.config,
@@ -91,6 +121,16 @@ export function normalizePayload(
   payload: Record<string, unknown>,
   capability: ModelCapability,
 ) {
+  if (
+    ["seedance", "stable-diffusion", "media-kit"].includes(
+      resolved.protocol.adapter,
+    )
+  )
+    return normalizeProviderSpecificPayload(
+      resolved.protocol.adapter as
+        "seedance" | "stable-diffusion" | "media-kit",
+      payload,
+    );
   if (resolved.protocol.adapter !== "gemini") return payload;
   if (payload.done === false) return { ...payload, status: "processing" };
   const response = objectAt(payload, "response") || payload;

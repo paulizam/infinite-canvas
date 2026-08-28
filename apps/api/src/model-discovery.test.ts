@@ -3,7 +3,13 @@ import { MemoryModelGatewayRepository } from "./model-gateway-repository.js";
 import { ModelDiscoveryService } from "./model-discovery.js";
 
 async function runtime(
-  adapter: "openai-compatible" | "gemini" | "custom",
+  adapter:
+    | "openai-compatible"
+    | "gemini"
+    | "seedance"
+    | "stable-diffusion"
+    | "media-kit"
+    | "custom",
   baseUrl = "https://api.example.com/v1",
   protocolConfig: Record<string, unknown> = {},
 ) {

@@ -78,7 +78,7 @@ export function ModelAdmin() {
                             <Input />
                         </Form.Item>
                         <Form.Item name="adapter" label="Adapter">
-                            <Radio.Group options={["openai-compatible", "gemini", "custom"].map((value) => ({ value, label: value }))} />
+                            <Radio.Group options={["openai-compatible", "gemini", "seedance", "stable-diffusion", "media-kit", "custom"].map((value) => ({ value, label: value }))} />
                         </Form.Item>
                         <Button type="primary" htmlType="submit" loading={busy}>
                             保存并下一步

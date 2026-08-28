@@ -444,7 +444,14 @@ const mfaVerify = z
 const protocolBody = z
   .object({
     name: z.string().trim().min(1).max(160),
-    adapter: z.enum(["openai-compatible", "gemini", "custom"]),
+    adapter: z.enum([
+      "openai-compatible",
+      "gemini",
+      "seedance",
+      "stable-diffusion",
+      "media-kit",
+      "custom",
+    ]),
     enabled: z.boolean(),
     config: z.record(z.string(), z.unknown()).default({}),
   })
