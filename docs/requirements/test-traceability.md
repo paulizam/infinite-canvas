@@ -83,7 +83,7 @@
 | AST-004 | P0 | `apps/api/src/app.test.ts` |
 | AST-005 | P0 | `apps/api/src/asset-service.test.ts`<br>`apps/api/src/blob-store-runtime.integration.test.ts` |
 | AST-006 | P1 | `apps/api/src/app.test.ts` |
-| AST-007 | P1 | `web/src/services/webdav-sync.test.ts` |
+| AST-007 | P1 | `web/src/services/webdav-runtime.integration.test.ts`<br>`web/src/services/webdav-sync.test.ts` |
 | AST-008 | P1 | `web/src/services/api/prompts.test.ts` |
 | AST-009 | P1 | `apps/api/src/admin-service.test.ts`<br>`web/src/services/api/prompts.test.ts`<br>`web/src/services/cloud-platform.test.ts`<br>`web/src/services/prompt-handoff.test.ts` |
 | AST-010 | P2 | `apps/api/src/asset-service.test.ts` |
