@@ -1,14 +1,18 @@
 import { useCallback, useEffect, useState } from "react";
-import { Alert, Button, Input, Select, Tag } from "antd";
+import { Alert, App, Button, Form, Input, InputNumber, Modal, Select, Tag } from "antd";
 import { Check, Play, RefreshCw, RotateCcw, Square, X } from "lucide-react";
 import { useTranslation } from "react-i18next";
+import { useNavigate } from "react-router-dom";
 import { cloudPlatform, type CloudAgentRun, type CloudAgentRunDetail, type CloudAgentSession } from "@/services/cloud-platform";
 import type { LogicalModel } from "@infinite-canvas/contracts";
-import type { CanvasAgentOp } from "@/lib/canvas/canvas-agent-ops";
 import { useAgentStore } from "@/stores/use-agent-store";
+import { applyAgentCanvasResult, deliverAgentAssetToDrama, type AgentRunResult } from "./agent-result-delivery";
 
 export function CloudAgentRunsView({ workspaceId }: { workspaceId: string }) {
     const { t } = useTranslation();
+    const { message } = App.useApp();
+    const navigate = useNavigate();
+    const [deliveryForm] = Form.useForm();
     const [sessions, setSessions] = useState<CloudAgentSession[]>([]);
     const [sessionId, setSessionId] = useState<string>();
     const [runs, setRuns] = useState<CloudAgentRun[]>([]);
@@ -20,6 +24,8 @@ export function CloudAgentRunsView({ workspaceId }: { workspaceId: string }) {
     const [skills, setSkills] = useState<string[]>([]);
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
+    const [deliveryResult, setDeliveryResult] = useState<AgentRunResult | null>(null);
+    const [appliedResultIds, setAppliedResultIds] = useState(() => new Set<string>());
     const canvasContext = useAgentStore((state) => state.canvasContext);
     const loadSessions = useCallback(async () => {
         const values = await cloudPlatform.listAgentSessions(workspaceId);
@@ -95,6 +101,25 @@ export function CloudAgentRunsView({ workspaceId }: { workspaceId: string }) {
         try {
             setSelected(await action());
             await loadRuns();
+        } catch (cause) {
+            setError(cause instanceof Error ? cause.message : String(cause));
+        } finally {
+            setLoading(false);
+        }
+    };
+    const deliverToDrama = async () => {
+        if (!deliveryResult) return;
+        const values = await deliveryForm.validateFields();
+        setLoading(true);
+        try {
+            await deliverAgentAssetToDrama(cloudPlatform, deliveryResult, {
+                dramaId: String(values.dramaId),
+                expectedDramaRevision: Number(values.expectedDramaRevision),
+                target: { type: "entity", kind: values.kind as "character" | "scene" | "prop", name: String(values.name), description: String(values.description || ""), prompt: String(values.prompt || ""), sortOrder: Number(values.sortOrder) },
+            });
+            setDeliveryResult(null);
+            deliveryForm.resetFields();
+            message.success(t("agent.cloud.sentDrama"));
         } catch (cause) {
             setError(cause instanceof Error ? cause.message : String(cause));
         } finally {
@@ -188,16 +213,28 @@ export function CloudAgentRunsView({ workspaceId }: { workspaceId: string }) {
                             <pre className="max-h-40 overflow-auto whitespace-pre-wrap">
                                 {result.kind}: {JSON.stringify(result.payload, null, 2)}
                             </pre>
-                            {result.kind === "canvas_operation" && canvasContext && Array.isArray(result.payload.ops) ? (
-                                <Button size="small" className="mt-2" onClick={() => canvasContext.applyOps(result.payload.ops as CanvasAgentOp[])}>
+                            {result.kind === "canvas_operation" && (Number.isInteger(result.payload.revision) || appliedResultIds.has(result.id)) ? <Tag className="mt-2">{t("agent.cloud.canvasApplied")}</Tag> : null}
+                            {result.kind === "canvas_operation" && !Number.isInteger(result.payload.revision) && !appliedResultIds.has(result.id) && canvasContext && Array.isArray(result.payload.ops) ? (
+                                <Button size="small" className="mt-2" onClick={() => { applyAgentCanvasResult(result, canvasContext); setAppliedResultIds((current) => new Set(current).add(result.id)); message.success(t("agent.cloud.canvasApplied")); }}>
                                     {t("agent.cloud.applyCanvas")}
                                 </Button>
                             ) : null}
-                            {result.assetId ? <Tag className="mt-2">Asset {result.assetId}</Tag> : null}
+                            {result.assetId ? <div className="mt-2 flex flex-wrap gap-2"><Tag>Asset {result.assetId}</Tag><Button size="small" onClick={() => navigate("/assets")}>{t("agent.cloud.openAssets")}</Button><Button size="small" onClick={() => { setDeliveryResult(result); deliveryForm.setFieldsValue({ expectedDramaRevision: 0, kind: "prop", name: selected.run.prompt.slice(0, 160), sortOrder: 0 }); }}>{t("agent.cloud.sendDrama")}</Button></div> : null}
                         </div>
                     ))}
                 </section>
             ) : null}
+            <Modal title={t("agent.cloud.sendDrama")} open={Boolean(deliveryResult)} confirmLoading={loading} onCancel={() => setDeliveryResult(null)} onOk={() => void deliverToDrama()}>
+                <Form form={deliveryForm} layout="vertical">
+                    <Form.Item name="dramaId" label={t("agent.cloud.dramaId")} rules={[{ required: true }]}><Input maxLength={128} /></Form.Item>
+                    <Form.Item name="expectedDramaRevision" label={t("agent.cloud.dramaRevision")} rules={[{ required: true }]}><InputNumber min={0} precision={0} className="w-full" /></Form.Item>
+                    <Form.Item name="kind" label={t("agent.cloud.dramaEntityKind")} rules={[{ required: true }]}><Select options={["character", "scene", "prop"].map((value) => ({ value, label: t(`agent.cloud.${value}`) }))} /></Form.Item>
+                    <Form.Item name="name" label={t("agent.cloud.dramaEntityName")} rules={[{ required: true }]}><Input maxLength={160} /></Form.Item>
+                    <Form.Item name="description" label={t("agent.cloud.description")}><Input.TextArea maxLength={10_000} /></Form.Item>
+                    <Form.Item name="prompt" label={t("agent.cloud.entityPrompt")}><Input.TextArea maxLength={20_000} /></Form.Item>
+                    <Form.Item name="sortOrder" label={t("agent.cloud.sortOrder")} rules={[{ required: true }]}><InputNumber min={0} precision={0} className="w-full" /></Form.Item>
+                </Form>
+            </Modal>
         </div>
     );
 }

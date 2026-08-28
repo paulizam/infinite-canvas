@@ -37,7 +37,7 @@
 | CAN-013 | P1 | `apps/api/src/app.test.ts` |
 | CAN-014 | P1 | `apps/api/src/app.test.ts` |
 | CAN-015 | P1 | `packages/canvas-core/src/core.test.ts`<br>`web/src/lib/canvas/canvas-project-organization.test.ts`<br>`web/src/services/cloud-canvas-sync.test.ts` |
-| CAN-016 | P2 | `web/src/lib/canvas/canvas-agent-ops.test.ts` |
+| CAN-016 | P2 | `web/src/components/agent/agent-result-delivery.test.ts`<br>`web/src/lib/canvas/canvas-agent-ops.test.ts` |
 | GEN-001 | P0 | `apps/api/src/generation-job-api.test.ts`<br>`web/src/services/canvas-generation-provider.test.ts` |
 | GEN-002 | P0 | `web/src/services/canvas-generation-provider.test.ts` |
 | GEN-003 | P0 | `web/src/services/canvas-generation-provider.test.ts` |
@@ -62,7 +62,7 @@
 | AGT-004 | P1 | `apps/worker/src/remote-agent-adapter.test.ts` |
 | AGT-005 | P1 | `apps/worker/src/remote-agent-adapter.test.ts` |
 | AGT-006 | P1 | `apps/api/src/agent-run-api.test.ts` |
-| AGT-007 | P1 | `apps/worker/src/remote-agent-adapter.test.ts` |
+| AGT-007 | P1 | `apps/worker/src/remote-agent-adapter.test.ts`<br>`web/src/components/agent/agent-result-delivery.test.ts` |
 | AGT-008 | P1 | `canvas-agent/src/skills/store.test.ts` |
 | AGT-009 | P2 | `canvas-agent/src/skills/installer.test.ts` |
 | AGT-010 | P1 | `apps/worker/src/remote-agent-adapter.test.ts` |

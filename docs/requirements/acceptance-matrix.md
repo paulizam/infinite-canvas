@@ -38,7 +38,7 @@
 | CAN-013 | P1 | DIRECT-TEST-EVIDENCE | 云端 snapshot + patch + revision 保存；冲突不静默覆盖。 | `apps/api/src/app.test.ts` |
 | CAN-014 | P1 | DIRECT-TEST-EVIDENCE | 未安装插件节点显示 fallback，原始数据可导出/再导入不丢失。 | `apps/api/src/app.test.ts` |
 | CAN-015 | P1 | DIRECT-TEST-EVIDENCE | 项目模板、封面、文件夹、最近访问与收藏。 | `packages/canvas-core/src/core.test.ts`<br>`web/src/lib/canvas/canvas-project-organization.test.ts`<br>`web/src/services/cloud-canvas-sync.test.ts` |
-| CAN-016 | P2 | DIRECT-TEST-EVIDENCE | Canvas Agent Run 分析节点关系、执行任务并把结果写回目标节点。 | `web/src/lib/canvas/canvas-agent-ops.test.ts` |
+| CAN-016 | P2 | DIRECT-TEST-EVIDENCE | Canvas Agent Run 分析节点关系、执行任务并把结果写回目标节点。 | `web/src/components/agent/agent-result-delivery.test.ts`<br>`web/src/lib/canvas/canvas-agent-ops.test.ts` |
 | GEN-001 | P0 | DIRECT-TEST-EVIDENCE | 文本问答/改写，支持 streaming、system prompt 和 reasoning 参数。 | `apps/api/src/generation-job-api.test.ts`<br>`web/src/services/canvas-generation-provider.test.ts` |
 | GEN-002 | P0 | DIRECT-TEST-EVIDENCE | 文生图、图生图、多参考图编辑、透明背景、多结果。 | `web/src/services/canvas-generation-provider.test.ts` |
 | GEN-003 | P0 | DIRECT-TEST-EVIDENCE | 文生视频、首帧/首尾帧、参考素材、比例、画质、时长。 | `web/src/services/canvas-generation-provider.test.ts` |
@@ -63,7 +63,7 @@
 | AGT-004 | P1 | DIRECT-TEST-EVIDENCE | 统一创作 Agent 会话同时支持文本、图片、视频、音频和参考素材。 | `apps/worker/src/remote-agent-adapter.test.ts` |
 | AGT-005 | P1 | DIRECT-TEST-EVIDENCE | 智能 planning、手动逻辑模型、参数约束和 Skill policy。 | `apps/worker/src/remote-agent-adapter.test.ts` |
 | AGT-006 | P1 | DIRECT-TEST-EVIDENCE | Agent Run 任务认领、事件流、子任务、结果项、失败恢复和审计。 | `apps/api/src/agent-run-api.test.ts` |
-| AGT-007 | P1 | DIRECT-TEST-EVIDENCE | Agent 生成结果发送至 Canvas、素材库、短剧项目。 | `apps/worker/src/remote-agent-adapter.test.ts` |
+| AGT-007 | P1 | DIRECT-TEST-EVIDENCE | Agent 生成结果发送至 Canvas、素材库、短剧项目。 | `apps/worker/src/remote-agent-adapter.test.ts`<br>`web/src/components/agent/agent-result-delivery.test.ts` |
 | AGT-008 | P1 | DIRECT-TEST-EVIDENCE | Skills 分类、启停、导入、资源文件、触发规则与能力约束。 | `canvas-agent/src/skills/store.test.ts` |
 | AGT-009 | P2 | DIRECT-TEST-EVIDENCE | 从检索结果安装 Skill；安装前展示来源、文件与权限。 | `canvas-agent/src/skills/installer.test.ts` |
 | AGT-010 | P1 | DIRECT-TEST-EVIDENCE | 删除、批量付费生成、外部访问必须 approval；操作留审计记录。 | `apps/worker/src/remote-agent-adapter.test.ts` |

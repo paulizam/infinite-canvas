@@ -327,6 +327,8 @@ sequenceDiagram
 
 Skill 远程安装采用强制两阶段协议：`preview` 仅接受无凭据、无 query/fragment 的 GitHub HTTPS tree/blob URL，通过 GitHub API 将 ref 固定到 commit SHA，并列出所有文件的大小与 SHA-256、声明权限和静态推断证据；`install` 必须回传同一 digest 并逐项确认权限。preview 有十分钟 TTL 且只能消费一次，拒绝 redirect、路径穿越、symlink、submodule、超限文件和无效 `SKILL.md`。安装不执行远程脚本，完整文件树经临时目录和 atomic rename 写入 `.agents/skills`，同时保存来源、commit、digest 与权限 provenance；同名 Skill fail-closed，不覆盖本地版本。
 
+Cloud Agent Result 不是只读 JSON：`canvas_operation` 若携带服务端 revision，表示共享 Tool Contract 已原子写入云 Canvas，Web 禁止再次应用；未携带 revision 的提案可由用户显式应用到当前 Canvas，并在本次 UI 生命周期内去重。携带 `assetId` 的图片、视频、音频或 Asset 结果已由服务端校验属于同一 Workspace，可从结果卡进入素材库，或携带目标 Drama revision 与 mutationId 投递为角色/场景/道具实体；跨 Workspace 与过期 revision 继续由 Drama domain fail closed。
+
 ## 9. API 与事件规范
 
 - REST 前缀：`/api/v1`；资源名复数；cursor pagination。
