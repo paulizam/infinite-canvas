@@ -5,8 +5,8 @@
 ## Summary
 
 - Requirements: 133
-- Direct test references: 57
-- Without direct test reference: 76
+- Direct test references: 63
+- Without direct test reference: 70
 
 ## Direct references
 
@@ -21,9 +21,15 @@
 | BAS-007 | P1 | `apps/api/src/app.test.ts` |
 | BAS-008 | P1 | `apps/api/src/app.test.ts` |
 | CAN-001 | P0 | `web/src/stores/canvas/use-canvas-store.test.ts` |
+| CAN-002 | P0 | `web/src/lib/canvas/canvas-interactions.test.ts` |
+| CAN-003 | P0 | `web/src/lib/canvas/canvas-interactions.test.ts` |
 | CAN-004 | P0 | `packages/canvas-core/src/core.test.ts` |
 | CAN-005 | P0 | `packages/canvas-core/src/core.test.ts` |
+| CAN-007 | P0 | `web/src/lib/canvas/canvas-file-drop.test.ts` |
 | CAN-008 | P0 | `packages/canvas-core/src/core.test.ts`<br>`web/src/lib/canvas/canvas-export.test.ts`<br>`web/src/lib/canvas/canvas-import.test.ts` |
+| CAN-009 | P0 | `web/src/lib/canvas/canvas-media-geometry.test.ts` |
+| CAN-010 | P0 | `web/src/lib/canvas/canvas-generation-contracts.test.ts` |
+| CAN-011 | P0 | `web/src/lib/canvas/canvas-generation-contracts.test.ts` |
 | CAN-013 | P1 | `apps/api/src/app.test.ts` |
 | CAN-014 | P1 | `apps/api/src/app.test.ts` |
 | GEN-001 | P0 | `apps/api/src/generation-job-api.test.ts`<br>`web/src/services/canvas-generation-provider.test.ts` |
@@ -74,13 +80,7 @@
 
 - BAS-009 (P2)
 - BAS-010 (P1)
-- CAN-002 (P0)
-- CAN-003 (P0)
 - CAN-006 (P0)
-- CAN-007 (P0)
-- CAN-009 (P0)
-- CAN-010 (P0)
-- CAN-011 (P0)
 - CAN-012 (P1)
 - CAN-015 (P1)
 - CAN-016 (P2)

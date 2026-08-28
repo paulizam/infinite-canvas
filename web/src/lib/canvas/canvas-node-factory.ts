@@ -62,6 +62,11 @@ export function buildAudioGenerationMetadata(config: AiConfig): CanvasNodeMetada
     };
 }
 
+export function nextGenerationAttempt(metadata?: CanvasNodeMetadata) {
+    const current = metadata?.attempt;
+    return Number.isSafeInteger(current) && current! >= 1 ? current! + 1 : 1;
+}
+
 export function applyNodeConfigPatch(node: CanvasNodeData, patch: Partial<CanvasNodeData["metadata"]>) {
     const safePatch = patch || {};
     const next = { ...node, metadata: { ...node.metadata, ...safePatch } };

@@ -36,13 +36,24 @@ export type ImageSplitPiece = {
 
 export async function cropDataUrl(dataUrl: string, crop?: ImageCropRect) {
     const image = await loadImage(dataUrl);
-    if (crop) {
-        return drawCrop(image, Math.floor(crop.x * image.width), Math.floor(crop.y * image.height), Math.ceil(crop.width * image.width), Math.ceil(crop.height * image.height));
+    const resolved = resolveCropPixels(image.width, image.height, crop);
+    return drawCrop(image, resolved.x, resolved.y, resolved.width, resolved.height);
+}
+
+export function resolveCropPixels(imageWidth: number, imageHeight: number, crop?: ImageCropRect): ImageCropRect {
+    const width = positiveDimension(imageWidth);
+    const height = positiveDimension(imageHeight);
+    if (!crop) {
+        const size = Math.min(width, height);
+        return { x: Math.floor((width - size) / 2), y: Math.floor((height - size) / 2), width: size, height: size };
     }
-    const size = Math.min(image.width, image.height);
-    const sx = Math.max(0, Math.floor((image.width - size) / 2));
-    const sy = Math.max(0, Math.floor((image.height - size) / 2));
-    return drawCrop(image, sx, sy, size, size);
+    const x = clampUnit(crop.x);
+    const y = clampUnit(crop.y);
+    const right = Math.max(x, clampUnit(crop.x + crop.width));
+    const bottom = Math.max(y, clampUnit(crop.y + crop.height));
+    const sx = Math.min(width - 1, Math.floor(x * width));
+    const sy = Math.min(height - 1, Math.floor(y * height));
+    return { x: sx, y: sy, width: Math.max(1, Math.min(width - sx, Math.ceil((right - x) * width))), height: Math.max(1, Math.min(height - sy, Math.ceil((bottom - y) * height))) };
 }
 
 export async function splitDataUrl(dataUrl: string, params: ImageSplitParams): Promise<ImageSplitPiece[]> {
@@ -64,9 +75,12 @@ export async function splitDataUrl(dataUrl: string, params: ImageSplitParams): P
     return pieces;
 }
 
-function buildSplitCuts(lines: number[] | undefined, size: number, count: number) {
-    if (!lines?.length) return Array.from({ length: count + 1 }, (_, index) => Math.floor((index * size) / count));
-    return [0, ...lines.map((line) => Math.round(line * size)).filter((line) => line > 0 && line < size).sort((a, b) => a - b), size];
+export function buildSplitCuts(lines: number[] | undefined, size: number, count: number) {
+    const safeSize = positiveDimension(size);
+    const safeCount = Math.max(1, Math.min(safeSize, Math.floor(Number.isFinite(count) ? count : 1)));
+    if (!lines?.length) return Array.from({ length: safeCount + 1 }, (_, index) => Math.floor((index * safeSize) / safeCount));
+    const cuts = lines.map((line) => Math.round(clampUnit(line) * safeSize)).filter((line) => line > 0 && line < safeSize);
+    return [0, ...new Set(cuts), safeSize].sort((a, b) => a - b);
 }
 
 export async function transformAngleDataUrl(dataUrl: string, params: ImageAngleTransform) {
@@ -116,10 +130,21 @@ export async function upscaleDataUrl(dataUrl: string, params: ImageUpscaleParams
 }
 
 export function resolveUpscaleSize(width: number, height: number, targetLongEdge: number) {
-    const longEdge = Math.max(1, width, height);
-    const target = Math.min(MAX_UPSCALE_LONG_EDGE, Math.max(1, Math.round(targetLongEdge)));
+    const safeWidth = positiveDimension(width);
+    const safeHeight = positiveDimension(height);
+    const longEdge = Math.max(safeWidth, safeHeight);
+    const requested = Number.isFinite(targetLongEdge) ? targetLongEdge : longEdge;
+    const target = Math.min(MAX_UPSCALE_LONG_EDGE, Math.max(1, Math.round(requested)));
     const scale = target / longEdge;
-    return { width: Math.max(1, Math.round(width * scale)), height: Math.max(1, Math.round(height * scale)) };
+    return { width: Math.max(1, Math.round(safeWidth * scale)), height: Math.max(1, Math.round(safeHeight * scale)) };
+}
+
+function positiveDimension(value: number) {
+    return Math.max(1, Math.round(Number.isFinite(value) ? value : 1));
+}
+
+function clampUnit(value: number) {
+    return Math.max(0, Math.min(1, Number.isFinite(value) ? value : 0));
 }
 
 function drawCrop(image: HTMLImageElement, sx: number, sy: number, sw: number, sh: number) {

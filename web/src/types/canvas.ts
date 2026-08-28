@@ -62,6 +62,7 @@ export type CanvasNodeMetadata = {
     quality?: string;
     background?: string;
     count?: number;
+    attempt?: number;
     textCount?: number;
     texts?: CanvasNodeText[];
     primaryTextId?: string;

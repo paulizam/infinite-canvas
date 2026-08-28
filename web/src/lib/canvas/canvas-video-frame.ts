@@ -12,8 +12,7 @@ export async function captureVideoFrame(source: string, position: VideoFramePosi
         video.load();
 
         await metadataLoaded;
-        const endTime = Math.max(0, video.duration - 0.001);
-        const time = position === "first" ? 0 : position === "last" ? endTime : Math.min(currentTime, endTime);
+        const time = resolveVideoFrameTime(position, video.duration, currentTime);
         if (time) {
             const seeked = waitForVideo(video, "seeked");
             video.currentTime = time;
@@ -31,6 +30,14 @@ export async function captureVideoFrame(source: string, position: VideoFramePosi
         video.removeAttribute("src");
         video.load();
     }
+}
+
+export function resolveVideoFrameTime(position: VideoFramePosition, duration: number, currentTime: number) {
+    const endTime = Number.isFinite(duration) ? Math.max(0, duration - 0.001) : 0;
+    if (position === "first") return 0;
+    if (position === "last") return endTime;
+    const safeCurrentTime = Number.isFinite(currentTime) ? currentTime : 0;
+    return Math.max(0, Math.min(safeCurrentTime, endTime));
 }
 
 function waitForVideo(video: HTMLVideoElement, eventName: "loadedmetadata" | "loadeddata" | "seeked") {
