@@ -120,18 +120,26 @@
     "runtime": "Payment provider refund sandbox"
   },
   "OPS-001": {
-    "sources": ["docker-compose.yml", ".github/workflows/quality-security.yml"],
-    "tests": ["ops/release-check.mjs"],
+    "sources": [
+      "docker-compose.yml",
+      "infra/docker/Dockerfile.api",
+      "infra/docker/Dockerfile.worker"
+    ],
+    "tests": [
+      "ops/compose-contract.mjs",
+      ".github/workflows/quality-security.yml"
+    ],
     "command": "docker compose config --quiet && docker compose up -d --wait",
     "runtime": "Docker Engine with Compose v2"
   },
   "OPS-003": {
     "sources": [
-      "apps/api/scripts/business-transfer.mjs",
       "ops/backup.sh",
-      "ops/restore.sh"
+      "ops/restore.sh",
+      "apps/api/scripts/business-transfer.mjs"
     ],
     "tests": [
+      "ops/compose-contract.mjs",
       "apps/api/scripts/business-transfer.test.ts",
       ".github/workflows/quality-security.yml"
     ],
