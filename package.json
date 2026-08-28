@@ -14,8 +14,9 @@
     "requirements:check": "node ops/requirements-audit.mjs --check && node ops/requirements-trace.mjs --check",
     "runtime:preflight": "node ops/runtime-preflight.mjs",
     "runtime:preflight:test": "node --test ops/runtime-preflight.test.mjs",
+    "ops:test": "node --test ops/runtime-preflight.test.mjs ops/requirement-trace-lib.test.mjs",
     "compose:check": "node ops/compose-contract.mjs",
-    "release:check": "node ops/migration-manifest.mjs --check && node ops/license-inventory.mjs --check && node ops/requirements-audit.mjs --check && node ops/requirements-trace.mjs --check && node --test ops/runtime-preflight.test.mjs && node ops/compose-contract.mjs && node ops/secret-scan.mjs && node ops/release-check.mjs"
+    "release:check": "node ops/migration-manifest.mjs --check && node ops/license-inventory.mjs --check && node ops/requirements-audit.mjs --check && node ops/requirements-trace.mjs --check && pnpm ops:test && node ops/compose-contract.mjs && node ops/secret-scan.mjs && node ops/release-check.mjs"
   },
   "devDependencies": {
     "prettier": "^3.9.6",

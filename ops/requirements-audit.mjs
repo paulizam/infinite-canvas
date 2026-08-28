@@ -1,61 +1,67 @@
 import { existsSync, readFileSync, writeFileSync } from "node:fs";
 
+import {
+  collectRequirementTestTraces,
+  parseRequirements,
+} from "./requirement-trace-lib.mjs";
+
 const specPath = "docs/requirements/functional-spec.md";
 const outputPath = "docs/requirements/acceptance-matrix.md";
-const detailedEvidencePath = "ops/requirements-evidence.json";
-const detailedEvidence = JSON.parse(readFileSync(detailedEvidencePath, "utf8"));
-const evidence = {
-  BAS: ["apps/api/src/app.test.ts", "web/src/services/cloud-platform.test.ts"],
-  CAN: ["packages/canvas-core/src/core.test.ts", "web/src/lib/canvas/canvas-import.test.ts"],
-  GEN: ["apps/api/src/generation-job-api.test.ts", "apps/worker/src/gateway-handler.test.ts"],
-  AGT: ["apps/api/src/agent-run-api.test.ts", "apps/worker/src/agent-runtime.test.ts"],
-  WFL: ["packages/workflow-runtime/src/compiler.test.ts", "apps/api/src/workflow-api.test.ts"],
-  AST: ["apps/api/src/asset-references.test.ts", "apps/api/src/asset-provider-switch-runtime.integration.test.ts", "web/src/services/webdav-sync.ts"],
-  PLG: ["web/src/lib/canvas/plugin-manifest.test.ts", "web/src/lib/canvas/plugin-sandbox.test.ts", "web/src/lib/canvas/plugin-browser-runtime.integration.test.ts"],
-  COL: ["apps/api/src/collaboration.test.ts", "web/src/services/cloud-collaboration.test.ts"],
-  DRM: ["apps/api/src/drama-api.test.ts", "apps/worker/src/drama-render-runtime.test.ts"],
-  COM: ["apps/api/src/community-api.test.ts", "apps/api/src/community-service.ts"],
-  BIL: ["apps/api/src/commerce-api.test.ts", "apps/api/src/payment-service.test.ts", "apps/api/src/payment-sandbox-runtime.integration.test.ts"],
-  ADM: ["apps/api/src/admin-domain-api.test.ts", "web/src/pages/admin/model-commerce.tsx"],
-  OPS: [".github/workflows/quality-security.yml", "ops/README.md"],
-};
-const runtimePending = new Set([
-  "GEN-008", "GEN-017", "GEN-018",
-  "DRM-008",
-]);
+const detailedEvidence = JSON.parse(
+  readFileSync("ops/requirements-evidence.json", "utf8"),
+);
+const runtimePending = new Set(["GEN-008", "GEN-017", "GEN-018", "DRM-008"]);
 
-if (Object.keys(detailedEvidence).sort().join() !== [...runtimePending].sort().join())
-  throw new Error("Detailed evidence IDs must exactly match runtime-pending IDs");
+if (
+  Object.keys(detailedEvidence).sort().join() !==
+  [...runtimePending].sort().join()
+)
+  throw new Error(
+    "Detailed evidence IDs must exactly match runtime-pending IDs",
+  );
 for (const [id, item] of Object.entries(detailedEvidence)) {
   for (const path of [...item.sources, ...item.tests])
-    if (!existsSync(path)) throw new Error(`Detailed evidence path does not exist for ${id}: ${path}`);
-  if (!item.command?.trim() || !item.runtime?.trim()) throw new Error(`Incomplete detailed evidence for ${id}`);
+    if (!existsSync(path))
+      throw new Error(
+        `Detailed evidence path does not exist for ${id}: ${path}`,
+      );
+  if (!item.command?.trim() || !item.runtime?.trim())
+    throw new Error(`Incomplete detailed evidence for ${id}`);
 }
 
-const requirements = [...readFileSync(specPath, "utf8").matchAll(/^\| ([A-Z]{3}-\d{3}) \| ([^|]+) \| ([^|]+) \| (.+) \|$/gm)].map((match) => ({ id: match[1], priority: match[2].trim(), source: match[3].trim(), text: match[4].trim() }));
-if (requirements.length !== 133) throw new Error(`Expected 133 requirements, found ${requirements.length}`);
-for (const paths of Object.values(evidence)) for (const path of paths) if (!existsSync(path)) throw new Error(`Evidence path does not exist: ${path}`);
+const requirements = parseRequirements(readFileSync(specPath, "utf8"));
+if (requirements.length !== 133)
+  throw new Error(`Expected 133 requirements, found ${requirements.length}`);
+const traces = collectRequirementTestTraces(requirements);
+const missingTraces = requirements.filter(
+  (item) => !traces.get(item.id)?.length,
+);
+if (missingTraces.length)
+  throw new Error(
+    `Requirements without direct test-title evidence: ${missingTraces.map((item) => item.id).join(", ")}`,
+  );
 
 const rows = requirements.map((requirement) => {
-  const prefix = requirement.id.slice(0, 3);
-  const paths = evidence[prefix];
-  if (!paths) throw new Error(`No evidence mapping for ${requirement.id}`);
-  const status = runtimePending.has(requirement.id) ? "RUNTIME-PENDING" : "SOURCE-EVIDENCE";
+  const status = runtimePending.has(requirement.id)
+    ? "RUNTIME-PENDING"
+    : "DIRECT-TEST-EVIDENCE";
   const detail = detailedEvidence[requirement.id];
   const cells = detail
-    ? [...detail.sources, ...detail.tests].map((path) => `\`${path}\``).concat(`Command: \`${detail.command}\``, `Needs: ${detail.runtime}`)
-    : paths.map((path) => `\`${path}\``);
+    ? [...detail.sources, ...detail.tests]
+        .map((path) => `\`${path}\``)
+        .concat(`Command: \`${detail.command}\``, `Needs: ${detail.runtime}`)
+    : traces.get(requirement.id).map((path) => `\`${path}\``);
   return `| ${requirement.id} | ${requirement.priority} | ${status} | ${escapeCell(requirement.text)} | ${cells.join("<br>")} |`;
 });
 const pending = requirements.filter((item) => runtimePending.has(item.id));
 const content = `# 133 项功能验收矩阵
 
-> 由 \`node ops/requirements-audit.mjs\` 从 \`${specPath}\` 生成。\`SOURCE-EVIDENCE\` 仅表示已定位领域实现与测试入口，不等价于该需求最终 PASS；\`RUNTIME-PENDING\` 表示还必须在真实 Docker/PostgreSQL、外部 Provider、WebDAV、支付沙箱或媒体工具链中取得运行证据。矩阵不以“未发现 TODO”或宽泛领域测试替代逐项验收。
+> 由 \`node ops/requirements-audit.mjs\` 从 \`${specPath}\` 生成。\`DIRECT-TEST-EVIDENCE\` 要求 Requirement ID 出现在实际 \`describe/it/test\` 标题中，注释、测试正文和领域级“万能文件”不计；它仍不等价于真实外部环境最终 PASS。\`RUNTIME-PENDING\` 表示还必须取得真实运行证据。
 
 ## 汇总
 
 - 总需求：133
-- 已定位源码/测试入口：${133 - pending.length}
+- 已具备逐项测试标题证据：${133 - pending.length}
 - 实机/外部环境待验：${pending.length}
 - 待验 ID：${pending.map((item) => item.id).join("、")}
 
@@ -74,11 +80,20 @@ ${rows.join("\n")}
 `;
 
 if (process.argv.includes("--check")) {
-  if (!existsSync(outputPath) || readFileSync(outputPath, "utf8") !== content) throw new Error("Acceptance matrix is stale; run node ops/requirements-audit.mjs");
-  console.log(`Acceptance matrix verified (${requirements.length}, runtime pending ${pending.length})`);
+  if (!existsSync(outputPath) || readFileSync(outputPath, "utf8") !== content)
+    throw new Error(
+      "Acceptance matrix is stale; run node ops/requirements-audit.mjs",
+    );
+  console.log(
+    `Acceptance matrix verified (${requirements.length}, direct test titles ${requirements.length - missingTraces.length}, runtime pending ${pending.length})`,
+  );
 } else {
   writeFileSync(outputPath, content);
-  console.log(`Wrote ${outputPath} (${requirements.length}, runtime pending ${pending.length})`);
+  console.log(
+    `Wrote ${outputPath} (${requirements.length}, runtime pending ${pending.length})`,
+  );
 }
 
-function escapeCell(value) { return value.replaceAll("|", "\\|"); }
+function escapeCell(value) {
+  return value.replaceAll("|", "\\|");
+}

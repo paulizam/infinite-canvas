@@ -1,19 +1,19 @@
 # Requirement Test Traceability
 
-> 由 `node ops/requirements-trace.mjs` 生成。这里只统计测试源码中的显式 Requirement ID；直接引用表示该测试声明覆盖该需求，不代表真实外部环境验收已 PASS。
+> 由 `node ops/requirements-trace.mjs` 生成。这里只统计 `describe/it/test` 标题中的显式 Requirement ID；注释、测试正文或普通字符串不计为直接证据。直接引用表示该测试声明覆盖该需求，不代表真实外部环境验收已 PASS。
 
 ## Summary
 
 - Requirements: 133
-- Direct test references: 133
-- Without direct test reference: 0
+- Direct test-title references: 133
+- Without direct test-title reference: 0
 
 ## Direct references
 
 | ID | P | Tests |
 |---|---:|---|
-| BAS-001 | P0 | `web/src/i18n/drama-i18n.test.ts` |
-| BAS-002 | P0 | `web/src/lib/canvas/canvas-export.test.ts`<br>`web/src/lib/canvas/canvas-import.test.ts`<br>`web/src/stores/canvas/use-canvas-store.test.ts` |
+| BAS-001 | P0 | `web/src/components/layout/app-shell-responsive.test.ts`<br>`web/src/i18n/drama-i18n.test.ts`<br>`web/src/stores/use-theme-store.test.ts` |
+| BAS-002 | P0 | `web/src/lib/canvas/canvas-export.test.ts`<br>`web/src/stores/canvas/use-canvas-store.test.ts` |
 | BAS-003 | P0 | `apps/api/src/app.test.ts` |
 | BAS-004 | P0 | `apps/api/src/app.test.ts`<br>`web/src/services/cloud-platform.test.ts`<br>`web/src/services/installation-route.test.ts` |
 | BAS-005 | P1 | `apps/api/src/app.test.ts` |
@@ -29,7 +29,7 @@
 | CAN-005 | P0 | `packages/canvas-core/src/core.test.ts` |
 | CAN-006 | P0 | `packages/canvas-core/src/core.test.ts` |
 | CAN-007 | P0 | `web/src/lib/canvas/canvas-file-drop.test.ts` |
-| CAN-008 | P0 | `packages/canvas-core/src/core.test.ts`<br>`web/src/lib/canvas/canvas-export.test.ts`<br>`web/src/lib/canvas/canvas-import.test.ts` |
+| CAN-008 | P0 | `packages/canvas-core/src/core.test.ts`<br>`web/src/lib/canvas/canvas-export.test.ts` |
 | CAN-009 | P0 | `web/src/lib/canvas/canvas-media-geometry.test.ts` |
 | CAN-010 | P0 | `web/src/lib/canvas/canvas-generation-contracts.test.ts` |
 | CAN-011 | P0 | `web/src/lib/canvas/canvas-generation-contracts.test.ts` |
@@ -45,7 +45,7 @@
 | GEN-005 | P0 | `packages/model-gateway/src/router.test.ts`<br>`web/src/services/api/model-channel-discovery.test.ts`<br>`web/src/stores/model-channel-config.test.ts` |
 | GEN-006 | P0 | `apps/api/src/model-gateway-api.test.ts` |
 | GEN-007 | P0 | `packages/model-gateway/src/router.test.ts` |
-| GEN-008 | P1 | `apps/worker/src/provider-sandbox-runtime.integration.test.ts`<br>`packages/model-gateway/src/provider-specific.test.ts`<br>`packages/model-gateway/src/router.test.ts` |
+| GEN-008 | P1 | `packages/model-gateway/src/provider-specific.test.ts`<br>`packages/model-gateway/src/router.test.ts` |
 | GEN-009 | P1 | `apps/api/src/model-gateway-api.test.ts` |
 | GEN-010 | P0 | `apps/api/src/generation-job-api.test.ts` |
 | GEN-011 | P0 | `apps/api/src/generation-job-api.test.ts` |
@@ -54,8 +54,8 @@
 | GEN-014 | P1 | `apps/api/src/admin-service.test.ts`<br>`apps/api/src/observability.test.ts`<br>`web/src/services/cloud-generation.test.ts` |
 | GEN-015 | P1 | `apps/api/src/asset-service.test.ts`<br>`web/src/services/cloud-generation.test.ts` |
 | GEN-016 | P1 | `apps/api/src/generation-job-api.test.ts` |
-| GEN-017 | P2 | `apps/api/src/model-discovery.test.ts`<br>`packages/model-gateway/src/volcengine-resource-packages.test.ts`<br>`packages/model-gateway/src/volcengine-sandbox-runtime.integration.test.ts`<br>`packages/model-gateway/src/volcengine.test.ts` |
-| GEN-018 | P2 | `apps/worker/src/provider-runtime.test.ts`<br>`apps/worker/src/provider-sandbox-runtime.integration.test.ts`<br>`packages/model-gateway/src/media-kit-capabilities.test.ts`<br>`packages/model-gateway/src/provider-specific.test.ts` |
+| GEN-017 | P2 | `apps/api/src/model-discovery.test.ts`<br>`packages/model-gateway/src/volcengine-resource-packages.test.ts`<br>`packages/model-gateway/src/volcengine.test.ts` |
+| GEN-018 | P2 | `apps/worker/src/provider-runtime.test.ts`<br>`packages/model-gateway/src/media-kit-capabilities.test.ts`<br>`packages/model-gateway/src/provider-specific.test.ts` |
 | AGT-001 | P0 | `canvas-agent/src/canvas/session.test.ts` |
 | AGT-002 | P0 | `canvas-agent/src/canvas/session.test.ts` |
 | AGT-003 | P1 | `canvas-agent/src/agent/claude.test.ts` |
@@ -78,12 +78,12 @@
 | WFL-009 | P2 | `apps/api/src/workflow-api.test.ts` |
 | WFL-010 | P2 | `apps/api/src/workflow-api.test.ts` |
 | AST-001 | P0 | `apps/api/src/app.test.ts` |
-| AST-002 | P0 | `apps/api/src/asset-provider-switch-runtime.integration.test.ts`<br>`apps/api/src/asset-service.test.ts` |
+| AST-002 | P0 | `apps/api/src/asset-service.test.ts` |
 | AST-003 | P0 | `apps/api/src/asset-service.test.ts` |
 | AST-004 | P0 | `apps/api/src/app.test.ts` |
-| AST-005 | P0 | `apps/api/src/asset-service.test.ts`<br>`apps/api/src/blob-store-runtime.integration.test.ts` |
+| AST-005 | P0 | `apps/api/src/asset-service.test.ts` |
 | AST-006 | P1 | `apps/api/src/app.test.ts` |
-| AST-007 | P1 | `web/src/services/webdav-runtime.integration.test.ts`<br>`web/src/services/webdav-sync.test.ts` |
+| AST-007 | P1 | `web/src/services/webdav-sync.test.ts` |
 | AST-008 | P1 | `web/src/services/api/prompts.test.ts` |
 | AST-009 | P1 | `apps/api/src/admin-service.test.ts`<br>`web/src/services/api/prompts.test.ts`<br>`web/src/services/cloud-platform.test.ts`<br>`web/src/services/prompt-handoff.test.ts` |
 | AST-010 | P2 | `apps/api/src/asset-service.test.ts` |
@@ -91,7 +91,7 @@
 | PLG-002 | P0 | `web/src/lib/canvas/builtin-plugin-catalog.test.ts` |
 | PLG-003 | P0 | `web/src/lib/canvas/plugin-integrity.test.ts`<br>`web/src/lib/canvas/plugin-manifest.test.ts` |
 | PLG-004 | P0 | `web/src/lib/canvas/plugin-lifecycle.test.ts` |
-| PLG-005 | P1 | `web/src/lib/canvas/plugin-browser-runtime.integration.test.ts`<br>`web/src/lib/canvas/plugin-compatibility.test.ts`<br>`web/src/lib/canvas/plugin-lifecycle.test.ts` |
+| PLG-005 | P1 | `web/src/lib/canvas/plugin-compatibility.test.ts`<br>`web/src/lib/canvas/plugin-lifecycle.test.ts` |
 | PLG-006 | P1 | `web/src/lib/canvas/plugin-manifest.test.ts` |
 | PLG-007 | P2 | `web/src/lib/canvas/plugin-compatibility.test.ts`<br>`web/src/lib/canvas/plugin-lifecycle.test.ts` |
 | COL-001 | P1 | `apps/api/src/collaboration.test.ts` |
@@ -107,7 +107,7 @@
 | DRM-004 | P2 | `web/src/services/cloud-platform.test.ts` |
 | DRM-005 | P2 | `web/src/services/cloud-platform.test.ts` |
 | DRM-006 | P2 | `web/src/services/cloud-platform.test.ts` |
-| DRM-007 | P2 | `apps/worker/src/drama-render-runtime.integration.test.ts`<br>`web/src/pages/drama/render-settings.test.ts`<br>`web/src/services/cloud-platform.test.ts` |
+| DRM-007 | P2 | `web/src/pages/drama/render-settings.test.ts`<br>`web/src/services/cloud-platform.test.ts` |
 | DRM-008 | P2 | `apps/worker/src/drama-render-runtime.test.ts`<br>`web/src/pages/drama/render-settings.test.ts`<br>`web/src/services/cloud-platform.test.ts` |
 | DRM-009 | P2 | `web/src/services/cloud-platform.test.ts` |
 | DRM-010 | P3 | `web/src/services/cloud-platform.test.ts` |
@@ -121,9 +121,9 @@
 | BIL-002 | P1 | `apps/api/src/generation-job-api.test.ts` |
 | BIL-003 | P2 | `apps/api/src/commerce-api.test.ts` |
 | BIL-004 | P2 | `apps/api/src/commerce-api.test.ts` |
-| BIL-005 | P2 | `apps/api/src/payment-sandbox-runtime.integration.test.ts`<br>`apps/api/src/payment-service.test.ts` |
-| BIL-006 | P2 | `apps/api/src/payment-sandbox-runtime.integration.test.ts`<br>`apps/api/src/payment-service.test.ts` |
-| BIL-007 | P2 | `apps/api/src/payment-sandbox-runtime.integration.test.ts`<br>`apps/api/src/payment-service.test.ts` |
+| BIL-005 | P2 | `apps/api/src/payment-service.test.ts` |
+| BIL-006 | P2 | `apps/api/src/payment-service.test.ts` |
+| BIL-007 | P2 | `apps/api/src/payment-service.test.ts` |
 | BIL-008 | P2 | `apps/api/src/admin-domain-api.test.ts` |
 | ADM-001 | P1 | `apps/api/src/admin-service.test.ts` |
 | ADM-002 | P1 | `apps/api/src/admin-service.test.ts` |
