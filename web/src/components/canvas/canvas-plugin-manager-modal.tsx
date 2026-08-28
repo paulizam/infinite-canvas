@@ -6,7 +6,7 @@ import { useTranslation } from "react-i18next";
 import { canvasThemes } from "@/lib/canvas-theme";
 import { installPluginFromUrl, installPluginManifest, setPluginEnabled, uninstallPlugin, updatePlugin } from "@/lib/canvas/plugin-loader";
 import { fetchOfficialPlugins, hasUpgrade, type OfficialPluginEntry } from "@/lib/canvas/plugin-registry";
-import { fetchPluginManifest, permissionDiff } from "@/lib/canvas/plugin-manifest";
+import { authorizePermissionChange, fetchPluginManifest } from "@/lib/canvas/plugin-manifest";
 import { useThemeStore } from "@/stores/use-theme-store";
 import { usePluginStore, type InstalledPlugin } from "@/stores/canvas/use-plugin-store";
 import { inspectPluginCompatibility } from "@/lib/canvas/plugin-compatibility";
@@ -71,7 +71,7 @@ export function CanvasPluginManagerModal({ open, onClose }: { open: boolean; onC
         setInstalling(true);
         try {
             const manifest = await fetchPluginManifest(target);
-            if (!(await confirmPermissions(manifest.name, manifest.permissions))) return;
+            if (!(await authorizePermissionChange([], manifest.permissions, (added) => confirmPermissions(manifest.name, added))).approved) return;
             const plugin = await installPluginManifest(manifest);
             message.success(t("canvas.plugins.installedPlugin", { name: plugin.name }));
             setUrl("");
@@ -86,8 +86,7 @@ export function CanvasPluginManagerModal({ open, onClose }: { open: boolean; onC
         setBusyId(entry.id);
         try {
             if (entry.revoked) throw new Error(entry.revokeReason || "插件版本已被撤销");
-            const added = permissionDiff(recordById.get(entry.id)?.permissions, entry.permissions);
-            if (!(await confirmPermissions(entry.name, added))) return;
+            if (!(await authorizePermissionChange(recordById.get(entry.id)?.permissions, entry.permissions, (added) => confirmPermissions(entry.name, added))).approved) return;
             const plugin = await installPluginFromUrl(entry.url, { official: true, id: entry.id, integrity: entry.integrity, permissions: entry.permissions, minAppVersion: entry.minAppVersion });
             message.success(t("canvas.plugins.installed", { name: plugin.name }));
         } catch (error) {
@@ -127,11 +126,11 @@ export function CanvasPluginManagerModal({ open, onClose }: { open: boolean; onC
                         onClick={() => runOnPlugin(record, async () => {
                             if (entry) {
                                 if (entry.revoked) throw new Error(entry.revokeReason || "插件版本已被撤销");
-                                if (!(await confirmPermissions(entry.name, permissionDiff(record.permissions, entry.permissions)))) return;
+                                if (!(await authorizePermissionChange(record.permissions, entry.permissions, (added) => confirmPermissions(entry.name, added))).approved) return;
                                 await installPluginFromUrl(entry.url, { official: true, id: entry.id, integrity: entry.integrity, permissions: entry.permissions, minAppVersion: entry.minAppVersion });
                             } else if (record.manifestUrl) {
                                 const manifest = await fetchPluginManifest(record.manifestUrl);
-                                if (!(await confirmPermissions(manifest.name, permissionDiff(record.permissions, manifest.permissions)))) return;
+                                if (!(await authorizePermissionChange(record.permissions, manifest.permissions, (added) => confirmPermissions(manifest.name, added))).approved) return;
                                 await installPluginManifest(manifest);
                             } else await updatePlugin(record);
                         }, t("canvas.plugins.updated"))}

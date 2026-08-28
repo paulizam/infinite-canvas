@@ -29,6 +29,8 @@ export function resolvePluginManifest(value: unknown, manifestUrl: string): Reso
     if (!manifest || !isPluginId(manifest.id) || !manifest.name || !isSemver(manifest.version) || !manifest.entry || !/^sha256-[A-Za-z0-9+/]{43}=$/.test(manifest.integrity || "") || !Array.isArray(manifest.permissions)) {
         throw new Error("插件清单字段无效");
     }
+    if (manifest.minAppVersion && !isSemver(manifest.minAppVersion)) throw new Error("插件 minAppVersion 无效");
+    if (manifest.signature && !/^ed25519-[A-Za-z0-9+/]{86}==$/.test(manifest.signature)) throw new Error("插件 signature 无效");
     assertPermissions(manifest.permissions);
     const entry = new URL(manifest.entry, assertHttpsUrl(manifestUrl, "插件清单"));
     assertHttpsUrl(entry.toString(), "插件入口");
@@ -38,6 +40,11 @@ export function resolvePluginManifest(value: unknown, manifestUrl: string): Reso
 export function permissionDiff(current: PluginPermission[] = [], next: PluginPermission[] = []) {
     const previous = new Set(current);
     return next.filter((permission) => !previous.has(permission));
+}
+
+export async function authorizePermissionChange(current: PluginPermission[] | undefined, next: PluginPermission[], confirm: (added: PluginPermission[]) => Promise<boolean>) {
+    const added = permissionDiff(current, next);
+    return { added, approved: await confirm(added) };
 }
 
 export function satisfiesMinAppVersion(appVersion: string, minimum?: string): boolean {
