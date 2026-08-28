@@ -2,6 +2,7 @@
 
 ## Unreleased
 
++ [新增] Canvas 图片工具补齐 AI 超分辨率闭环，支持 2K/4K 与忠实/细节增强策略，并以可重试子节点保留源图血缘。
 + [新增] Volcengine 资源包查询新增跨状态去重和 quota/used/remaining/expired 计量聚合；Admin 按 ConfigurationCode 展示可用额度，混合单位 fail closed。
 + [质量] 新增机器生成的 133 项 requirement-to-evidence 矩阵与 release drift gate，显式列出 15 项真实环境待验项。
 + [新增] Volcengine AK/SK HMAC adapter 接入 Worker，并在 Admin 提供模型、资源包与消耗查询，SK 始终处于加密 Secret 边界。
