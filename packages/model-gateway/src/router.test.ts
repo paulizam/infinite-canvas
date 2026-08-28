@@ -192,6 +192,45 @@ describe("provider adapters", () => {
       generationConfig: { responseModalities: ["TEXT", "IMAGE"] },
     });
   });
+  it("uses Gemini long-running prediction for Veo video", () => {
+    const request = buildGeminiRequest({
+      baseUrl: "https://generativelanguage.googleapis.com",
+      apiKey: "gemini-secret",
+      capability: "video",
+      upstreamModel: "veo-3.1-generate-preview",
+      parameters: {
+        prompt: "ocean",
+        durationSeconds: 8,
+        aspectRatio: "16:9",
+        model: "forged",
+      },
+    });
+    expect(request.url).toContain(
+      "/v1beta/models/veo-3.1-generate-preview:predictLongRunning",
+    );
+    expect(JSON.parse(String(request.init.body))).toEqual({
+      instances: [{ prompt: "ocean" }],
+      parameters: { durationSeconds: 8, aspectRatio: "16:9" },
+    });
+  });
+  it("requests Gemini native audio without leaking the key", () => {
+    const request = buildGeminiRequest({
+      baseUrl: "https://generativelanguage.googleapis.com",
+      apiKey: "gemini-secret",
+      capability: "audio",
+      upstreamModel: "gemini-2.5-flash-preview-tts",
+      parameters: {
+        prompt: "hello",
+        speechConfig: {
+          voiceConfig: { prebuiltVoiceConfig: { voiceName: "Kore" } },
+        },
+      },
+    });
+    expect(JSON.parse(String(request.init.body))).toMatchObject({
+      generationConfig: { responseModalities: ["AUDIO"] },
+    });
+    expect(request.url).not.toContain("gemini-secret");
+  });
   it("maps only declared custom fields and protects the upstream model", () => {
     const request = buildCustomProtocolRequest({
       baseUrl: "https://provider.example",

@@ -154,6 +154,23 @@ export function normalizePayload(
   if (resolved.protocol.adapter !== "gemini") return payload;
   if (payload.done === false) return { ...payload, status: "processing" };
   const response = objectAt(payload, "response") || payload;
+  if (capability === "video") {
+    const generated = objectAt(response, "generateVideoResponse");
+    const samples = [
+      ...(Array.isArray(generated?.generatedSamples)
+        ? generated.generatedSamples
+        : []),
+      ...(Array.isArray(response.generatedVideos)
+        ? response.generatedVideos
+        : []),
+    ];
+    const data = samples.flatMap((sample) => {
+      const video = objectAt(sample, "video");
+      const url = video?.uri ?? video?.fileUri;
+      return typeof url === "string" ? [{ url }] : [];
+    });
+    return { data, status: "succeeded" };
+  }
   const candidates: unknown[] = Array.isArray(response.candidates)
     ? response.candidates
     : [];

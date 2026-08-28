@@ -1,12 +1,15 @@
 {
   "GEN-008": {
     "sources": [
+      "packages/model-gateway/src/provider-adapters.ts",
       "packages/model-gateway/src/provider-specific.ts",
       "apps/worker/src/provider-runtime.ts"
     ],
     "tests": [
+      "packages/model-gateway/src/router.test.ts",
       "packages/model-gateway/src/provider-specific.test.ts",
-      "apps/worker/src/provider-runtime.test.ts"
+      "apps/worker/src/provider-runtime.test.ts",
+      "apps/worker/src/gateway-handler.test.ts"
     ],
     "command": "pnpm --filter @infinite-canvas/model-gateway test && pnpm --filter @infinite-canvas/worker test",
     "runtime": "Provider sandbox credentials and endpoints"

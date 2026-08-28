@@ -75,4 +75,25 @@ describe("worker provider-specific routing", () => {
       ),
     ).toMatchObject({ status: "succeeded", data: [{ base64: "abc" }] });
   });
+  it("normalizes completed Veo operations into video URLs", () => {
+    expect(
+      normalizePayload(
+        resolved("gemini"),
+        {
+          done: true,
+          response: {
+            generateVideoResponse: {
+              generatedSamples: [
+                { video: { uri: "https://media.example/video.mp4" } },
+              ],
+            },
+          },
+        },
+        "video",
+      ),
+    ).toEqual({
+      data: [{ url: "https://media.example/video.mp4" }],
+      status: "succeeded",
+    });
+  });
 });

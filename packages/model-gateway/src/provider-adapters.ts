@@ -22,6 +22,7 @@ export type CustomProtocolConfig = {
 };
 
 export function buildGeminiRequest(input: RequestInput) {
+  if (input.capability === "video") return buildGeminiVideoRequest(input);
   const url = providerEndpoint(
     input.baseUrl,
     `/v1beta/models/${encodeURIComponent(input.upstreamModel)}:generateContent`,
@@ -40,12 +41,43 @@ export function buildGeminiRequest(input: RequestInput) {
   const generationConfig = objectValue(input.parameters.generationConfig);
   if (input.capability === "image")
     generationConfig.responseModalities = ["TEXT", "IMAGE"];
+  if (input.capability === "audio") {
+    generationConfig.responseModalities = ["AUDIO"];
+    const speechConfig = objectValue(input.parameters.speechConfig);
+    if (Object.keys(speechConfig).length)
+      generationConfig.speechConfig = speechConfig;
+  }
   return jsonRequest(url, input.apiKey, "x-goog-api-key", {
     contents,
     ...(Object.keys(generationConfig).length ? { generationConfig } : {}),
     ...(input.parameters.systemInstruction
       ? { systemInstruction: input.parameters.systemInstruction }
       : {}),
+  });
+}
+
+function buildGeminiVideoRequest(input: RequestInput) {
+  const url = providerEndpoint(
+    input.baseUrl,
+    `/v1beta/models/${encodeURIComponent(input.upstreamModel)}:predictLongRunning`,
+    input.allowInsecure,
+  );
+  const {
+    prompt: _prompt,
+    contents: _contents,
+    model: _model,
+    ...parameters
+  } = input.parameters;
+  return jsonRequest(url, input.apiKey, "x-goog-api-key", {
+    instances: [
+      {
+        prompt:
+          typeof input.parameters.prompt === "string"
+            ? input.parameters.prompt
+            : "",
+      },
+    ],
+    parameters,
   });
 }
 
