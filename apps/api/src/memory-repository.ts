@@ -17,6 +17,7 @@ import { extractAssetIds } from "./asset-references.js";
 import { createHash } from "node:crypto";
 
 export class MemoryPlatformRepository implements PlatformRepository {
+  private installed = false;
   private users = new Map<string, UserRecord>();
   private emails = new Map<string, string>();
   private sessions = new Map<string, SessionRecord>();
@@ -29,6 +30,20 @@ export class MemoryPlatformRepository implements PlatformRepository {
   >();
   private checkpoints = new Map<string, ProjectCheckpointRecord>();
   private assets = new Map<string, AssetRecord>();
+
+  async isInstalled() {
+    return this.installed;
+  }
+  async installFirstAdmin(input: {
+    user: UserRecord;
+    workspace: WorkspaceRecord;
+    membership: MembershipRecord;
+  }) {
+    if (this.installed)
+      throw new DomainError("INSTALL_COMPLETED", 409, "系统已完成安装");
+    await this.createUserWithWorkspace(input);
+    this.installed = true;
+  }
 
   async createUserWithWorkspace(input: {
     user: UserRecord;

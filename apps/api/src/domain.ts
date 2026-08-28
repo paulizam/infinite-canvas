@@ -59,6 +59,12 @@ export type AssetRecord = {
 };
 
 export interface PlatformRepository {
+  isInstalled(): Promise<boolean>;
+  installFirstAdmin(input: {
+    user: UserRecord;
+    workspace: WorkspaceRecord;
+    membership: MembershipRecord;
+  }): Promise<void>;
   requireWorkspaceRole(
     userId: string,
     workspaceId: string,

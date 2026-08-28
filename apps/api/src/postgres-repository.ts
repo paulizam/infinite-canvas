@@ -22,6 +22,54 @@ export class PostgresPlatformRepository implements PlatformRepository {
   constructor(databaseUrl: string) {
     this.pool = new pg.Pool({ connectionString: databaseUrl });
   }
+  async isInstalled() {
+    const result = await this.pool.query(
+      "SELECT EXISTS(SELECT 1 FROM users WHERE platform_role='admin') installed",
+    );
+    return result.rows[0]?.installed === true;
+  }
+  async installFirstAdmin({
+    user,
+    workspace,
+    membership,
+  }: {
+    user: UserRecord;
+    workspace: WorkspaceRecord;
+    membership: MembershipRecord;
+  }) {
+    const client = await this.pool.connect();
+    try {
+      await client.query("BEGIN");
+      await client.query(
+        "SELECT pg_advisory_xact_lock(hashtext('infinite-canvas-install'))",
+      );
+      const installed = await client.query(
+        "SELECT 1 FROM users WHERE platform_role='admin' LIMIT 1",
+      );
+      if (installed.rowCount)
+        throw new DomainError("INSTALL_COMPLETED", 409, "系统已完成安装");
+      await client.query(
+        "INSERT INTO users(id,email,name,password_hash,created_at,updated_at,platform_role) VALUES($1,$2,$3,$4,$5,$5,'admin')",
+        [user.id, user.email, user.name, user.passwordHash, user.createdAt],
+      );
+      await client.query(
+        "INSERT INTO workspaces(id,name,created_at) VALUES($1,$2,$3)",
+        [workspace.id, workspace.name, workspace.createdAt],
+      );
+      await client.query(
+        "INSERT INTO workspace_members(workspace_id,user_id,role) VALUES($1,$2,$3)",
+        [membership.workspaceId, membership.userId, membership.role],
+      );
+      await client.query("COMMIT");
+    } catch (error) {
+      await client.query("ROLLBACK");
+      if ((error as { code?: string }).code === "23505")
+        throw new DomainError("EMAIL_EXISTS", 409, "邮箱已注册");
+      throw error;
+    } finally {
+      client.release();
+    }
+  }
   requireWorkspaceRole(
     userId: string,
     workspaceId: string,
@@ -47,7 +95,7 @@ export class PostgresPlatformRepository implements PlatformRepository {
     try {
       await client.query("BEGIN");
       await client.query(
-        "INSERT INTO users(id,email,name,password_hash,created_at) VALUES($1,$2,$3,$4,$5)",
+        "INSERT INTO users(id,email,name,password_hash,created_at,updated_at) VALUES($1,$2,$3,$4,$5,$5)",
         [user.id, user.email, user.name, user.passwordHash, user.createdAt],
       );
       await client.query(

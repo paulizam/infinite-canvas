@@ -240,6 +240,28 @@ export function createApp(services: AppServices) {
     password: z.string().min(8).max(128),
     name: z.string().trim().min(1).max(80),
   });
+  app.get("/api/v1/install/status", async (c) =>
+    c.json({
+      data: await services.identity.installationStatus(),
+      requestId: requestId(c),
+    }),
+  );
+  const installSchema = registerSchema.extend({
+    token: z.string().min(1).max(512),
+  });
+  app.post("/api/v1/install", async (c) => {
+    const result = await services.identity.install(
+      installSchema.parse(await c.req.json()),
+    );
+    writeSession(c, result.token, services.secureCookies);
+    return c.json(
+      {
+        data: { user: result.user, workspace: result.workspace },
+        requestId: requestId(c),
+      },
+      201,
+    );
+  });
   app.post("/api/v1/auth/register", async (c) => {
     const input = registerSchema.parse(await c.req.json());
     const result = await services.identity.register(input);

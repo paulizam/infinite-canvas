@@ -1,5 +1,10 @@
 import { hash, verify } from "@node-rs/argon2";
-import { createHash, randomBytes, randomUUID } from "node:crypto";
+import {
+  createHash,
+  randomBytes,
+  randomUUID,
+  timingSafeEqual,
+} from "node:crypto";
 import {
   CANVAS_SCHEMA_VERSION,
   type CanvasDocument,
@@ -14,12 +19,58 @@ import {
 } from "./domain.js";
 
 export class IdentityService {
+  private readonly installTokenHash: Buffer | null;
   constructor(
     private repository: PlatformRepository,
     private sessionTtlMs: number,
+    installToken?: string,
   ) {
     if (!Number.isFinite(sessionTtlMs) || sessionTtlMs <= 0)
       throw new Error("SESSION_TTL_SECONDS 必须显式配置为正数");
+    if (installToken && installToken.length < 32)
+      throw new Error("INSTALL_TOKEN must contain at least 32 characters");
+    this.installTokenHash = installToken
+      ? createHash("sha256").update(installToken).digest()
+      : null;
+  }
+  async installationStatus() {
+    return { installed: await this.repository.isInstalled() };
+  }
+  async install(input: {
+    token: string;
+    email: string;
+    password: string;
+    name: string;
+  }) {
+    const presented = createHash("sha256").update(input.token).digest();
+    if (
+      !this.installTokenHash ||
+      !timingSafeEqual(this.installTokenHash, presented)
+    )
+      throw new DomainError("INSTALL_TOKEN_INVALID", 403, "安装凭据无效");
+    const now = new Date().toISOString();
+    const user = {
+      id: randomUUID(),
+      email: normalizeEmail(input.email),
+      name: input.name.trim(),
+      passwordHash: await hash(input.password),
+      createdAt: now,
+    };
+    const workspace = {
+      id: randomUUID(),
+      name: `${user.name}的空间`,
+      createdAt: now,
+    };
+    await this.repository.installFirstAdmin({
+      user,
+      workspace,
+      membership: { workspaceId: workspace.id, userId: user.id, role: "owner" },
+    });
+    return {
+      user: publicUser(user),
+      workspace,
+      token: await this.issueSession(user.id),
+    };
   }
   async register(input: { email: string; password: string; name: string }) {
     const now = new Date().toISOString();

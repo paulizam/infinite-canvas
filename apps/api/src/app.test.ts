@@ -31,7 +31,11 @@ beforeEach(() => {
     retention: vi.fn(async () => ({ expiredSessions: 0 })),
   };
   app = createApp({
-    identity: new IdentityService(repository, 60_000),
+    identity: new IdentityService(
+      repository,
+      60_000,
+      "test-install-token-at-least-32-characters",
+    ),
     workspaces: new WorkspaceService(repository),
     projects: new ProjectService(repository),
     assets: new AssetService(
@@ -70,6 +74,56 @@ async function register(email = "creator@example.com", name = "创作者") {
 }
 
 describe("cloud workspace API", () => {
+  it("[BAS-004] consumes the install token exactly once for the first administrator", async () => {
+    expect(
+      (
+        (await (await app.request("/api/v1/install/status")).json()) as {
+          data: { installed: boolean };
+        }
+      ).data.installed,
+    ).toBe(false);
+    const invalid = await app.request("/api/v1/install", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        token: "wrong",
+        email: "admin@example.com",
+        password: "strong-password",
+        name: "Admin",
+      }),
+    });
+    expect(invalid.status).toBe(403);
+    const installed = await app.request("/api/v1/install", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        token: "test-install-token-at-least-32-characters",
+        email: "admin@example.com",
+        password: "strong-password",
+        name: "Admin",
+      }),
+    });
+    expect(installed.status).toBe(201);
+    expect(installed.headers.get("set-cookie")).toContain("ic_session=");
+    expect(
+      (
+        (await (await app.request("/api/v1/install/status")).json()) as {
+          data: { installed: boolean };
+        }
+      ).data.installed,
+    ).toBe(true);
+    const replay = await app.request("/api/v1/install", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        token: "test-install-token-at-least-32-characters",
+        email: "other@example.com",
+        password: "strong-password",
+        name: "Other",
+      }),
+    });
+    expect(replay.status).toBe(409);
+  });
   it("protects account export/delete and maintenance governance routes", async () => {
     expect((await app.request("/api/v1/account/export")).status).toBe(401);
     const owner = await register();

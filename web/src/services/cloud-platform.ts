@@ -193,6 +193,14 @@ export class CloudPlatformClient {
         return this.request<{ user: CloudUser; workspace: CloudWorkspaceRecord }>("/api/v1/auth/register", { method: "POST", body: JSON.stringify(input) });
     }
 
+    installationStatus() {
+        return this.request<{ installed: boolean }>("/api/v1/install/status");
+    }
+
+    install(input: { token: string; email: string; password: string; name: string }) {
+        return this.request<{ user: CloudUser; workspace: CloudWorkspaceRecord }>("/api/v1/install", { method: "POST", body: JSON.stringify(input) });
+    }
+
     login(email: string, password: string) {
         return this.request<{ user: CloudUser }>("/api/v1/auth/login", { method: "POST", body: JSON.stringify({ email, password }) });
     }

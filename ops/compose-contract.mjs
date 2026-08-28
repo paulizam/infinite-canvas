@@ -1,6 +1,8 @@
 import { readFileSync } from "node:fs";
 
 const compose = readFileSync("docker-compose.yml", "utf8");
+if (!compose.includes("INSTALL_TOKEN: ${INSTALL_TOKEN:?set INSTALL_TOKEN}"))
+  throw new Error("Compose must require the one-time installation token");
 const required = [
   ["postgres service", /^  postgres:\s*$/m],
   [

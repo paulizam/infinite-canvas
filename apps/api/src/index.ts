@@ -52,7 +52,11 @@ import {
 const databaseUrl = required("DATABASE_URL");
 const sessionTtlSeconds = Number(required("SESSION_TTL_SECONDS"));
 const repository = new PostgresPlatformRepository(databaseUrl);
-const identity = new IdentityService(repository, sessionTtlSeconds * 1000);
+const identity = new IdentityService(
+  repository,
+  sessionTtlSeconds * 1000,
+  strongToken("INSTALL_TOKEN"),
+);
 const projects = new ProjectService(repository);
 const jobRepository = new PostgresGenerationJobRepository(databaseUrl);
 const workerToken = tokenRing("WORKER_TOKEN");

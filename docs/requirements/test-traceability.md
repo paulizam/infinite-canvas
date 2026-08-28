@@ -5,14 +5,15 @@
 ## Summary
 
 - Requirements: 133
-- Direct test references: 22
-- Without direct test reference: 111
+- Direct test references: 23
+- Without direct test reference: 110
 
 ## Direct references
 
 | ID | P | Tests |
 |---|---:|---|
 | BAS-003 | P0 | `apps/api/src/app.test.ts` |
+| BAS-004 | P0 | `apps/api/src/app.test.ts` |
 | BAS-005 | P1 | `apps/api/src/app.test.ts` |
 | BAS-006 | P1 | `apps/api/src/admin-mfa-service.test.ts` |
 | BAS-007 | P1 | `apps/api/src/app.test.ts` |
@@ -39,7 +40,6 @@
 
 - BAS-001 (P0)
 - BAS-002 (P0)
-- BAS-004 (P0)
 - BAS-009 (P2)
 - BAS-010 (P1)
 - CAN-001 (P0)
