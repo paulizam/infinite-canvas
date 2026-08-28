@@ -29,6 +29,7 @@ export function CloudCanvasBridge() {
             state.replaceProjects(state.projects.map((item) => (item.id === project.id ? project : item)));
         });
         const collaboration = new Map<string, CloudCollaborationClient>();
+        let disposed = false;
         let unsubscribe: (() => void) | undefined;
         const replaceFromRemote = (projects: import("@/stores/canvas/use-canvas-store").CanvasProject[]) => {
             if (!projects.length) return;
@@ -67,6 +68,7 @@ export function CloudCanvasBridge() {
         void engine
             .start(workspaceId, useCanvasStore.getState().projects)
             .then((projects) => {
+                if (disposed) return;
                 replaceFromRemote(projects);
                 unsubscribe = useCanvasStore.subscribe((state, previous) => {
                     if (state.projects !== previous.projects) {
@@ -83,15 +85,19 @@ export function CloudCanvasBridge() {
                 .catch((error) => useCloudCanvasSyncStore.getState().update({ state: "error", message: error instanceof Error ? error.message : String(error) }));
         window.addEventListener("online", reconnect);
         return () => {
+            disposed = true;
             useCloudCanvasSyncStore.getState().registerResolver(null);
             useCloudCanvasSyncStore.getState().registerSnapshotAcceptor(null);
             window.removeEventListener("online", reconnect);
             unsubscribe?.();
-            for (const [projectId, client] of collaboration) {
-                client.stop();
+            for (const projectId of collaboration.keys()) {
                 useCollaborationStore.getState().unregisterProject(projectId);
             }
-            engine.stop();
+            // Keep sockets in the room until durable HTTP persistence has drained;
+            // then the server observes the final client leave.
+            void engine.shutdown()
+                .catch((error) => console.error("[canvas-sync] shutdown flush failed", error))
+                .finally(() => collaboration.forEach((client) => client.stop()));
         };
     }, [hydrated, status, workspaceId]);
     return null;

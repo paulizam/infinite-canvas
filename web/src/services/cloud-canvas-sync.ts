@@ -82,6 +82,16 @@ export class CloudCanvasSyncEngine {
             await this.enqueue(id, () => (this.latest.has(id) ? this.persistLatest(id) : this.removeRemote(id)));
         }
     }
+    // Drain every debounced/in-flight project mutation before the bridge leaves.
+    // Callers must stop observing the local store first so no new work can enter.
+    async shutdown() {
+        if (this.stopped) return;
+        try {
+            await this.flush();
+        } finally {
+            this.stop();
+        }
+    }
     noteRemoteRevision(projectId: string, revision: number) {
         const current = this.revisions.get(projectId);
         if (current === undefined || revision > current) this.revisions.set(projectId, revision);

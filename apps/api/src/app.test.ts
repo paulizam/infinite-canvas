@@ -220,7 +220,7 @@ describe("cloud workspace API", () => {
       (await app.request("/api/v1/me", { headers: { cookie } })).status,
     ).toBe(401);
   });
-  it("[CAN-013] creates a project and applies an idempotent revision mutation", async () => {
+  it("[CAN-013] [COL-002] creates a project and applies an idempotent revision mutation", async () => {
     const { body, cookie } = await register();
     const created = await app.request(
       `/api/v1/workspaces/${body.data.workspace.id}/projects`,
@@ -330,7 +330,7 @@ describe("cloud workspace API", () => {
       ).status,
     ).toBe(403);
   });
-  it("[BAS-007] allows viewers to read but rejects their entire mutation batch before any patch applies", async () => {
+  it("[BAS-007] [COL-005] allows viewers to read but rejects their entire mutation batch before any patch applies", async () => {
     const owner = await register();
     const created = await app.request(
       `/api/v1/workspaces/${owner.body.data.workspace.id}/projects`,

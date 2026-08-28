@@ -69,7 +69,7 @@ function connect(
 }
 
 describe("CollaborationHub", () => {
-  it("isolates rooms and broadcasts canonical mutations only inside a project", () => {
+  it("[COL-001] isolates rooms and broadcasts canonical mutations only inside a project", () => {
     const hub = new CollaborationHub(
       null as never,
       null as never,
@@ -108,7 +108,7 @@ describe("CollaborationHub", () => {
     );
   });
 
-  it("broadcasts ephemeral presence without changing the project snapshot", () => {
+  it("[COL-004] broadcasts ephemeral presence without changing the project snapshot", () => {
     const hub = new CollaborationHub(null as never, null as never, new Set());
     const first = new FakeSocket();
     const second = new FakeSocket();

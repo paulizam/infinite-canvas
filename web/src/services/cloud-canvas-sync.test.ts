@@ -36,6 +36,32 @@ class MemoryQueue implements CanvasOperationQueue {
 }
 
 describe("CloudCanvasSyncEngine", () => {
+    it("persists after the default 500ms quiet window [COL-003]", async () => {
+        vi.useFakeTimers();
+        try {
+            const client = fakeClient([cloud(project())]);
+            const engine = new CloudCanvasSyncEngine(client, vi.fn(), undefined, new MemoryQueue());
+            await engine.start("w1");
+            engine.observe([{ ...project(), title: "Debounced edit" }]);
+            await vi.advanceTimersByTimeAsync(499);
+            expect(client.mutateProject).not.toHaveBeenCalled();
+            await vi.advanceTimersByTimeAsync(1);
+            expect(client.mutateProject).toHaveBeenCalledTimes(1);
+            engine.stop();
+        } finally {
+            vi.useRealTimers();
+        }
+    });
+
+    it("flushes debounced persistence before shutdown [COL-003]", async () => {
+        const client = fakeClient([cloud(project())]);
+        const engine = new CloudCanvasSyncEngine(client, vi.fn(), 60_000, new MemoryQueue());
+        await engine.start("w1");
+        engine.observe([{ ...project(), title: "Last client edit" }]);
+        await engine.shutdown();
+        expect(client.mutateProject).toHaveBeenCalledWith("p1", expect.objectContaining({ operations: expect.arrayContaining([expect.objectContaining({ type: "document.patch", patch: { title: "Last client edit" } })]) }));
+    });
+
     it("loads a workspace and uses the remote revision independently from local revisions", async () => {
         const client = fakeClient([cloud(project())]);
         const engine = new CloudCanvasSyncEngine(client, vi.fn(), 0, new MemoryQueue());
@@ -69,7 +95,7 @@ describe("CloudCanvasSyncEngine", () => {
         expect(events.at(-1)?.state).toBe("conflict");
     });
 
-    it("writes before sending and replays the same mutation id after restart", async () => {
+    it("writes before sending and replays the same mutation id after restart [COL-006]", async () => {
         const queue = new MemoryQueue();
         const offline = fakeClient([cloud(project())]);
         offline.mutateProject.mockRejectedValue(new Error("offline"));
@@ -152,7 +178,7 @@ describe("CloudCanvasSyncEngine", () => {
         expect(calls[1].operations).toContainEqual(expect.objectContaining({ patch: { title: "Second edit" } }));
     });
 
-    it("rebases disjoint edits but rejects edits to the same field", () => {
+    it("rebases disjoint edits but rejects edits to the same field [COL-006]", () => {
         const base = { ...project(), nodes: [{ id: "a", type: "text", title: "A", position: { x: 0, y: 0 }, width: 100, height: 100, metadata: { content: "base" } }] } as CanvasProject;
         const local = { ...base, title: "Local title" };
         const operations = diffCanvasOperations(base, local);
@@ -161,7 +187,7 @@ describe("CloudCanvasSyncEngine", () => {
         expect(canRebase(base, { ...base, title: "Remote title" }, operations)).toBe(false);
     });
 
-    it("preserves local content as a new project when a user resolves a conflict", async () => {
+    it("preserves local content as a new project when a user resolves a conflict [COL-006]", async () => {
         const queue = new MemoryQueue();
         const base = project();
         const remote = { ...base, revision: 3, title: "Remote title" };
