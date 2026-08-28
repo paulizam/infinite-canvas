@@ -1,7 +1,11 @@
 import { lookup } from "node:dns/promises";
 import { isIP } from "node:net";
 import { DomainError } from "./domain.js";
-import { signedVolcengineQuery } from "@infinite-canvas/model-gateway";
+import {
+  parseVolcengineResourcePackages,
+  signedVolcengineQuery,
+  summarizeVolcengineResourcePackages,
+} from "@infinite-canvas/model-gateway";
 import type {
   ModelChannelRuntime,
   ModelGatewayRepository,
@@ -116,10 +120,19 @@ export class ModelDiscoveryService {
         502,
         `Volcengine 渠道返回 HTTP ${response.status}`,
       );
+    const payload = await readJsonLimited(response, 2 * 1024 * 1024);
     return {
       channelId,
       kind,
-      payload: await readJsonLimited(response, 2 * 1024 * 1024),
+      payload,
+      ...(kind === "resources"
+        ? {
+            resourcePackages: parseVolcengineResourcePackages(payload),
+            resourceUsage: summarizeVolcengineResourcePackages(
+              parseVolcengineResourcePackages(payload),
+            ),
+          }
+        : {}),
     };
   }
 

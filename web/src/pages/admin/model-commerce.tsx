@@ -161,7 +161,8 @@ export function ModelAdmin() {
                                       onClick={() =>
                                           void run(async () => {
                                               const result = await adminPlatform.volcengine(channelId, kind);
-                                              message.success(`${kind} 查询成功：${JSON.stringify(result.payload).slice(0, 120)}`);
+                                              const summary = result.resourceUsage?.map((item) => `${item.configurationCode}: ${item.remaining}/${item.quota} ${item.unit}`).join("；");
+                                              message.success(summary || `${kind} 查询成功：${JSON.stringify(result.payload).slice(0, 120)}`);
                                           })
                                       }
                                   >

@@ -171,4 +171,46 @@ describe("ModelDiscoveryService", () => {
       "AKLTEXAMPLE",
     );
   });
+
+  it("turns Volcengine resource rows into actionable quota meters [GEN-017]", async () => {
+    const repository = await runtime(
+      "volcengine",
+      "https://open.volcengineapi.com",
+      {},
+      { accessKeyId: "AKLTEXAMPLE", region: "cn-north-1", service: "ark" },
+    );
+    const service = new ModelDiscoveryService(
+      repository,
+      vi.fn(async () =>
+        Response.json({
+          Result: {
+            List: [
+              {
+                InstanceNo: "pkg-1",
+                ConfigurationCode: "Seedance_pack",
+                Status: "Effective",
+                TotalAmount: "100",
+                AvailableAmount: "25",
+                Unit: "次",
+              },
+            ],
+          },
+        }),
+      ) as typeof fetch,
+      async () => ["8.8.8.8"],
+    );
+    await expect(
+      service.volcengineInventory("c", "resources"),
+    ).resolves.toMatchObject({
+      resourcePackages: [expect.objectContaining({ InstanceNo: "pkg-1" })],
+      resourceUsage: [
+        expect.objectContaining({
+          configurationCode: "Seedance_pack",
+          quota: 100,
+          used: 75,
+          remaining: 25,
+        }),
+      ],
+    });
+  });
 });

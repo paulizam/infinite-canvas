@@ -2,6 +2,7 @@
 
 ## Unreleased
 
++ [新增] Volcengine 资源包查询新增跨状态去重和 quota/used/remaining/expired 计量聚合；Admin 按 ConfigurationCode 展示可用额度，混合单位 fail closed。
 + [质量] 新增机器生成的 133 项 requirement-to-evidence 矩阵与 release drift gate，显式列出 15 项真实环境待验项。
 + [新增] Volcengine AK/SK HMAC adapter 接入 Worker，并在 Admin 提供模型、资源包与消耗查询，SK 始终处于加密 Secret 边界。
 + [新增] Model Gateway 新增 Seedance、Stable Diffusion/A1111/Forge 与 MediaKit provider-specific adapters，贯通 Admin、Worker 请求、任务操作和结果归一化。
