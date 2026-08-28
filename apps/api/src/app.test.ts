@@ -151,7 +151,7 @@ describe("cloud workspace API", () => {
     });
     expect(response.status).toBe(200);
   });
-  it("registers, authenticates and logs out a session", async () => {
+  it("[BAS-003] registers, authenticates and logs out a session", async () => {
     const { response, body, cookie } = await register();
     expect(response.status).toBe(201);
     expect(body.data.user.id).toBeTruthy();
@@ -166,7 +166,7 @@ describe("cloud workspace API", () => {
       (await app.request("/api/v1/me", { headers: { cookie } })).status,
     ).toBe(401);
   });
-  it("creates a project and applies an idempotent revision mutation", async () => {
+  it("[CAN-013] creates a project and applies an idempotent revision mutation", async () => {
     const { body, cookie } = await register();
     const created = await app.request(
       `/api/v1/workspaces/${body.data.workspace.id}/projects`,
@@ -248,7 +248,7 @@ describe("cloud workspace API", () => {
       ).status,
     ).toBe(404);
   });
-  it("prevents cross-workspace project access", async () => {
+  it("[BAS-008] prevents cross-workspace project access", async () => {
     const owner = await register();
     const created = await app.request(
       `/api/v1/workspaces/${owner.body.data.workspace.id}/projects`,
@@ -276,7 +276,7 @@ describe("cloud workspace API", () => {
       ).status,
     ).toBe(403);
   });
-  it("allows viewers to read but rejects their entire mutation batch before any patch applies", async () => {
+  it("[BAS-007] allows viewers to read but rejects their entire mutation batch before any patch applies", async () => {
     const owner = await register();
     const created = await app.request(
       `/api/v1/workspaces/${owner.body.data.workspace.id}/projects`,
@@ -351,7 +351,7 @@ describe("cloud workspace API", () => {
         })
       ).status,
     ).toBe(400));
-  it("rejects weak passwords and forged document fields", async () => {
+  it("[BAS-005] rejects weak passwords and forged document fields", async () => {
     const weak = await app.request("/api/v1/auth/register", {
       method: "POST",
       headers: { "content-type": "application/json" },
@@ -393,7 +393,7 @@ describe("cloud workspace API", () => {
     );
     expect(forged.status).toBe(400);
   });
-  it("round-trips extension node fields through a validated mutation", async () => {
+  it("[CAN-014] round-trips extension node fields through a validated mutation", async () => {
     const { body, cookie } = await register("plugin@example.com");
     const created = await app.request(
       `/api/v1/workspaces/${body.data.workspace.id}/projects`,
@@ -603,7 +603,7 @@ describe("workspace asset API", () => {
     ).toBe(200);
   });
 
-  it("creates immutable checkpoints and restores them as a new revision", async () => {
+  it("[COL-007] creates immutable checkpoints and restores them as a new revision", async () => {
     const { body, cookie } = await register("checkpoint@example.com");
     const created = await app.request(
       `/api/v1/workspaces/${body.data.workspace.id}/projects`,

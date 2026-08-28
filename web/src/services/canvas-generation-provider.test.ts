@@ -26,19 +26,19 @@ describe("Canvas Cloud generation provider", () => {
         cloud.text.mockResolvedValue("answer");
     });
 
-    it("uses Server mode readiness and sends image/mask AssetRefs", async () => {
+    it("[GEN-002] uses Server mode readiness and sends image/mask AssetRefs", async () => {
         expect(generationConfigReady(false)).toBe(true);
         const reference = { id: "r1", name: "r.png", type: "image/png", dataUrl: "data:image/png;base64,AQID" };
         await generateCanvasImage(config, "edit", [reference], { workspaceId: "w1" }, { ...reference, id: "mask" });
         expect(cloud.media).toHaveBeenCalledWith(expect.objectContaining({ parameters: expect.objectContaining({ images: [{ assetId: "image-1" }], mask: { assetId: "image-1" } }) }));
     });
 
-    it("transports image, video and audio references for video generation", async () => {
+    it("[GEN-003] transports image, video and audio references for video generation", async () => {
         await generateCanvasVideo(config, "animate", { images: [], videos: [{ id: "v", name: "v.mp4", type: "video/mp4", url: "blob:v" }], audios: [{ id: "a", name: "a.mp3", type: "audio/mpeg", url: "blob:a" }] }, { workspaceId: "w1" });
         expect(cloud.media).toHaveBeenCalledWith(expect.objectContaining({ parameters: expect.objectContaining({ videos: [{ assetId: "media-1" }], audios: [{ assetId: "media-1" }] }) }));
     });
 
-    it("keeps AssetRefs nested until Worker materialization for multimodal text", async () => {
+    it("[GEN-001] keeps AssetRefs nested until Worker materialization for multimodal text", async () => {
         await generateCanvasText(config, "inspect", [], [{ id: "r", name: "r.png", type: "image/png", dataUrl: "data:image/png;base64,AQID" }], vi.fn(), { workspaceId: "w1" });
         expect(cloud.text).toHaveBeenCalledWith(expect.objectContaining({ parameters: expect.objectContaining({ messages: [{ role: "user", content: [expect.anything(), { type: "image_url", image_url: { url: { assetId: "image-1" } } }] }] }) }));
     });

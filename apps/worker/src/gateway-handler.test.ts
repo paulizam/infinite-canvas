@@ -198,7 +198,7 @@ describe("model gateway worker handler", () => {
     );
   });
 
-  it("persists a binary audio response without parsing it as JSON", async () => {
+  it("[GEN-004] persists a binary audio response without parsing it as JSON", async () => {
     const audioJob = {
       ...job,
       capability: "audio",
@@ -273,7 +273,7 @@ describe("model gateway worker handler", () => {
     },
   );
 
-  it("calls the submitted provider before finalizing cancellation", async () => {
+  it("[GEN-012] calls the submitted provider before finalizing cancellation", async () => {
     const cancelledJob = {
       ...job,
       phase: "cancel_requested",

@@ -51,7 +51,7 @@ class MemoryMfa implements AdminMfaRepository {
 }
 describe("AdminMfaService", () => {
   afterEach(() => vi.useRealTimers());
-  it("enrolls, prevents TOTP replay and consumes recovery codes once", async () => {
+  it("[BAS-006] enrolls, prevents TOTP replay and consumes recovery codes once", async () => {
     vi.useFakeTimers();
     const clock = Date.parse("2026-08-28T08:00:00.000Z");
     vi.setSystemTime(clock);

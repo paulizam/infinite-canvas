@@ -29,7 +29,7 @@ const doc: CanvasDocument = {
   viewport: { x: 0, y: 0, k: 1 },
 };
 describe("canvas core", () => {
-  it("applies a batch with one revision", () => {
+  it("[CAN-005] applies a batch with one revision", () => {
     const next = applyCanvasOperations(doc, [
       { type: "node.move", nodeId: "a", position: { x: 4, y: 8 } },
       { type: "document.patch", patch: { title: "B" } },
@@ -37,12 +37,12 @@ describe("canvas core", () => {
     expect(next.revision).toBe(3);
     expect(next.title).toBe("B");
   });
-  it("removes dangling edges", () =>
+  it("[CAN-004] removes dangling edges", () =>
     expect(
       applyCanvasOperations(doc, [{ type: "node.remove", nodeIds: ["a"] }])
         .connections,
     ).toEqual([]));
-  it("migrates legacy data", () =>
+  it("[CAN-008] migrates legacy data", () =>
     expect(
       migrateCanvasDocument({ id: "old", nodes: doc.nodes }).schemaVersion,
     ).toBe(4));

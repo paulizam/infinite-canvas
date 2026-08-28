@@ -45,7 +45,7 @@ async function register(email: string) {
 }
 
 describe("generation job API", () => {
-  it("estimates, reserves and idempotently refunds integer points", async () => {
+  it("[GEN-013][GEN-016] estimates, reserves and idempotently refunds integer points", async () => {
     const owner = await register("billing-owner@example.com");
     const maintenanceHeaders = {
       authorization: "Bearer test-maintenance-token-32-characters",
@@ -190,7 +190,7 @@ describe("generation job API", () => {
       amountUnits: 10,
     });
   });
-  it("creates idempotently and hides jobs across users", async () => {
+  it("[GEN-010] creates idempotently and hides jobs across users", async () => {
     const owner = await register("job-owner@example.com");
     const url = `/api/v1/workspaces/${owner.body.data.workspace.id}/generation-jobs`;
     const request = () =>
@@ -219,7 +219,7 @@ describe("generation job API", () => {
     ).toBe(404);
   });
 
-  it("protects worker endpoints and enforces lease ownership", async () => {
+  it("[GEN-011] protects worker endpoints and enforces lease ownership", async () => {
     const owner = await register("job-worker@example.com");
     await app.request(
       `/api/v1/workspaces/${owner.body.data.workspace.id}/generation-jobs`,
@@ -323,7 +323,7 @@ describe("generation job API", () => {
     expect(Buffer.from(await read.arrayBuffer())).toEqual(png);
   });
 
-  it("accepts leased text deltas, replays SSE and hides the stream across users", async () => {
+  it("[GEN-001] accepts leased text deltas, replays SSE and hides the stream across users", async () => {
     const owner = await register("stream-owner@example.com");
     const created = await app.request(
       `/api/v1/workspaces/${owner.body.data.workspace.id}/generation-jobs`,

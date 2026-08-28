@@ -10,9 +10,9 @@
     "quality": "pnpm format:check && pnpm typecheck && pnpm test && pnpm build",
     "security:secrets": "node ops/secret-scan.mjs",
     "licenses:check": "node ops/license-inventory.mjs --check",
-    "requirements:check": "node ops/requirements-audit.mjs --check",
+    "requirements:check": "node ops/requirements-audit.mjs --check && node ops/requirements-trace.mjs --check",
     "compose:check": "node ops/compose-contract.mjs",
-    "release:check": "node ops/migration-manifest.mjs --check && node ops/license-inventory.mjs --check && node ops/requirements-audit.mjs --check && node ops/compose-contract.mjs && node ops/secret-scan.mjs && node ops/release-check.mjs"
+    "release:check": "node ops/migration-manifest.mjs --check && node ops/license-inventory.mjs --check && node ops/requirements-audit.mjs --check && node ops/requirements-trace.mjs --check && node ops/compose-contract.mjs && node ops/secret-scan.mjs && node ops/release-check.mjs"
   },
   "devDependencies": {
     "prettier": "^3.9.6",

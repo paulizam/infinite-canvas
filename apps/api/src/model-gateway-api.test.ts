@@ -60,7 +60,7 @@ async function put(path: string, body: unknown, token = maintenance) {
 }
 
 describe("model gateway control plane", () => {
-  it("keeps credentials out of public DTOs and resolves only for workers", async () => {
+  it("[GEN-006] keeps credentials out of public DTOs and resolves only for workers", async () => {
     const channelId = "4bffb4be-e6a1-4d80-a40d-963b1764f00a";
     const upstreamId = "8ce7b9a0-c0f9-4a61-8a85-50b57b84d7eb";
     const protocol = {
@@ -182,7 +182,7 @@ describe("model gateway control plane", () => {
       ).status,
     ).toBe(200);
   });
-  it("rejects insecure or credential-bearing channel URLs by default", async () => {
+  it("[GEN-009] rejects insecure or credential-bearing channel URLs by default", async () => {
     const common = {
       name: "Bad",
       protocolId: "openai",
