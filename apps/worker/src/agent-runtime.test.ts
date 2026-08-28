@@ -120,6 +120,9 @@ describe("Agent Worker runtime", () => {
       client,
       "worker-a",
     );
+    expect(fetcher.mock.calls[0]?.[1]).toEqual(
+      expect.objectContaining({ redirect: "error" }),
+    );
     expect(operations).toContainEqual({
       type: "event.append",
       eventType: "output.delta",

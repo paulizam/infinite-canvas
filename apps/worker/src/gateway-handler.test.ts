@@ -120,7 +120,7 @@ describe("model gateway worker handler", () => {
     ]);
     expect(fetcher).toHaveBeenCalledWith(
       "https://api.example.com/v1/images/generations",
-      expect.objectContaining({ method: "POST" }),
+      expect.objectContaining({ method: "POST", redirect: "error" }),
     );
     expect(client.persistAsset).toHaveBeenCalledOnce();
     expect(client.transition).toHaveBeenLastCalledWith(
@@ -301,7 +301,7 @@ describe("model gateway worker handler", () => {
     );
     expect(fetcher).toHaveBeenCalledWith(
       "https://api.example.com/v1/videos/task%2F42/cancel",
-      expect.objectContaining({ method: "POST" }),
+      expect.objectContaining({ method: "POST", redirect: "error" }),
     );
     expect(client.transition).toHaveBeenCalledWith(
       "worker-a",
@@ -309,6 +309,35 @@ describe("model gateway worker handler", () => {
       "cancelled",
       {},
       undefined,
+    );
+  });
+
+  it("applies the same request policy while polling", async () => {
+    const pollingJob = {
+      ...job,
+      phase: "polling",
+      capability: "video",
+      upstreamTaskId: "task/42",
+      channelId: "c",
+    } as GenerationJob;
+    const client = {
+      resolveModel: vi.fn(async () => resolved),
+      transition: vi.fn(async (_w, _id, phase, patch) => ({
+        ...pollingJob,
+        ...patch,
+        phase,
+      })),
+      reportModelHealth: vi.fn(async () => ({ accepted: true as const })),
+    } as unknown as WorkerApiClient;
+    const fetcher = vi.fn(async () => Response.json({ status: "processing" }));
+    await createModelGatewayHandler(fetcher as typeof fetch)(
+      pollingJob,
+      client,
+      "worker-a",
+    );
+    expect(fetcher).toHaveBeenCalledWith(
+      "https://api.example.com/v1/videos/task%2F42",
+      expect.objectContaining({ method: "GET", redirect: "error" }),
     );
   });
 

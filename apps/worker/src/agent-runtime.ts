@@ -4,6 +4,7 @@ import {
   buildSubmitRequest,
   buildStreamingSubmitRequest,
   normalizePayload,
+  providerFetch,
   redactProviderError,
   safeJson,
 } from "./provider-runtime.js";
@@ -115,10 +116,12 @@ export function createAgentModelHandler(
       const request = buildStreamingSubmitRequest(resolved, parameters);
       if (!request) {
         const fallback = buildSubmitRequest(resolved, "text", parameters);
-        const response = await fetcher(fallback.url, {
-          ...fallback.init,
+        const response = await providerFetch(
+          fetcher,
+          fallback.url,
+          fallback.init,
           signal,
-        });
+        );
         if (!response.ok)
           throw new Error(
             `Provider submit failed with HTTP ${response.status}`,
@@ -136,10 +139,12 @@ export function createAgentModelHandler(
           signal,
         );
       } else {
-        const response = await fetcher(request.url, {
-          ...request.init,
+        const response = await providerFetch(
+          fetcher,
+          request.url,
+          request.init,
           signal,
-        });
+        );
         if (!response.ok)
           throw new Error(
             `Provider submit failed with HTTP ${response.status}`,

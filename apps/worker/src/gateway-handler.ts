@@ -13,6 +13,7 @@ import {
   extensionFor,
   isPending,
   normalizePayload,
+  providerFetch,
   redactProviderError,
   safeJson,
   safeRemoteName,
@@ -139,7 +140,7 @@ async function submit(
     streamingRequest || buildSubmitRequest(resolved, capability, parameters);
   let response: Response;
   try {
-    response = await fetcher(request.url, { ...request.init, signal });
+    response = await providerFetch(fetcher, request.url, request.init, signal);
   } catch (error) {
     await reportHealth(client, resolved.upstreamModel.id, "failure", signal);
     throw error;
@@ -252,7 +253,7 @@ async function poll(
   );
   let response: Response;
   try {
-    response = await fetcher(request.url, { ...request.init, signal });
+    response = await providerFetch(fetcher, request.url, request.init, signal);
   } catch (error) {
     await reportHealth(client, resolved.upstreamModel.id, "failure", signal);
     throw error;
@@ -357,7 +358,12 @@ async function cancel(
     "cancel",
     job.upstreamTaskId,
   );
-  const response = await fetcher(request.url, { ...request.init, signal });
+  const response = await providerFetch(
+    fetcher,
+    request.url,
+    request.init,
+    signal,
+  );
   if (!response.ok)
     throw new Error(`Provider cancel failed with HTTP ${response.status}`);
   await client.transition(workerId, job.id, "cancelled", {}, signal);

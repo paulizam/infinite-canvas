@@ -1,9 +1,12 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import type { WorkerResolvedModel } from "./client.js";
 import {
   buildOperationRequest,
   buildSubmitRequest,
+  MAX_PROVIDER_JSON_BYTES,
   normalizePayload,
+  providerFetch,
+  safeJson,
 } from "./provider-runtime.js";
 
 function resolved(
@@ -95,5 +98,65 @@ describe("worker provider-specific routing", () => {
       data: [{ url: "https://media.example/video.mp4" }],
       status: "succeeded",
     });
+  });
+});
+
+describe("provider response boundaries", () => {
+  it("preserves the adapter request while rejecting redirects", async () => {
+    const fetcher = vi.fn(async () => Response.json({ ok: true }));
+    await providerFetch(
+      fetcher as typeof fetch,
+      "https://provider.example/jobs",
+      {
+        method: "POST",
+        headers: { authorization: "Bearer secret" },
+        body: "payload",
+      },
+    );
+    expect(fetcher).toHaveBeenCalledWith(
+      "https://provider.example/jobs",
+      expect.objectContaining({
+        method: "POST",
+        headers: { authorization: "Bearer secret" },
+        body: "payload",
+        redirect: "error",
+        signal: expect.any(AbortSignal),
+      }),
+    );
+  });
+
+  it("rejects an oversized declared response before reading it", async () => {
+    const response = new Response("not-read", {
+      headers: {
+        "content-length": String(MAX_PROVIDER_JSON_BYTES + 1),
+      },
+    });
+    await expect(safeJson(response)).rejects.toThrow("exceeds the size limit");
+    expect(response.bodyUsed).toBe(false);
+  });
+
+  it("rejects a chunked response that crosses the actual byte limit", async () => {
+    const oversized = new Uint8Array(MAX_PROVIDER_JSON_BYTES + 1);
+    const response = new Response(
+      new ReadableStream({
+        start(controller) {
+          controller.enqueue(oversized);
+          controller.close();
+        },
+      }),
+    );
+    await expect(safeJson(response)).rejects.toThrow("exceeds the size limit");
+  });
+
+  it("accepts JSON objects and rejects arrays or scalar values", async () => {
+    await expect(safeJson(Response.json({ ok: true }))).resolves.toEqual({
+      ok: true,
+    });
+    await expect(safeJson(Response.json([]))).rejects.toThrow(
+      "malformed JSON object",
+    );
+    await expect(safeJson(Response.json("value"))).rejects.toThrow(
+      "malformed JSON object",
+    );
   });
 });

@@ -15,6 +15,23 @@ import {
 } from "@infinite-canvas/model-gateway";
 import type { WorkerResolvedModel } from "./client.js";
 
+const PROVIDER_REQUEST_TIMEOUT_MS = 120_000;
+export const MAX_PROVIDER_JSON_BYTES = 64 * 1024 * 1024;
+
+export function providerFetch(
+  fetcher: typeof fetch,
+  url: string | URL,
+  init: RequestInit,
+  signal?: AbortSignal,
+) {
+  const timeoutSignal = AbortSignal.timeout(PROVIDER_REQUEST_TIMEOUT_MS);
+  return fetcher(url, {
+    ...init,
+    redirect: "error",
+    signal: signal ? AbortSignal.any([signal, timeoutSignal]) : timeoutSignal,
+  });
+}
+
 export function buildSubmitRequest(
   resolved: WorkerResolvedModel,
   capability: ModelCapability,
@@ -199,7 +216,48 @@ export function normalizePayload(
 }
 
 export async function safeJson(response: Response) {
-  const value = await response.json();
+  const declaredLength = Number(response.headers.get("content-length"));
+  if (
+    Number.isFinite(declaredLength) &&
+    declaredLength > MAX_PROVIDER_JSON_BYTES
+  )
+    throw new Error("Provider JSON response exceeds the size limit");
+
+  if (!response.body)
+    throw new Error("Provider returned a malformed JSON object");
+  const reader = response.body.getReader();
+  const decoder = new TextDecoder("utf-8", { fatal: true });
+  let bytesRead = 0;
+  let text = "";
+  try {
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      bytesRead += value.byteLength;
+      if (bytesRead > MAX_PROVIDER_JSON_BYTES) {
+        await reader.cancel();
+        throw new Error("Provider JSON response exceeds the size limit");
+      }
+      text += decoder.decode(value, { stream: true });
+    }
+    text += decoder.decode();
+  } catch (error) {
+    if (
+      error instanceof Error &&
+      error.message === "Provider JSON response exceeds the size limit"
+    )
+      throw error;
+    throw new Error("Provider returned a malformed JSON object");
+  } finally {
+    reader.releaseLock();
+  }
+
+  let value: unknown;
+  try {
+    value = JSON.parse(text) as unknown;
+  } catch {
+    throw new Error("Provider returned a malformed JSON object");
+  }
   if (!value || typeof value !== "object" || Array.isArray(value))
     throw new Error("Provider returned a malformed JSON object");
   return value as Record<string, unknown>;
