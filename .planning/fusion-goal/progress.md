@@ -54,3 +54,4 @@
 - 浏览器 Generation SSE 增加 16MiB 总流、256KiB 单事件和 200 万字符限制，所有终止/异常路径取消并释放 reader；异常流安全回退到权威 polling。
 - 阶段状态同步为 R1–R4 实现已落地、真实环境验收待完成，避免历史 `pending` 状态与当前代码事实漂移。
 - BAS-004 安装闭环：新增一次性强 Token、PostgreSQL advisory transaction 首管理员原子创建、安装状态/提交 API、Compose 强制配置、Web `/install` 双语向导与未安装导航门闩；重复消费 fail-closed。同步修复 migration 024 后注册 INSERT 遗漏 `updated_at` 的真实 PostgreSQL 故障。
+- BAS-002/CAN-008 Local 离线闭环补强：无账号项目 CRUD、LocalForage 刷新恢复、v3/v4 导入及含媒体 ZIP round-trip 获得直接测试；Import manifest 拒绝 traversal、重复 storageKey、单文件/总量超限，并对缺失或 bytes 漂移的包 fail-closed，不再静默制造坏链。
