@@ -89,7 +89,7 @@ jobs:
           format: spdx-json
           output-file: sbom.spdx.json
           upload-artifact: true
-      - uses: aquasecurity/trivy-action@v0.33.1
+      - uses: aquasecurity/trivy-action@v0.36.0
         with:
           scan-type: fs
           scan-ref: .
@@ -140,7 +140,7 @@ jobs:
           curl --fail --retry 10 --retry-delay 2 http://127.0.0.1:3000/health
       - if: always()
         run: docker compose down -v --remove-orphans
-      - uses: aquasecurity/trivy-action@v0.33.1
+      - uses: aquasecurity/trivy-action@v0.36.0
         with:
           image-ref: infinite-canvas-api:ci
           severity: CRITICAL,HIGH
