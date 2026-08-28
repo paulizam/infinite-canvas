@@ -41,6 +41,8 @@ import { AdminService } from "./admin-service.js";
 import { PostgresAdminRepository } from "./postgres-admin-repository.js";
 import { AdminMfaService } from "./admin-mfa-service.js";
 import { PostgresAdminMfaRepository } from "./postgres-admin-mfa-repository.js";
+import { DataGovernanceService } from "./data-governance-service.js";
+import { PostgresDataGovernanceRepository } from "./postgres-data-governance-repository.js";
 import {
   IdentityService,
   ProjectService,
@@ -81,9 +83,10 @@ const workflowPublicApiRepository = new PostgresWorkflowPublicApiRepository(
   databaseUrl,
 );
 const agentRunRepository = new PostgresAgentRunRepository(databaseUrl);
+const blobStore = createBlobStore();
 const assets = new AssetService(
   repository,
-  createBlobStore(),
+  blobStore,
   Number(required("MAX_UPLOAD_BYTES")),
 );
 const drama = new DramaService(
@@ -190,6 +193,11 @@ const app = createApp({
     new PostgresAdminMfaRepository(databaseUrl),
     new SecretCipher(required("MFA_SECRET_KEY"), "MFA_SECRET_KEY"),
     required("MFA_RECOVERY_PEPPER"),
+  ),
+  governance: new DataGovernanceService(
+    new PostgresDataGovernanceRepository(databaseUrl),
+    blobStore,
+    identity,
   ),
   maintenanceToken,
   collaboration,

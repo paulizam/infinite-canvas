@@ -67,6 +67,11 @@ export class IdentityService {
   async logout(token: string | undefined) {
     if (token) await this.repository.deleteSession(tokenHash(token));
   }
+  async verifyPassword(userId: string, password: string) {
+    const user = await this.repository.findUserById(userId);
+    if (!user || !(await verify(user.passwordHash, password)))
+      throw new DomainError("INVALID_CREDENTIALS", 401, "密码验证失败");
+  }
   private async issueSession(userId: string) {
     const token = randomBytes(32).toString("base64url");
     await this.repository.createSession({

@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import { createApp } from "./app.js";
 import { MemoryPlatformRepository } from "./memory-repository.js";
 import { AssetService } from "./asset-service.js";
@@ -11,12 +11,25 @@ import {
   ProjectService,
   WorkspaceService,
 } from "./services.js";
+import type { DataGovernanceService } from "./data-governance-service.js";
 
 let app: ReturnType<typeof createApp>;
 let repository: MemoryPlatformRepository;
+let governance: {
+  exportAccount: ReturnType<typeof vi.fn>;
+  deleteAccount: ReturnType<typeof vi.fn>;
+  mediaGc: ReturnType<typeof vi.fn>;
+  retention: ReturnType<typeof vi.fn>;
+};
 beforeEach(() => {
   repository = new MemoryPlatformRepository();
   const jobRepository = new MemoryGenerationJobRepository();
+  governance = {
+    exportAccount: vi.fn(async () => ({ schemaVersion: 1 })),
+    deleteAccount: vi.fn(async () => ({ deletedAt: new Date().toISOString() })),
+    mediaGc: vi.fn(async () => ({ deleted: 0, failed: 0 })),
+    retention: vi.fn(async () => ({ expiredSessions: 0 })),
+  };
   app = createApp({
     identity: new IdentityService(repository, 60_000),
     workspaces: new WorkspaceService(repository),
@@ -35,6 +48,7 @@ beforeEach(() => {
     workerStaleMs: 120_000,
     modelGateway: new MemoryModelGatewayRepository(),
     maintenanceToken: "test-maintenance-token-32-characters",
+    governance: governance as unknown as DataGovernanceService,
     secureCookies: false,
   });
 });
@@ -56,6 +70,55 @@ async function register(email = "creator@example.com", name = "创作者") {
 }
 
 describe("cloud workspace API", () => {
+  it("protects account export/delete and maintenance governance routes", async () => {
+    expect((await app.request("/api/v1/account/export")).status).toBe(401);
+    const owner = await register();
+    expect(
+      (
+        await app.request("/api/v1/account/export", {
+          headers: { cookie: owner.cookie },
+        })
+      ).status,
+    ).toBe(200);
+    const removed = await app.request("/api/v1/account", {
+      method: "DELETE",
+      headers: { cookie: owner.cookie, "content-type": "application/json" },
+      body: JSON.stringify({ password: "test-password" }),
+    });
+    expect(removed.status).toBe(200);
+    expect(governance.deleteAccount).toHaveBeenCalledWith(
+      owner.body.data.user.id,
+      "test-password",
+      expect.any(String),
+    );
+    expect(
+      (
+        await app.request("/internal/v1/maintenance/media-gc", {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({
+            olderThan: new Date().toISOString(),
+            dryRun: true,
+          }),
+        })
+      ).status,
+    ).toBe(401);
+    expect(
+      (
+        await app.request("/internal/v1/maintenance/media-gc", {
+          method: "POST",
+          headers: {
+            authorization: "Bearer test-maintenance-token-32-characters",
+            "content-type": "application/json",
+          },
+          body: JSON.stringify({
+            olderThan: new Date().toISOString(),
+            dryRun: true,
+          }),
+        })
+      ).status,
+    ).toBe(200);
+  });
   it("protects Prometheus metrics with the maintenance token", async () => {
     await app.request("/health");
     expect((await app.request("/internal/v1/maintenance/metrics")).status).toBe(

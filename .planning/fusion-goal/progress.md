@@ -43,3 +43,4 @@
 - 接续 OPS 阶段：确认 Goal 仍为 active、分支为 `feat/fusion-platform`；部署骨架尚未提交。发现根目录 `FUNCTIONAL_SPEC.md` 并不存在，后续以 `docs/requirements/functional-spec.md` 为权威功能规格。
 - OPS 可观测纵切落地：W3C traceparent、受约束 requestId、规范化 route JSON 日志、unexpected error 脱敏与 Maintenance-only Prometheus metrics；Memory/PostgreSQL Job Repository 提供 queue depth/age、过期租约和 Worker heartbeat 聚合。API typecheck 与 24 files / 65 tests 通过。
 - Compose 静态加固：API Asset volume 预置 node 用户权限；恢复流程改为 migration 成功后再启动 API/Worker；Nginx CSP 保留 Local mode 的显式 HTTP/WS Provider 能力。Compose YAML 已由 Python parser 验证，真实 Docker/PostgreSQL 仍因本机缺失标记 `[unverified]`。
+- OPS-009 数据治理纵切：新增 migration 026、账户递归脱敏导出、密码复核注销与 owner 转交；Retention 只清理过期 Session/终态 Generation progress event，保留不可变审计；Media GC 采用 dry-run、FK 兜底、数据库先删与 Blob outbox 失败重试。API 25 files / 69 tests 通过，真实 PostgreSQL 仍 `[unverified]`。

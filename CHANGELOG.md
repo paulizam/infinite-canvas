@@ -2,6 +2,8 @@
 
 ## Unreleased
 
++ [新增] 新增账户脱敏导出与密码复核注销流程；注销立即撤销 Session/成员资格并匿名化身份，同时保留账务、作品与不可变审计证据。
++ [新增] 新增 Maintenance-only Retention 与 Media GC：支持 dry-run、单批处理、数据库先删、Blob 删除 outbox、失败脱敏记录及自动重试。
 + [新增] Server mode 新增 Web/API/Worker/PostgreSQL 一键 Compose、迁移前置、持久卷、健康检查、备份恢复脚本及生产反向代理安全响应头。
 + [新增] API 增加 W3C trace/requestId 结构化日志与 Maintenance-only Prometheus 指标，覆盖 HTTP 延迟、生成队列深度/年龄、卡死租约及 Worker 心跳。
 + [安全] 管理员已强制 TOTP MFA 与一次性恢复码，Maintenance/Worker Token 支持有期限双 Token 轮换并保持分权。

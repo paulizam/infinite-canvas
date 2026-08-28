@@ -37,6 +37,7 @@ import { createAdminApi } from "./admin-api.js";
 import { ModelDiscoveryService } from "./model-discovery.js";
 import { createModelDiscoveryApi } from "./model-discovery-api.js";
 import { ApiObservability, sanitizedError, writeLog } from "./observability.js";
+import type { DataGovernanceService } from "./data-governance-service.js";
 import {
   IdentityService,
   ProjectService,
@@ -79,6 +80,7 @@ export type AppServices = {
   payments?: PaymentService;
   admin?: AdminService;
   adminMfa?: AdminMfaService;
+  governance?: DataGovernanceService;
   maintenanceToken: string | readonly string[];
   secureCookies: boolean;
   modelDiscovery?: ModelDiscoveryService;
@@ -363,6 +365,24 @@ export function createApp(services: AppServices) {
   app.get("/api/v1/me", (c) =>
     c.json({ data: c.get("user"), requestId: requestId(c) }),
   );
+  if (services.governance) {
+    app.get("/api/v1/account/export", async (c) =>
+      c.json({
+        data: await services.governance!.exportAccount(c.get("user").id),
+        requestId: requestId(c),
+      }),
+    );
+    app.delete("/api/v1/account", async (c) => {
+      const input = accountDeleteSchema.parse(await c.req.json());
+      const result = await services.governance!.deleteAccount(
+        c.get("user").id,
+        input.password,
+        requestId(c),
+      );
+      deleteCookie(c, "ic_session", { path: "/" });
+      return c.json({ data: result, requestId: requestId(c) });
+    });
+  }
   if (services.community) {
     app.get("/api/v1/workspaces/:workspaceId/community/works", async (c) =>
       c.json({
@@ -1609,6 +1629,28 @@ export function createApp(services: AppServices) {
       { "content-type": "text/plain; version=0.0.4; charset=utf-8" },
     );
   });
+  if (services.governance) {
+    app.post("/internal/v1/maintenance/media-gc", async (c) => {
+      const input = mediaGcSchema.parse(await c.req.json());
+      return c.json({
+        data: await services.governance!.mediaGc({
+          ...input,
+          requestId: requestId(c),
+        }),
+        requestId: requestId(c),
+      });
+    });
+    app.post("/internal/v1/maintenance/retention", async (c) => {
+      const input = retentionSchema.parse(await c.req.json());
+      return c.json({
+        data: await services.governance!.retention(
+          input.cutoffAt,
+          requestId(c),
+        ),
+        requestId: requestId(c),
+      });
+    });
+  }
   app.post("/internal/v1/generation/claim", async (c) => {
     const input = workerClaimSchema.parse(await c.req.json());
     const now = new Date();
@@ -2306,6 +2348,13 @@ const canvasOperationSchema = z.discriminatedUnion("type", [
       .strict(),
   }),
 ]);
+const accountDeleteSchema = z.object({ password: z.string().min(1).max(128) });
+const mediaGcSchema = z.object({
+  olderThan: z.iso.datetime(),
+  limit: z.number().int().positive().max(100).default(50),
+  dryRun: z.boolean().default(true),
+});
+const retentionSchema = z.object({ cutoffAt: z.iso.datetime() });
 const mutationSchema = z.object({
   mutationId: z.string().min(1).max(128),
   projectId: z.string().min(1).max(128),
