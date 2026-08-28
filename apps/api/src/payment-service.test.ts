@@ -76,6 +76,14 @@ function repository(): PaymentRepository {
           errorCode: x.errorCode,
         }) satisfies BillingRefund,
     ),
+    retryRefund: vi.fn(async () => ({
+      refund: { ...refund, status: "pending" } satisfies BillingRefund,
+      order: {
+        ...order,
+        status: "refund_pending",
+        providerTransactionId: "txn-1",
+      } satisfies BillingOrder,
+    })),
     reconcile: vi.fn(async () => ({})),
     report: vi.fn(async () => ({
       revenueMinor: 0,
@@ -147,5 +155,54 @@ describe("PaymentService", () => {
       providerRefundId: `test:${refund.id}`,
     });
     expect(repo.completeRefund).toHaveBeenCalledOnce();
+  });
+
+  it("resumes a pending durable refund after a crash before the provider call", async () => {
+    const repo = repository();
+    vi.mocked(repo.createRefund).mockResolvedValue({ refund, replayed: true });
+    const adapter = new HostedPaymentAdapter(
+      "test",
+      "https://pay.example.test/",
+    );
+    const refundSpy = vi.spyOn(adapter, "refund");
+    const service = new PaymentService(repo, adapter, "r".repeat(32));
+
+    const result = await service.refund(order.userId, {
+      orderId: order.id,
+      idempotencyKey: "refund-key-after-crash",
+      reason: "duplicate",
+    });
+
+    expect(refundSpy).toHaveBeenCalledWith(
+      expect.objectContaining({
+        refundId: refund.id,
+        providerTransactionId: "txn-1",
+      }),
+    );
+    expect(result).toMatchObject({
+      refund: { status: "succeeded" },
+      replayed: false,
+    });
+  });
+
+  it("retries a provider-failed refund with the same durable refund id", async () => {
+    const repo = repository();
+    const adapter = new HostedPaymentAdapter(
+      "test",
+      "https://pay.example.test/",
+    );
+    const refundSpy = vi.spyOn(adapter, "refund");
+    const service = new PaymentService(repo, adapter, "r".repeat(32));
+
+    await expect(service.retryRefund(refund.id)).resolves.toMatchObject({
+      refund: { status: "succeeded" },
+    });
+    expect(repo.retryRefund).toHaveBeenCalledWith(
+      refund.id,
+      expect.any(String),
+    );
+    expect(refundSpy).toHaveBeenCalledWith(
+      expect.objectContaining({ refundId: refund.id }),
+    );
   });
 });

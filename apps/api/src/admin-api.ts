@@ -383,6 +383,17 @@ export function createAdminApi(
       );
       return ok(c, value, 201);
     });
+    app.post("/commerce/refunds/:refundId/retry", async (c) => {
+      const refundId = z.uuid().parse(c.req.param("refundId"));
+      const value = await domains.payments!.retryRefund(refundId);
+      await service.record(
+        actor(c),
+        "commerce.refund.retry",
+        "billing_refund",
+        refundId,
+      );
+      return ok(c, value);
+    });
     app.post("/commerce/orders/expire", async (c) =>
       ok(c, { expired: await domains.payments!.expire() }),
     );

@@ -106,10 +106,12 @@
   "BIL-007": {
     "sources": [
       "apps/api/src/payment-service.ts",
-      "apps/api/src/postgres-payment-repository.ts"
+      "apps/api/src/postgres-payment-repository.ts",
+      "apps/api/src/admin-api.ts"
     ],
     "tests": [
       "apps/api/src/payment-service.test.ts",
+      "apps/api/src/admin-domain-api.test.ts",
       "apps/api/src/commerce-api.test.ts"
     ],
     "command": "pnpm --filter @infinite-canvas/api test",

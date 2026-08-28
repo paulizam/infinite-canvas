@@ -8,6 +8,7 @@ import { MemoryCommerceRepository } from "./memory-commerce-repository.js";
 import { ModelDiscoveryService } from "./model-discovery.js";
 import { MemoryModelGatewayRepository } from "./model-gateway-repository.js";
 import { SecretCipher } from "./secret-cipher.js";
+import type { PaymentService } from "./payment-service.js";
 
 function adminRepository(): AdminRepository {
   return {
@@ -152,6 +153,49 @@ describe("admin model and commerce API", () => {
     );
     expect(catalog).not.toContain(created.data.code);
     expect(catalog).not.toMatch(/[a-f0-9]{64}/);
+  });
+
+  it("retries a failed channel refund through an audited admin action", async () => {
+    const audit = adminRepository();
+    const refundId = crypto.randomUUID();
+    const payments = {
+      retryRefund: vi.fn(async () => ({
+        refund: { id: refundId, status: "succeeded" },
+        replayed: false,
+      })),
+    } as unknown as PaymentService;
+    const modelGateway = new MemoryModelGatewayRepository();
+    const app = mounted(
+      createAdminApi(
+        new AdminService(
+          audit,
+          new SecretCipher(Buffer.alloc(32, 7).toString("base64")),
+        ),
+        "maintenance",
+        {
+          payments,
+          modelGateway,
+          modelDiscovery: new ModelDiscoveryService(modelGateway),
+        },
+      ),
+    );
+
+    const response = await app.request(
+      `/admin/commerce/refunds/${refundId}/retry`,
+      { method: "POST" },
+    );
+    expect(response.status).toBe(200);
+    expect(await response.json()).toMatchObject({
+      data: { refund: { id: refundId, status: "succeeded" } },
+    });
+    expect(payments.retryRefund).toHaveBeenCalledWith(refundId);
+    expect(audit.recordAudit).toHaveBeenCalledWith(
+      expect.objectContaining({ requestId: "req-admin-test" }),
+      "commerce.refund.retry",
+      "billing_refund",
+      refundId,
+      undefined,
+    );
   });
 });
 const json = { "content-type": "application/json" };

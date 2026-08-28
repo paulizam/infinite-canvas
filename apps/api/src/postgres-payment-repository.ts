@@ -298,6 +298,57 @@ export class PostgresPaymentRepository implements PaymentRepository {
       c.release();
     }
   }
+  async retryRefund(refundId: string, now: string) {
+    const c = await this.pool.connect();
+    try {
+      await c.query("BEGIN");
+      const q = await c.query(
+        "SELECT r.*,o.provider_transaction_id,o.status order_status,o.product_id,o.provider,o.provider_order_id,o.checkout_url,o.qr_code,o.currency,o.expires_at,o.paid_at,o.fulfilled_at,o.created_at order_created_at,o.updated_at order_updated_at FROM billing_refunds r JOIN billing_orders o ON o.id=r.order_id WHERE r.id=$1 FOR UPDATE OF r,o",
+        [refundId],
+      );
+      const row = q.rows[0];
+      if (!row) throw new DomainError("REFUND_NOT_FOUND", 404, "退款不存在");
+      if (
+        !(["failed", "pending"] as string[]).includes(row.status) ||
+        row.provider_refund_id
+      )
+        throw new DomainError(
+          "REFUND_RETRY_INVALID",
+          409,
+          "退款状态不允许渠道重试",
+        );
+      await c.query(
+        "UPDATE billing_refunds SET status='pending',error_code=NULL,updated_at=$2 WHERE id=$1",
+        [refundId, now],
+      );
+      await c.query(
+        "UPDATE billing_orders SET status='refund_pending',updated_at=$2 WHERE id=$1",
+        [row.order_id, now],
+      );
+      await c.query("COMMIT");
+      return {
+        refund: mapRefund({
+          ...row,
+          status: "pending",
+          error_code: null,
+          updated_at: now,
+        }),
+        order: mapOrder({
+          ...row,
+          id: row.order_id,
+          user_id: row.user_id,
+          status: "refund_pending",
+          created_at: row.order_created_at,
+          updated_at: now,
+        }),
+      };
+    } catch (error) {
+      await c.query("ROLLBACK");
+      throw error;
+    } finally {
+      c.release();
+    }
+  }
   async reconcile(
     provider: string,
     date: string,

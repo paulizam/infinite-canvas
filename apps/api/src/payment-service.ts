@@ -248,7 +248,10 @@ export class PaymentService {
       reason: input.reason,
       now: new Date().toISOString(),
     });
-    if (created.replayed || created.refund.status !== "pending") return created;
+    // The durable refund row is committed before the provider call. A process
+    // crash in between must be recoverable by replaying the same idempotency
+    // key; the provider receives the stable refund id as its idempotency key.
+    if (created.refund.status !== "pending") return created;
     const order = await this.repository.getOrder(
       userId,
       input.orderId,
@@ -256,15 +259,30 @@ export class PaymentService {
     );
     if (!order?.providerTransactionId)
       throw new DomainError("ORDER_NOT_REFUNDABLE", 409, "订单不可退款");
+    return this.executeRefund(created.refund, order);
+  }
+  async retryRefund(refundId: string) {
+    const prepared = await this.repository.retryRefund(
+      refundId,
+      new Date().toISOString(),
+    );
+    if (!prepared.order.providerTransactionId)
+      throw new DomainError("ORDER_NOT_REFUNDABLE", 409, "订单不可退款");
+    return this.executeRefund(prepared.refund, prepared.order);
+  }
+  private async executeRefund(
+    refund: import("./payment-repository.js").BillingRefund,
+    order: import("./payment-repository.js").BillingOrder,
+  ) {
     try {
       const channel = await this.adapter.refund({
-        refundId: created.refund.id,
-        providerTransactionId: order.providerTransactionId,
-        amountMinor: created.refund.amountMinor,
+        refundId: refund.id,
+        providerTransactionId: order.providerTransactionId!,
+        amountMinor: refund.amountMinor,
       });
       return {
         refund: await this.repository.completeRefund({
-          refundId: created.refund.id,
+          refundId: refund.id,
           succeeded: true,
           providerRefundId: channel.providerRefundId,
           errorCode: null,
@@ -275,7 +293,7 @@ export class PaymentService {
     } catch {
       return {
         refund: await this.repository.completeRefund({
-          refundId: created.refund.id,
+          refundId: refund.id,
           succeeded: false,
           providerRefundId: null,
           errorCode: "PROVIDER_REFUND_FAILED",

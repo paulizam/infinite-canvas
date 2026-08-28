@@ -101,6 +101,10 @@ export interface PaymentRepository {
     errorCode: string | null;
     now: string;
   }): Promise<BillingRefund>;
+  retryRefund(
+    refundId: string,
+    now: string,
+  ): Promise<{ refund: BillingRefund; order: BillingOrder }>;
   reconcile(
     provider: string,
     date: string,
