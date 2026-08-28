@@ -76,7 +76,7 @@ describe("data governance service", () => {
       nested: { authorization: "[REDACTED]", count: 2 },
     });
   });
-  it("requires the current password before account anonymization", async () => {
+  it("requires the current password before account anonymization [BAS-009] [OPS-009]", async () => {
     const platform = new MemoryPlatformRepository();
     const identity = new IdentityService(platform, 60_000);
     const registered = await identity.register({

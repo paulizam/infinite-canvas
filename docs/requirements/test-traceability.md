@@ -5,8 +5,8 @@
 ## Summary
 
 - Requirements: 133
-- Direct test references: 94
-- Without direct test reference: 39
+- Direct test references: 133
+- Without direct test reference: 0
 
 ## Direct references
 
@@ -20,11 +20,14 @@
 | BAS-006 | P1 | `apps/api/src/admin-mfa-service.test.ts` |
 | BAS-007 | P1 | `apps/api/src/app.test.ts` |
 | BAS-008 | P1 | `apps/api/src/app.test.ts` |
+| BAS-009 | P2 | `apps/api/src/data-governance-service.test.ts` |
+| BAS-010 | P1 | `web/src/services/cloud-canvas-sync.test.ts` |
 | CAN-001 | P0 | `web/src/stores/canvas/use-canvas-store.test.ts` |
 | CAN-002 | P0 | `web/src/lib/canvas/canvas-interactions.test.ts` |
 | CAN-003 | P0 | `web/src/lib/canvas/canvas-interactions.test.ts` |
 | CAN-004 | P0 | `packages/canvas-core/src/core.test.ts` |
 | CAN-005 | P0 | `packages/canvas-core/src/core.test.ts` |
+| CAN-006 | P0 | `packages/canvas-core/src/core.test.ts` |
 | CAN-007 | P0 | `web/src/lib/canvas/canvas-file-drop.test.ts` |
 | CAN-008 | P0 | `packages/canvas-core/src/core.test.ts`<br>`web/src/lib/canvas/canvas-export.test.ts`<br>`web/src/lib/canvas/canvas-import.test.ts` |
 | CAN-009 | P0 | `web/src/lib/canvas/canvas-media-geometry.test.ts` |
@@ -75,10 +78,12 @@
 | WFL-009 | P2 | `apps/api/src/workflow-api.test.ts` |
 | WFL-010 | P2 | `apps/api/src/workflow-api.test.ts` |
 | AST-001 | P0 | `apps/api/src/app.test.ts` |
+| AST-002 | P0 | `apps/api/src/asset-service.test.ts` |
 | AST-003 | P0 | `apps/api/src/asset-service.test.ts` |
 | AST-004 | P0 | `apps/api/src/app.test.ts` |
 | AST-005 | P0 | `apps/api/src/asset-service.test.ts` |
 | AST-006 | P1 | `apps/api/src/app.test.ts` |
+| AST-007 | P1 | `web/src/services/webdav-sync.test.ts` |
 | AST-008 | P1 | `web/src/services/api/prompts.test.ts` |
 | AST-009 | P1 | `apps/api/src/admin-service.test.ts`<br>`web/src/services/api/prompts.test.ts`<br>`web/src/services/cloud-platform.test.ts`<br>`web/src/services/prompt-handoff.test.ts` |
 | AST-010 | P2 | `apps/api/src/asset-service.test.ts` |
@@ -106,45 +111,41 @@
 | DRM-008 | P2 | `web/src/services/cloud-platform.test.ts` |
 | DRM-009 | P2 | `web/src/services/cloud-platform.test.ts` |
 | DRM-010 | P3 | `web/src/services/cloud-platform.test.ts` |
+| COM-001 | P2 | `apps/api/src/community-api.test.ts` |
+| COM-002 | P2 | `apps/api/src/community-api.test.ts` |
+| COM-003 | P2 | `apps/api/src/community-api.test.ts` |
+| COM-004 | P2 | `apps/api/src/community-api.test.ts` |
+| COM-005 | P2 | `apps/api/src/community-api.test.ts` |
+| COM-006 | P3 | `apps/api/src/community-api.test.ts` |
+| BIL-001 | P1 | `apps/api/src/commerce-api.test.ts` |
+| BIL-002 | P1 | `apps/api/src/generation-job-api.test.ts` |
+| BIL-003 | P2 | `apps/api/src/commerce-api.test.ts` |
+| BIL-004 | P2 | `apps/api/src/commerce-api.test.ts` |
+| BIL-005 | P2 | `apps/api/src/payment-service.test.ts` |
+| BIL-006 | P2 | `apps/api/src/payment-service.test.ts` |
+| BIL-007 | P2 | `apps/api/src/payment-service.test.ts` |
+| BIL-008 | P2 | `apps/api/src/admin-domain-api.test.ts` |
+| ADM-001 | P1 | `apps/api/src/admin-service.test.ts` |
+| ADM-002 | P1 | `apps/api/src/admin-service.test.ts` |
+| ADM-003 | P1 | `apps/api/src/admin-domain-api.test.ts` |
+| ADM-004 | P1 | `apps/api/src/admin-service.test.ts` |
+| ADM-005 | P1 | `apps/api/src/admin-service.test.ts` |
+| ADM-006 | P2 | `apps/api/src/admin-domain-api.test.ts` |
+| ADM-007 | P2 | `apps/api/src/admin-service.test.ts` |
+| ADM-008 | P1 | `apps/api/src/admin-service.test.ts` |
+| ADM-009 | P1 | `apps/api/src/admin-service.test.ts` |
+| ADM-010 | P1 | `apps/api/src/admin-domain-api.test.ts` |
+| OPS-001 | P0 | `apps/api/scripts/business-transfer.test.ts` |
+| OPS-002 | P0 | `apps/api/scripts/business-transfer.test.ts` |
+| OPS-003 | P1 | `apps/api/scripts/business-transfer.test.ts` |
+| OPS-004 | P1 | `apps/api/src/observability.test.ts` |
+| OPS-005 | P1 | `apps/api/src/observability.test.ts` |
+| OPS-006 | P0 | `apps/api/src/app.test.ts` |
+| OPS-007 | P0 | `apps/api/scripts/business-transfer.test.ts` |
+| OPS-008 | P1 | `apps/api/src/app.test.ts` |
+| OPS-009 | P1 | `apps/api/src/data-governance-service.test.ts` |
+| OPS-010 | P1 | `apps/api/scripts/business-transfer.test.ts` |
 
 ## Missing direct references
 
-- BAS-009 (P2)
-- BAS-010 (P1)
-- CAN-006 (P0)
-- AST-002 (P0)
-- AST-007 (P1)
-- COM-001 (P2)
-- COM-002 (P2)
-- COM-003 (P2)
-- COM-004 (P2)
-- COM-005 (P2)
-- COM-006 (P3)
-- BIL-001 (P1)
-- BIL-002 (P1)
-- BIL-003 (P2)
-- BIL-004 (P2)
-- BIL-005 (P2)
-- BIL-006 (P2)
-- BIL-007 (P2)
-- BIL-008 (P2)
-- ADM-001 (P1)
-- ADM-002 (P1)
-- ADM-003 (P1)
-- ADM-004 (P1)
-- ADM-005 (P1)
-- ADM-006 (P2)
-- ADM-007 (P2)
-- ADM-008 (P1)
-- ADM-009 (P1)
-- ADM-010 (P1)
-- OPS-001 (P0)
-- OPS-002 (P0)
-- OPS-003 (P1)
-- OPS-004 (P1)
-- OPS-005 (P1)
-- OPS-006 (P0)
-- OPS-007 (P0)
-- OPS-008 (P1)
-- OPS-009 (P1)
-- OPS-010 (P1)
+- None.

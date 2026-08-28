@@ -47,7 +47,7 @@ describe("WebDAV sync contract", () => {
         }
     });
 
-    it("creates media subdirectories and uploads the original content type", async () => {
+    it("creates media subdirectories and uploads the original content type [AST-007]", async () => {
         const fetcher = vi.fn(async (_url: string, _init?: RequestInit) => new Response(null, { status: 201 }));
         vi.stubGlobal("fetch", fetcher);
         const file = new Blob([new Uint8Array([1, 2, 3])], { type: "video/mp4" });

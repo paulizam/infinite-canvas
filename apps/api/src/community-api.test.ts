@@ -84,7 +84,7 @@ const moderate = (id: string, decision: string, reason = "") =>
     body: JSON.stringify({ decision, reason }),
   });
 describe("Community API", () => {
-  it("freezes published snapshots and governs public interactions with an audit trail", async () => {
+  it("freezes published snapshots and governs public interactions with an audit trail [COM-001] [COM-002] [COM-003] [COM-004] [COM-005] [COM-006]", async () => {
     const author = await register("author@example.com", "作者"),
       reader = await register("reader@example.com", "读者");
     let r = await app.request(

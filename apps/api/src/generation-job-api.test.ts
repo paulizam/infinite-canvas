@@ -45,7 +45,7 @@ async function register(email: string) {
 }
 
 describe("generation job API", () => {
-  it("[GEN-013][GEN-016] estimates, reserves and idempotently refunds integer points", async () => {
+  it("[GEN-013][GEN-016][BIL-002] estimates, reserves and idempotently refunds integer points", async () => {
     const owner = await register("billing-owner@example.com");
     const maintenanceHeaders = {
       authorization: "Bearer test-maintenance-token-32-characters",

@@ -38,7 +38,7 @@ function adminRepository(): AdminRepository {
   };
 }
 describe("admin model and commerce API", () => {
-  it("runs the model setup chain without exposing credentials", async () => {
+  it("runs the model setup chain without exposing credentials [ADM-003] [ADM-010]", async () => {
     const gateway = new MemoryModelGatewayRepository(),
       discovery = new ModelDiscoveryService(
         gateway,
@@ -111,7 +111,7 @@ describe("admin model and commerce API", () => {
     expect(audit.recordAudit).toHaveBeenCalled();
   });
 
-  it("creates a one-time CDK while keeping catalog responses plaintext-free", async () => {
+  it("creates a one-time CDK while keeping catalog responses plaintext-free [ADM-006] [BIL-008]", async () => {
     const commerce = new CommerceService(
         new MemoryCommerceRepository(),
         "d".repeat(32),

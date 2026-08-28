@@ -95,7 +95,7 @@ function repository(): PaymentRepository {
 }
 
 describe("PaymentService", () => {
-  it("creates an idempotent hosted checkout without open redirects", async () => {
+  it("creates an idempotent hosted checkout without open redirects [BIL-005]", async () => {
     const repo = repository(),
       adapter = new HostedPaymentAdapter("test", "https://pay.example.test/"),
       service = new PaymentService(repo, adapter, "w".repeat(32));
@@ -112,7 +112,7 @@ describe("PaymentService", () => {
     );
   });
 
-  it("verifies raw webhook signatures and rejects replay-window drift", async () => {
+  it("verifies raw webhook signatures and rejects replay-window drift [BIL-006]", async () => {
     const repo = repository(),
       adapter = new HostedPaymentAdapter("test", "https://pay.example.test/"),
       secret = "s".repeat(32),
@@ -141,7 +141,7 @@ describe("PaymentService", () => {
     });
   });
 
-  it("uses the durable refund id as provider idempotency key", async () => {
+  it("uses the durable refund id as provider idempotency key [BIL-007]", async () => {
     const repo = repository(),
       adapter = new HostedPaymentAdapter("test", "https://pay.example.test/"),
       service = new PaymentService(repo, adapter, "r".repeat(32));

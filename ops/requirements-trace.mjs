@@ -28,7 +28,7 @@ if (unknown.size)
 
 const direct = requirements.filter((item) => traces.get(item.id).length);
 const missing = requirements.filter((item) => !traces.get(item.id).length);
-const content = `# Requirement Test Traceability\n\n> 由 \`node ops/requirements-trace.mjs\` 生成。这里只统计测试源码中的显式 Requirement ID；直接引用表示该测试声明覆盖该需求，不代表真实外部环境验收已 PASS。\n\n## Summary\n\n- Requirements: ${requirements.length}\n- Direct test references: ${direct.length}\n- Without direct test reference: ${missing.length}\n\n## Direct references\n\n| ID | P | Tests |\n|---|---:|---|\n${direct.map((item) => `| ${item.id} | ${item.priority} | ${[...new Set(traces.get(item.id))].map((path) => `\`${path}\``).join("<br>")} |`).join("\n")}\n\n## Missing direct references\n\n${missing.map((item) => `- ${item.id} (${item.priority})`).join("\n")}\n`;
+const content = `# Requirement Test Traceability\n\n> 由 \`node ops/requirements-trace.mjs\` 生成。这里只统计测试源码中的显式 Requirement ID；直接引用表示该测试声明覆盖该需求，不代表真实外部环境验收已 PASS。\n\n## Summary\n\n- Requirements: ${requirements.length}\n- Direct test references: ${direct.length}\n- Without direct test reference: ${missing.length}\n\n## Direct references\n\n| ID | P | Tests |\n|---|---:|---|\n${direct.map((item) => `| ${item.id} | ${item.priority} | ${[...new Set(traces.get(item.id))].map((path) => `\`${path}\``).join("<br>")} |`).join("\n")}\n\n## Missing direct references\n\n${missing.length ? missing.map((item) => `- ${item.id} (${item.priority})`).join("\n") : "- None."}\n`;
 
 if (process.argv.includes("--check")) {
   if (!existsSync(outputPath) || readFileSync(outputPath, "utf8") !== content)

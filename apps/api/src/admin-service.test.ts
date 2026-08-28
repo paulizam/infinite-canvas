@@ -38,7 +38,7 @@ function repository() {
   return repo;
 }
 describe("AdminService", () => {
-  it("validates typed settings and never passes secret plaintext to persistence", async () => {
+  it("validates typed settings and never passes secret plaintext to persistence [ADM-009]", async () => {
     const repo = repository(),
       service = new AdminService(
         repo,
@@ -71,7 +71,7 @@ describe("AdminService", () => {
       ),
     ).toThrow("配置项或配置值无效");
   });
-  it("bounds list sizes and rejects empty user mutations", async () => {
+  it("bounds list sizes and rejects empty user mutations [ADM-001] [ADM-002] [ADM-005] [ADM-008]", async () => {
     const repo = repository(),
       service = new AdminService(
         repo,
@@ -83,7 +83,7 @@ describe("AdminService", () => {
       "用户变更为空",
     );
   });
-  it("[GEN-014] exposes explicit requeue, cancel, and needs-review actions", async () => {
+  it("[GEN-014][ADM-004] exposes explicit requeue, cancel, and needs-review actions", async () => {
     const repo = repository();
     const service = new AdminService(repo, new SecretCipher(Buffer.alloc(32, 6).toString("base64")));
     await service.transitionJob("job-1", "requeue", actor);
@@ -93,7 +93,7 @@ describe("AdminService", () => {
     expect(repo.transitionJob).toHaveBeenNthCalledWith(2, "job-2", "cancel", actor);
     expect(repo.transitionJob).toHaveBeenNthCalledWith(3, "job-3", "review", actor);
   });
-  it("[AST-009] exposes only repository-filtered published prompt catalog entries", async () => {
+  it("[AST-009][ADM-007] exposes only repository-filtered published prompt catalog entries", async () => {
     const repo = repository();
     const service = new AdminService(repo, new SecretCipher(Buffer.alloc(32, 9).toString("base64")));
     await service.publishedPrompts(" portrait ", " featured ", "2026-01-01T00:00:00.000Z");

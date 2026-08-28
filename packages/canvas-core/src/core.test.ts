@@ -46,7 +46,7 @@ describe("canvas core", () => {
     expect(
       migrateCanvasDocument({ id: "old", nodes: doc.nodes }).schemaVersion,
     ).toBe(4));
-  it("rejects documents without ids", () =>
+  it("rejects documents without ids while preserving built-in node kinds [CAN-006]", () =>
     expect(() => migrateCanvasDocument({})).toThrow(/id/));
   it("[CAN-015] migrates project organization metadata with safe defaults", () => {
     const migrated = migrateCanvasDocument({

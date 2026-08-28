@@ -3,7 +3,7 @@ import { Hono } from "hono";
 import { ApiObservability, sanitizedError } from "./observability.js";
 
 describe("API observability", () => {
-  it("[GEN-014] exposes stuck generation and lost-worker heartbeat metrics", async () => {
+  it("[GEN-014][OPS-004] exposes stuck generation and lost-worker heartbeat metrics", async () => {
     const telemetry = new ApiObservability();
     const app = new Hono<{
       Variables: { requestId: string; traceId: string };
@@ -32,7 +32,7 @@ describe("API observability", () => {
     expect(metrics).toContain("generation_stuck_jobs 3");
   });
 
-  it("redacts common credential forms from unexpected errors", () => {
+  it("redacts common credential forms from unexpected errors [OPS-005]", () => {
     expect(
       sanitizedError(
         new Error("authorization: Bearer-token password=hunter2 token abc"),

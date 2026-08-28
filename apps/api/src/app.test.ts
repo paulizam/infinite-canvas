@@ -124,7 +124,7 @@ describe("cloud workspace API", () => {
     });
     expect(replay.status).toBe(409);
   });
-  it("protects account export/delete and maintenance governance routes", async () => {
+  it("protects account export/delete and maintenance governance routes [OPS-006]", async () => {
     expect((await app.request("/api/v1/account/export")).status).toBe(401);
     const owner = await register();
     expect(
@@ -190,7 +190,7 @@ describe("cloud workspace API", () => {
     expect(body).toContain("generation_queue_depth");
     expect(body).toContain("worker_last_heartbeat_age_seconds");
   });
-  it("accepts the bounded previous worker token during rotation", async () => {
+  it("accepts the bounded previous worker token during rotation [OPS-008]", async () => {
     const response = await app.request("/internal/v1/generation/claim", {
       method: "POST",
       headers: {

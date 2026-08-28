@@ -77,7 +77,7 @@ describe("CloudCanvasSyncEngine", () => {
         expect(client.mutateProject).toHaveBeenCalledWith("p1", expect.objectContaining({ baseRevision: 2, operations: expect.arrayContaining([expect.objectContaining({ type: "document.patch", patch: { title: "Changed" } })]) }));
     });
 
-    it("creates new cloud projects with the stable local id and snapshot", async () => {
+    it("creates new cloud projects with the stable local id and snapshot without mutating the local source [BAS-010]", async () => {
         const client = fakeClient();
         const engine = new CloudCanvasSyncEngine(client, vi.fn(), 0, new MemoryQueue());
         await engine.start("w1");

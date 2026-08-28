@@ -64,7 +64,7 @@ describe("AssetService storage provider routing", () => {
     });
   });
 
-  it("reads and deletes historical assets from their immutable provider after a switch", async () => {
+  it("reads and deletes historical assets from their immutable provider after a switch [AST-002]", async () => {
     const local = new MemoryAssetBlobStore();
     const s3 = new MemoryAssetBlobStore();
     local.values.set(historical.storageKey, Buffer.from("old"));

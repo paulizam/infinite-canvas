@@ -70,7 +70,7 @@ const adminHeaders = {
   "content-type": "application/json",
 };
 describe("Commerce API", () => {
-  it("credits CDK and referral rewards exactly once without storing plaintext codes", async () => {
+  it("credits wallet, catalog, CDK and referral rewards exactly once without plaintext codes [BIL-001] [BIL-003] [BIL-004]", async () => {
     const alice = await register("alice@example.com"),
       bob = await register("bob@example.com");
     let r = await app.request("/internal/v1/maintenance/billing/products", {
