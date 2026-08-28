@@ -85,6 +85,8 @@ export type CanvasNodeMetadata = {
     durationMs?: number;
     groupId?: string;
     interactive?: boolean; // Plugin node interaction/move state; see CanvasNodeDefinition.interactionToggle.
+    __pluginState?: { pluginId: string; nodeType: string; schemaVersion: number; data: unknown };
+    pluginCodecError?: string;
 };
 
 export type CanvasNodeData = {

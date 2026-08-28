@@ -7,7 +7,8 @@ import { requestVideoGeneration, storeGeneratedVideo } from "@/services/api/vide
 import { decodeChannelModel, selectableModelsByCapability, type AiConfig, type ModelCapability } from "@/stores/use-config-store";
 import { buildGenerationConfig } from "@/lib/canvas/canvas-generation-helpers";
 import { buildNodeContext } from "@/lib/canvas/plugin-node-context";
-import { getNodeDefinition, getNodePluginId } from "@/lib/canvas/node-registry";
+import { getNodeDefinition, getNodeInspector, getNodePluginId } from "@/lib/canvas/node-registry";
+import { deserializePluginNode } from "@/lib/canvas/plugin-node-codec";
 import { PluginErrorBoundary } from "@/components/canvas/plugin-error-boundary";
 import { usePluginStore } from "@/stores/canvas/use-plugin-store";
 import { ensurePluginsLoaded } from "@/lib/canvas/plugin-loader";
@@ -134,7 +135,7 @@ export function usePluginHost(params: PluginHostParams) {
 
     const renderPluginPanel = useCallback(
         (panelNode: CanvasNodeData) => {
-            const Panel = getNodeDefinition(panelNode.type)?.Panel;
+            const Panel = getNodeInspector(panelNode.type);
             if (!Panel) return null;
             const ctx = buildNodeContext(pluginHost, panelNode, theme, viewportRef.current.k);
             return <PluginErrorBoundary pluginId={getNodePluginId(panelNode.type)} surface="panel" resetKey={`${panelNode.id}:${panelNode.type}`}><Panel ctx={ctx} onClose={() => setDialogNodeId(null)} /></PluginErrorBoundary>;
@@ -173,8 +174,10 @@ export function usePluginHost(params: PluginHostParams) {
 
     // Load installed remote plugins on startup.
     useEffect(() => {
-        void ensurePluginsLoaded();
-    }, []);
+        void ensurePluginsLoaded().then(() => {
+            if (!readOnly) setNodes((current) => current.map(deserializePluginNode));
+        });
+    }, [readOnly, setNodes]);
 
     return { pluginHost, renderPluginPanel, buildNodeToolbarItems };
 }

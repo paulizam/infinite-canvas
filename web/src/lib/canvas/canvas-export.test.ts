@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
 vi.mock("file-saver", () => ({ saveAs: vi.fn() }));
 vi.mock("@/i18n", () => ({ default: { t: () => "Canvas" } }));
@@ -9,6 +9,9 @@ import { createCanvasProjectsArchive } from "./canvas-export";
 import { parseCanvasExportFile, validateCanvasImportAssets } from "./canvas-import";
 import { readZip } from "@/lib/zip";
 import type { CanvasProject } from "@/stores/canvas/use-canvas-store";
+import { registerNodeDefinitions, unregisterPluginNodes } from "@/lib/canvas/node-registry";
+
+afterEach(() => unregisterPluginNodes("archive-plugin"));
 
 describe("[BAS-002][CAN-008] Local canvas archive", () => {
     it("round-trips project metadata and embedded assets", async () => {
@@ -46,5 +49,14 @@ describe("[BAS-002][CAN-008] Local canvas archive", () => {
         });
         expect(() => validateCanvasImportAssets(manifest, new Map())).toThrow(/missing/);
         expect(() => validateCanvasImportAssets(manifest, new Map([["projects/p/files/a.png", new Blob(["no"])]]))).toThrow(/size mismatch/);
+    });
+
+    it("writes the installed plugin serialization envelope into the archive [PLG-001]", async () => {
+        registerNodeDefinitions([{ type: "archive-plugin:card", title: "Card", icon: null, defaultSize: { width: 10, height: 10 }, serialization: { schemaVersion: 3, serialize: (node) => ({ text: node.metadata?.content }), deserialize: (data) => ({ content: (data as { text: string }).text }) } }], "archive-plugin");
+        const now = "2026-01-01T00:00:00.000Z";
+        const project = { id: "plugin-project", schemaVersion: 4, revision: 0, title: "Plugin", createdAt: now, updatedAt: now, nodes: [{ id: "n1", type: "archive-plugin:card", title: "Card", position: { x: 0, y: 0 }, width: 10, height: 10, metadata: { content: "portable" } }], connections: [], chatSessions: [], activeChatId: null, backgroundMode: "lines", showImageInfo: false, viewport: { x: 0, y: 0, k: 1 } } as CanvasProject;
+        const entries = await readZip(await createCanvasProjectsArchive([project]));
+        const manifest = parseCanvasExportFile(JSON.parse(await entries.get("projects.json")!.text()));
+        expect(manifest.projects[0]?.project.nodes[0]?.metadata?.__pluginState).toEqual({ pluginId: "archive-plugin", nodeType: "archive-plugin:card", schemaVersion: 3, data: { text: "portable" } });
     });
 });

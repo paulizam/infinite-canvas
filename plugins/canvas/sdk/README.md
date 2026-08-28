@@ -11,6 +11,7 @@ Infinite Canvas 画布节点插件的 **TypeScript SDK**。插件作者只写节
 | automatic JSX | `jsxImportSource` 指向本包,TSX 自动转发到宿主 React,**不打包第二份 React** |
 | 类型化 hooks | `import { useState, useEffect, useMemo, useRef, ... }`,运行时转发宿主 React |
 | `buildPlugin(...)` | 统一 esbuild 构建,插件 `build.mjs` 只需一行 |
+| 版本化节点状态 | `serialization` 提供 JSON serialize/deserialize/migrate；`Inspector` 提供属性检查器 |
 
 ## 最小插件
 
@@ -51,6 +52,24 @@ await buildPlugin(import.meta.url);
 ```
 
 `npm run build` 产出 `dist/<目录名>.js` 并同步到 `web/public/plugins/`。
+
+## Inspector 与版本化状态
+
+节点可声明 `Inspector`（优先于兼容字段 `Panel`），并用 `serialization` 为导出数据建立稳定 schema：
+
+```ts
+{
+    Inspector,
+    serialization: {
+        schemaVersion: 2,
+        serialize: (node) => ({ text: node.metadata?.content }),
+        deserialize: (data) => ({ content: (data as { text: string }).text }),
+        migrate: (data, from, to) => from === 1 && to === 2 ? { text: (data as { value: string }).value } : data,
+    },
+}
+```
+
+宿主将状态写入项目内的 `__pluginState` JSON envelope，单节点限额 1MiB。未安装插件的 envelope 原样保留；插件重新安装后才执行 migration。高于当前 SDK 支持版本的数据不会降级覆盖，并在 `pluginCodecError` 中留下兼容诊断。
 
 ## 依赖接入
 

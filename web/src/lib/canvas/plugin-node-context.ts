@@ -3,9 +3,11 @@ import { getNodePluginId } from "@/lib/canvas/node-registry";
 import type { CanvasTheme } from "@/lib/canvas-theme";
 import type { CanvasNodeData } from "@/types/canvas";
 import type { CanvasNodeContext, CanvasPluginHost } from "@/types/canvas-plugin";
+import { deserializePluginNode } from "@/lib/canvas/plugin-node-codec";
 
 // Assemble host capabilities, node data, theme, and scale into the context injected into plugin nodes.
 export function buildNodeContext(host: CanvasPluginHost, node: CanvasNodeData, theme: CanvasTheme, scale: number, isSelected = false): CanvasNodeContext {
+    node = deserializePluginNode(node);
     const storage = createPluginStorage(getNodePluginId(node.type));
     return {
         node,

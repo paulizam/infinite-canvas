@@ -8,6 +8,7 @@ import type { CanvasExportAsset, CanvasExportFile } from "@/types/canvas-export"
 import type { CanvasProject } from "@/stores/canvas/use-canvas-store";
 import { CANVAS_SCHEMA_VERSION } from "@infinite-canvas/contracts";
 import { CanvasNodeType, type CanvasNodeData } from "@/types/canvas";
+import { serializePluginNode } from "@/lib/canvas/plugin-node-codec";
 
 export async function exportCanvasProjects(projects: CanvasProject[], fileName = i18n.t("canvas.export.defaultProjectName")) {
     const zip = await createCanvasProjectsArchive(projects);
@@ -18,9 +19,10 @@ export async function createCanvasProjectsArchive(projects: CanvasProject[]) {
     const zipFiles: { name: string; data: BlobPart }[] = [];
     const exportedProjects = await Promise.all(
         projects.map(async (project) => {
+            const exportedProject = { ...project, nodes: project.nodes.map(serializePluginNode) };
             const files: CanvasExportAsset[] = [];
             await Promise.all(
-                collectStorageKeys(project).map(async (storageKey) => {
+                collectStorageKeys(exportedProject).map(async (storageKey) => {
                     const blob = storageKey.startsWith("image:") ? await getImageBlob(storageKey) : await getMediaBlob(storageKey);
                     if (!blob) return;
                     const path = `projects/${project.id}/files/${safeFileName(storageKey)}.${fileExtension(blob.type, storageKey)}`;
@@ -28,7 +30,7 @@ export async function createCanvasProjectsArchive(projects: CanvasProject[]) {
                     zipFiles.push({ name: path, data: blob });
                 }),
             );
-            return { project, files };
+            return { project: exportedProject, files };
         }),
     );
 

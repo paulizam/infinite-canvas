@@ -35,6 +35,11 @@ export function getNodeDefinition(type: string) {
     return definitions.get(type);
 }
 
+export function getNodeInspector(type: string) {
+    const definition = definitions.get(type);
+    return definition?.Inspector || definition?.Panel;
+}
+
 export function getNodePluginId(type: string) {
     return ownerByType.get(type) || "builtin";
 }

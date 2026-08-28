@@ -292,6 +292,14 @@ export type CanvasNodeDefinition = {
     // 渲染
     Content?: ComponentType<CanvasNodeContentProps>;
     Panel?: ComponentType<CanvasNodePanelProps>; // 节点下方面板(自定义)
+    Inspector?: ComponentType<CanvasNodePanelProps>; // Inspector 语义别名;优先于 Panel
+    // Versioned JSON serialization used by project export/import and plugin upgrades.
+    serialization?: {
+        schemaVersion: number;
+        serialize: (node: CanvasNodeData) => unknown;
+        deserialize: (data: unknown, node: CanvasNodeData) => CanvasNodeMetadata;
+        migrate?: (data: unknown, fromVersion: number, toVersion: number) => unknown;
+    };
     toolbar?: (ctx: CanvasNodeContext) => CanvasNodeToolbarItem[];
     onDoubleClick?: (ctx: CanvasNodeContext) => boolean; // 返回 true 表示已处理
 };

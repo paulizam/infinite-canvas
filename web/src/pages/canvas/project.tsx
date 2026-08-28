@@ -65,7 +65,7 @@ import {
     resolveMetadataReferences,
     sourceNodeReferenceImages,
 } from "@/lib/canvas/canvas-generation-helpers";
-import { getNodeDefinition, isBuiltinNodeType as isBuiltinType, useNodeRegistryVersion } from "@/lib/canvas/node-registry";
+import { getNodeDefinition, getNodeInspector, isBuiltinNodeType as isBuiltinType, useNodeRegistryVersion } from "@/lib/canvas/node-registry";
 import { registerBuiltinNodes } from "@/components/canvas/nodes/builtin-nodes";
 import { CanvasPluginManagerModal } from "@/components/canvas/canvas-plugin-manager-modal";
 import { CanvasRefreshShell } from "@/components/canvas/canvas-refresh-shell";
@@ -768,8 +768,8 @@ function InfiniteCanvasPage() {
             // Built-in image, video, and config nodes retain their existing open-on-create behavior.
             const wantsPanel = definition?.hidePanel
                 ? false
-                : definition?.Panel
-                  ? Boolean(definition.autoOpenPanel)
+                : getNodeInspector(type)
+                  ? Boolean(definition?.autoOpenPanel)
                   : definition?.useBuiltinPanel
                     ? true
                     : isBuiltinType(type) && type !== CanvasNodeType.Text && type !== CanvasNodeType.Audio && type !== CanvasNodeType.Group;
@@ -2915,7 +2915,7 @@ function InfiniteCanvasPage() {
 
     const renderNodePanel = useCallback(
         (panelNode: CanvasNodeData) =>
-            getNodeDefinition(panelNode.type)?.Panel ? (
+            getNodeInspector(panelNode.type) ? (
                 renderPluginPanel(panelNode)
             ) : panelNode.type === CanvasNodeType.Config ? (
                 <CanvasConfigComposer

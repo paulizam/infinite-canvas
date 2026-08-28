@@ -121,6 +121,13 @@ export type CanvasNodeDefinition = {
     // Built-ins use canvas-node's internal renderer and may omit Content.
     Content?: ComponentType<{ ctx: CanvasNodeContext }>;
     Panel?: ComponentType<{ ctx: CanvasNodeContext; onClose: () => void }>;
+    Inspector?: ComponentType<{ ctx: CanvasNodeContext; onClose: () => void }>;
+    serialization?: {
+        schemaVersion: number;
+        serialize: (node: CanvasNodeData) => unknown;
+        deserialize: (data: unknown, node: CanvasNodeData) => CanvasNodeMetadata;
+        migrate?: (data: unknown, fromVersion: number, toVersion: number) => unknown;
+    };
     toolbar?: (ctx: CanvasNodeContext) => CanvasNodeToolbarItem[];
     onDoubleClick?: (ctx: CanvasNodeContext) => boolean; // Return true when handled.
 };
