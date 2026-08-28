@@ -62,9 +62,6 @@ Packages reported as `Unknown` are permitted only when explicitly documented in 
 - `streamdown@2.6.0`
 - `typescript@5.9.3,6.0.3`
 
-## Apache-2.0 AND LGPL-3.0-or-later
-
-
 ## BlueOak-1.0.0
 
 - `isexe@3.1.5`

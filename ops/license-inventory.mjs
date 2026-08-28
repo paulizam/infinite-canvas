@@ -81,6 +81,8 @@ if (!inventory.MIT?.some((entry) => entry.name === "@napi-rs/lzma-<platform>"))
     ...(inventory.MIT || []),
     { name: "@napi-rs/lzma-<platform>", versions: [lzmaVersion] },
   ];
+for (const [license, packages] of Object.entries(inventory))
+  if (packages.length === 0) delete inventory[license];
 const unknown = (inventory.Unknown || []).map((x) => x.name);
 const unapprovedUnknown = unknown.filter(
   (name) => !policy.allowedUnknown[name],
