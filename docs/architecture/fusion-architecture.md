@@ -421,6 +421,8 @@ Drama 可将来源、实体参考、镜头选择、时间轴或成片 Asset 投�
 
 剧本 AI 分析不接受客户端伪造的 analysis 作为任务完成证据：Drama 创建 capability=`text` 的统一 Generation Job，并在 immutable input 中固化 project、script version 与 source hash。成功结果只有通过严格 JSON schema、Workspace ACL、来源 hash 和当前 revision 校验后，才能由 editor 人工应用为新的不可变 Script Version；原版本永不覆盖。分析任务在 Drama 范围内按 Workspace 对成员可见，普通 Generation API 仍保持 owner 隔离。
 
+Drama Studio 的所有可见文案集中在 `web/src/i18n/locales/drama.ts`，中文与英文词典 key 强制对称；页面不得保留中文 string literal。语言切换沿用全局 i18next subscription，无需重新加载项目或重建生产状态。
+
 ## R3 Community COM-001～005（2026-08-28）
 
 作品社区采用独立 Publication aggregate：草稿关联同 Workspace Canvas，提交时冻结完整 document snapshot，审核通过复制为不可变发布版本。公开 Feed/Search/Tag/Cursor、详情、分享链接与作者页无需 Session；草稿、点赞、关注、举报要求登录。审核、驳回、下架、恢复由 Maintenance 边界执行并记录 requestId 幂等 audit trail；互动使用唯一约束保证计数一致。

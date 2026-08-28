@@ -1,3 +1,5 @@
+import { zhDrama } from "./drama";
+
 export default {
     meta: {
         title: "无限画布",
@@ -5,6 +7,7 @@ export default {
     },
     theme: { toggle: "切换主题" },
     account: { title: "账户与工作空间", description: "保持纯本地创作，或连接 Server 工作空间。", localTitle: "当前为 Local Mode", localDescription: "项目与凭据保留在当前浏览器；需要云身份和协作时再显式启用 Server Mode。", login: "登录", register: "注册", logout: "退出登录", email: "邮箱", password: "密码", name: "显示名称", workspace: "当前工作空间", loginSuccess: "登录成功", registerSuccess: "账户创建成功", syncConflict: "云端版本冲突", syncError: "云同步失败", sync: { loading: "正在读取云画布…", ready: "云工作空间已就绪", syncing: "正在保存到云端…", synced: "已保存到云端", conflict: "本地内容已保留，请重新载入工作空间后处理冲突。", error: "云端保存需要处理。" } },
+    drama: zhDrama,
     common: {
         cancel: "取消",
         save: "保存",
