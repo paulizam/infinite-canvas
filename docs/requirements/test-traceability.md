@@ -13,7 +13,7 @@
 | ID | P | Tests |
 |---|---:|---|
 | BAS-003 | P0 | `apps/api/src/app.test.ts` |
-| BAS-004 | P0 | `apps/api/src/app.test.ts` |
+| BAS-004 | P0 | `apps/api/src/app.test.ts`<br>`web/src/services/cloud-platform.test.ts`<br>`web/src/services/installation-route.test.ts` |
 | BAS-005 | P1 | `apps/api/src/app.test.ts` |
 | BAS-006 | P1 | `apps/api/src/admin-mfa-service.test.ts` |
 | BAS-007 | P1 | `apps/api/src/app.test.ts` |

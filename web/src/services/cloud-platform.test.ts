@@ -3,6 +3,15 @@ import { describe, expect, it, vi } from "vitest";
 import { CloudApiError, CloudPlatformClient } from "./cloud-platform";
 
 describe("CloudPlatformClient", () => {
+    it("[BAS-004] submits the installation token only in the bootstrap body", async () => {
+        const fetcher = vi.fn(async () => Response.json({ data: { installed: false }, requestId: "install" }));
+        const client = new CloudPlatformClient("", fetcher);
+        await client.installationStatus();
+        const input = { token: "one-time-secret", email: "admin@example.com", password: "password", name: "Admin" };
+        await client.install(input);
+        expect(fetcher).toHaveBeenNthCalledWith(1, "/api/v1/install/status", expect.any(Object));
+        expect(fetcher).toHaveBeenNthCalledWith(2, "/api/v1/install", expect.objectContaining({ method: "POST", body: JSON.stringify(input) }));
+    });
     it("uses cookie credentials and encodes workspace ids", async () => {
         const fetcher = vi.fn(async () => Response.json({ data: [], requestId: "r1" }));
         const client = new CloudPlatformClient("https://api.example", fetcher);

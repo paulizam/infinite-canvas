@@ -1,4 +1,4 @@
-import { createBrowserRouter, Outlet } from "react-router-dom";
+import { createBrowserRouter, Outlet, redirect } from "react-router-dom";
 import { lazy, Suspense } from "react";
 
 import { AnalyticsTracker } from "@/components/layout/analytics-tracker";
@@ -12,12 +12,19 @@ import ConfigPage from "@/pages/config";
 import HomePage from "@/pages/home";
 import ImagePage from "@/pages/image";
 import NotFound from "@/pages/not-found";
+import InstallPage from "@/pages/install";
 import PromptsPage from "@/pages/prompts";
 import VideoPage from "@/pages/video";
+import { cloudModeEnabled, cloudPlatform } from "@/services/cloud-platform";
+import { installationRedirect } from "@/services/installation-route";
 const AdminPage = lazy(() => import("@/pages/admin"));
 
 export const router = createBrowserRouter([
     {
+        loader: async ({ request }) => {
+            const target = await installationRedirect(new URL(request.url).pathname, cloudModeEnabled, cloudPlatform);
+            return target ? redirect(target) : null;
+        },
         element: (
             <UserLayout>
                 <AnalyticsTracker />
@@ -44,6 +51,14 @@ export const router = createBrowserRouter([
                 ),
             },
         ],
+    },
+    {
+        path: "/install",
+        loader: async ({ request }) => {
+            const target = await installationRedirect(new URL(request.url).pathname, cloudModeEnabled, cloudPlatform);
+            return target ? redirect(target) : null;
+        },
+        element: <InstallPage />,
     },
     { path: "*", element: <NotFound /> },
 ]);
