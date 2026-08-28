@@ -55,16 +55,18 @@ async function ensureWebdavSubdirectory(config: WebdavSyncConfig, path: string) 
 
 async function ensureWebdavDirectoryPath(config: WebdavSyncConfig, directory: string) {
     const parts = normalizePath(directory).split("/").filter(Boolean);
-    const cacheKey = `${config.url}:${parts.join("/")}`;
-    if (ensuredDirectories.has(cacheKey)) return;
     let path = "";
     for (const part of parts) {
         path = path ? `${path}/${part}` : part;
+        const cacheKey = `${config.url}:${path}`;
+        if (ensuredDirectories.has(cacheKey)) continue;
         const response = await webdavFetch({ ...config, directory: "" }, path, { method: "MKCOL" });
-        if (response.ok || ((response.status === 405 || response.status === 423) && (await webdavDirectoryExists(config, path)))) continue;
+        if (response.ok || ((response.status === 405 || response.status === 423) && (await webdavDirectoryExists(config, path)))) {
+            ensuredDirectories.add(cacheKey);
+            continue;
+        }
         await throwWebdavError(response, webdavText("directoryFailed"));
     }
-    ensuredDirectories.add(cacheKey);
 }
 
 async function webdavDirectoryExists(config: WebdavSyncConfig, path: string) {

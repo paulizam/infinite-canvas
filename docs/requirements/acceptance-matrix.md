@@ -84,7 +84,7 @@
 | AST-004 | P0 | SOURCE-EVIDENCE | 上传格式、大小、归属校验；服务端 UUID 重命名。 | `apps/api/src/asset-references.test.ts`<br>`web/src/services/webdav-sync.ts` |
 | AST-005 | P0 | RUNTIME-PENDING | 鉴权媒体读取和短期 signed URL，不暴露 bucket secret。 | `apps/api/src/blob-store.ts`<br>`apps/api/src/asset-service.ts`<br>`apps/api/src/asset-references.test.ts`<br>Command: `pnpm --filter @infinite-canvas/api test`<br>Needs: Running API and S3-compatible object store |
 | AST-006 | P1 | SOURCE-EVIDENCE | 引用保护、对象迁移、孤儿扫描、retention GC。 | `apps/api/src/asset-references.test.ts`<br>`web/src/services/webdav-sync.ts` |
-| AST-007 | P1 | RUNTIME-PENDING | WebDAV 分域同步 Canvas/Assets/生成记录与媒体。 | `web/src/services/webdav-sync.ts`<br>Command: `pnpm --dir web typecheck`<br>Needs: CORS-enabled WebDAV test account |
+| AST-007 | P1 | RUNTIME-PENDING | WebDAV 分域同步 Canvas/Assets/生成记录与媒体。 | `web/src/services/webdav-sync.ts`<br>`web/src/services/webdav-sync.test.ts`<br>Command: `pnpm --dir web test -- web/src/services/webdav-sync.test.ts`<br>Needs: CORS-enabled WebDAV test account |
 | AST-008 | P1 | SOURCE-EVIDENCE | 七个内置 Prompt sources，自定义 JSON source、刷新、缓存、标签检索。 | `apps/api/src/asset-references.test.ts`<br>`web/src/services/webdav-sync.ts` |
 | AST-009 | P1 | SOURCE-EVIDENCE | 运营提示词库、分类、上下架；一键送入 Agent/Canvas/短剧。 | `apps/api/src/asset-references.test.ts`<br>`web/src/services/webdav-sync.ts` |
 | AST-010 | P2 | SOURCE-EVIDENCE | content hash 去重、媒体版本与来源血缘。 | `apps/api/src/asset-references.test.ts`<br>`web/src/services/webdav-sync.ts` |
