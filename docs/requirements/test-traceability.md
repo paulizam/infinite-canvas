@@ -5,8 +5,8 @@
 ## Summary
 
 - Requirements: 133
-- Direct test references: 55
-- Without direct test reference: 78
+- Direct test references: 56
+- Without direct test reference: 77
 
 ## Direct references
 
@@ -59,6 +59,7 @@
 | COL-006 | P2 | `web/src/services/cloud-canvas-sync.test.ts` |
 | COL-007 | P2 | `apps/api/src/app.test.ts` |
 | DRM-001 | P2 | `web/src/services/cloud-platform.test.ts` |
+| DRM-002 | P2 | `apps/api/src/drama-api.test.ts`<br>`web/src/services/cloud-platform.test.ts` |
 | DRM-003 | P2 | `web/src/services/cloud-platform.test.ts` |
 | DRM-004 | P2 | `web/src/services/cloud-platform.test.ts` |
 | DRM-005 | P2 | `web/src/services/cloud-platform.test.ts` |
@@ -113,7 +114,6 @@
 - WFL-010 (P2)
 - AST-002 (P0)
 - AST-007 (P1)
-- DRM-002 (P2)
 - COM-001 (P2)
 - COM-002 (P2)
 - COM-003 (P2)

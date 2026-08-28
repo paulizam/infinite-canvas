@@ -419,6 +419,8 @@ Drama 可将来源、实体参考、镜头选择、时间轴或成片 Asset 投�
 
 `/drama` 与 `/drama/:id` 是 Drama domain 的 Server-mode 产品入口。Web 仅通过 `CloudPlatformClient` 的 typed contract 调用领域 API，不在浏览器复制状态机；每次写操作携带当前 project revision 与随机 mutationId，成功后并行重取 project、production、render 三个 read model。工作台按剧本、实体、分镜、生成、时间轴、审批、交付与互通拆分视图，并以统一 Generation Job billing 汇总镜头成本。FFmpeg/剪映只创建 durable render job，浏览器不直接执行媒体工具链；产物始终通过受鉴权 Asset 下载接口读取。
 
+剧本 AI 分析不接受客户端伪造的 analysis 作为任务完成证据：Drama 创建 capability=`text` 的统一 Generation Job，并在 immutable input 中固化 project、script version 与 source hash。成功结果只有通过严格 JSON schema、Workspace ACL、来源 hash 和当前 revision 校验后，才能由 editor 人工应用为新的不可变 Script Version；原版本永不覆盖。分析任务在 Drama 范围内按 Workspace 对成员可见，普通 Generation API 仍保持 owner 隔离。
+
 ## R3 Community COM-001～005（2026-08-28）
 
 作品社区采用独立 Publication aggregate：草稿关联同 Workspace Canvas，提交时冻结完整 document snapshot，审核通过复制为不可变发布版本。公开 Feed/Search/Tag/Cursor、详情、分享链接与作者页无需 Session；草稿、点赞、关注、举报要求登录。审核、驳回、下架、恢复由 Maintenance 边界执行并记录 requestId 幂等 audit trail；互动使用唯一约束保证计数一致。

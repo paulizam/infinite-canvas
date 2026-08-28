@@ -533,6 +533,15 @@ export class CloudPlatformClient {
     addDramaScriptVersion(dramaId: string, input: DramaMutationBase & { content: string; segments?: unknown[]; analysis?: Record<string, unknown>; reviewStatus: CloudDramaScriptVersion["reviewStatus"]; operation: Exclude<CloudDramaScriptVersion["operation"], "import"> }) {
         return this.request<CloudDramaMutationResult>(`/api/v1/drama-projects/${encodeURIComponent(dramaId)}/script-versions`, { method: "POST", body: JSON.stringify(input) });
     }
+    listDramaScriptAnalyses(dramaId: string) {
+        return this.request<GenerationJob[]>(`/api/v1/drama-projects/${encodeURIComponent(dramaId)}/script-analyses`);
+    }
+    createDramaScriptAnalysis(dramaId: string, input: DramaMutationBase & { scriptVersionId: string; logicalModelId: string }) {
+        return this.request<{ job: GenerationJob; replayed: boolean }>(`/api/v1/drama-projects/${encodeURIComponent(dramaId)}/script-analyses`, { method: "POST", body: JSON.stringify(input) });
+    }
+    applyDramaScriptAnalysis(dramaId: string, input: DramaMutationBase & { jobId: string }) {
+        return this.request<CloudDramaMutationResult>(`/api/v1/drama-projects/${encodeURIComponent(dramaId)}/script-analyses/apply`, { method: "POST", body: JSON.stringify(input) });
+    }
     addDramaEntity(dramaId: string, input: DramaMutationBase & { kind: CloudDramaEntity["kind"]; name: string; description?: string; prompt?: string; referenceAssetId?: string; sortOrder: number }) {
         return this.request<CloudDramaMutationResult>(`/api/v1/drama-projects/${encodeURIComponent(dramaId)}/entities`, { method: "POST", body: JSON.stringify(input) });
     }

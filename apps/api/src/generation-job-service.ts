@@ -64,6 +64,14 @@ export class GenerationJobService {
   async get(userId: string, jobId: string) {
     return this.jobs.getForUser(userId, jobId);
   }
+  async listWorkspace(userId: string, workspaceId: string) {
+    await this.platform.requireWorkspaceRole(userId, workspaceId, "viewer");
+    return this.jobs.listInWorkspace(workspaceId);
+  }
+  async getWorkspace(userId: string, workspaceId: string, jobId: string) {
+    await this.platform.requireWorkspaceRole(userId, workspaceId, "viewer");
+    return this.jobs.getInWorkspace(workspaceId, jobId);
+  }
   cancel(userId: string, jobId: string) {
     return this.jobs.cancel(userId, jobId, new Date().toISOString());
   }

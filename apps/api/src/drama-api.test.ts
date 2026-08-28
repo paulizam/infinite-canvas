@@ -25,8 +25,8 @@ beforeEach(() => {
   const dramaRepository = new MemoryDramaRepository((...x) =>
     p.requireWorkspaceRole(...x),
   );
-  const drama = new DramaService(p, dramaRepository);
   const jobs = new GenerationJobService(p, j);
+  const drama = new DramaService(p, dramaRepository, jobs);
   const assetService = new AssetService(
     p,
     new MemoryAssetBlobStore(),
@@ -78,6 +78,41 @@ beforeEach(() => {
       production,
       render,
     ),
+  });
+});
+
+describe("Drama script analysis", () => {
+  it("[DRM-002] runs analysis as a durable text job and applies validated output as an immutable version", async () => {
+    const s = await setup();
+    let r = await app.request(`/api/v1/workspaces/${s.workspaceId}/drama-projects`, {
+      method: "POST", headers: headers(s.cookie), body: JSON.stringify({ title: "分析", sourceText: "雨夜，林夏进入车站。" }),
+    });
+    const created = ((await r.json()) as any).data;
+    const id = created.project.id, scriptVersionId = created.scripts[0].id;
+    const request = { expectedRevision: 0, mutationId: "analysis-create-001", scriptVersionId, logicalModelId: "text.default" };
+    r = await app.request(`/api/v1/drama-projects/${id}/script-analyses`, { method: "POST", headers: headers(s.cookie), body: JSON.stringify(request) });
+    expect(r.status).toBe(202);
+    const first = ((await r.json()) as any).data;
+    expect(first.job).toMatchObject({ capability: "text", input: { dramaOperation: "script_analysis", dramaProjectId: id, scriptVersionId } });
+    r = await app.request(`/api/v1/drama-projects/${id}/script-analyses`, { method: "POST", headers: headers(s.cookie), body: JSON.stringify(request) });
+    expect(((await r.json()) as any).data.replayed).toBe(true);
+    r = await app.request(`/api/v1/drama-projects/${id}/script-analyses/apply`, { method: "POST", headers: headers(s.cookie), body: JSON.stringify({ expectedRevision: 0, mutationId: "analysis-apply-001", jobId: first.job.id }) });
+    expect(r.status).toBe(409);
+    r = await app.request("/internal/v1/generation/claim", { method: "POST", headers: { authorization: "Bearer worker-token-at-least-32-characters", "content-type": "application/json" }, body: JSON.stringify({ workerId: "analysis-worker", limit: 1, leaseMs: 90_000 }) });
+    expect(((await r.json()) as any).data[0].id).toBe(first.job.id);
+    const output = JSON.stringify({ summary: "林夏在雨夜进入车站", safety: { status: "passed", issues: [] }, segments: [{ title: "车站", content: "雨夜，林夏进入车站。", characters: ["林夏"], scene: "车站" }] });
+    for (const [phase, patch] of [["submitting", {}], ["submitted", {}], ["result_ready", { result: { text: output } }], ["persisting", {}], ["succeeded", {}]] as const) {
+      r = await app.request(`/internal/v1/generation/jobs/${first.job.id}/transition`, { method: "POST", headers: { authorization: "Bearer worker-token-at-least-32-characters", "content-type": "application/json" }, body: JSON.stringify({ workerId: "analysis-worker", phase, patch }) });
+      expect(r.status).toBe(200);
+    }
+    r = await app.request(`/api/v1/drama-projects/${id}/script-analyses`, { headers: { cookie: s.cookie } });
+    expect(((await r.json()) as any).data[0].status).toBe("succeeded");
+    const apply = { expectedRevision: 0, mutationId: "analysis-apply-001", jobId: first.job.id };
+    r = await app.request(`/api/v1/drama-projects/${id}/script-analyses/apply`, { method: "POST", headers: headers(s.cookie), body: JSON.stringify(apply) });
+    expect(r.status).toBe(201);
+    const detail = ((await r.json()) as any).data.detail;
+    expect(detail.scripts[0]).toMatchObject({ version: 2, operation: "analysis", reviewStatus: "reviewing", analysis: { sourceJobId: first.job.id } });
+    expect(detail.scripts[0].segments).toHaveLength(1);
   });
 });
 async function setup() {

@@ -184,6 +184,18 @@ describe("CloudPlatformClient", () => {
         expect(fetcher).toHaveBeenNthCalledWith(6, "/api/v1/drama-projects/drama%2Fa/shots", expect.objectContaining({ method: "POST" }));
     });
 
+    it("[DRM-002] creates, lists and applies durable script analysis jobs", async () => {
+        const fetcher = vi.fn(async () => Response.json({ data: {}, requestId: "analysis" }));
+        const client = new CloudPlatformClient("", fetcher);
+        const mutation = { expectedRevision: 2, mutationId: "analysis-123", scriptVersionId: "script", logicalModelId: "text/default" };
+        await client.createDramaScriptAnalysis("drama/a", mutation);
+        await client.listDramaScriptAnalyses("drama/a");
+        await client.applyDramaScriptAnalysis("drama/a", { expectedRevision: 2, mutationId: "apply-123", jobId: "job" });
+        expect(fetcher).toHaveBeenNthCalledWith(1, "/api/v1/drama-projects/drama%2Fa/script-analyses", expect.objectContaining({ method: "POST", body: JSON.stringify(mutation) }));
+        expect(fetcher).toHaveBeenNthCalledWith(2, "/api/v1/drama-projects/drama%2Fa/script-analyses", expect.any(Object));
+        expect(fetcher).toHaveBeenNthCalledWith(3, "/api/v1/drama-projects/drama%2Fa/script-analyses/apply", expect.objectContaining({ method: "POST" }));
+    });
+
     it("[DRM-005][DRM-006][DRM-007][DRM-008][DRM-010] exposes drama production and render lifecycle", async () => {
         const fetcher = vi.fn(async () => Response.json({ data: {}, requestId: "drama-production" }));
         const client = new CloudPlatformClient("", fetcher);

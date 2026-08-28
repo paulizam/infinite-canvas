@@ -63,6 +63,10 @@ export class PostgresGenerationJobRepository implements GenerationJobRepository 
     );
     return result.rows[0] ? mapJob(result.rows[0]) : null;
   }
+  async getInWorkspace(workspaceId: string, jobId: string) {
+    const result = await this.pool.query("SELECT * FROM generation_jobs WHERE id=$1 AND workspace_id=$2", [jobId, workspaceId]);
+    return result.rows[0] ? mapJob(result.rows[0]) : null;
+  }
   async getByClientRequest(
     userId: string,
     workspaceId: string,
@@ -79,6 +83,10 @@ export class PostgresGenerationJobRepository implements GenerationJobRepository 
       "SELECT * FROM generation_jobs WHERE owner_id=$1 AND workspace_id=$2 ORDER BY created_at DESC LIMIT 200",
       [userId, workspaceId],
     );
+    return result.rows.map(mapJob);
+  }
+  async listInWorkspace(workspaceId: string) {
+    const result = await this.pool.query("SELECT * FROM generation_jobs WHERE workspace_id=$1 ORDER BY created_at DESC LIMIT 200", [workspaceId]);
     return result.rows.map(mapJob);
   }
   cancel(userId: string, jobId: string, now: string) {

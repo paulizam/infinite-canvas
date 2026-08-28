@@ -622,6 +622,15 @@ export function createApp(services: AppServices) {
         201,
       ),
     );
+    app.get("/api/v1/drama-projects/:dramaId/script-analyses", async (c) =>
+      c.json({ data: await services.drama!.listScriptAnalyses(c.get("user").id, c.req.param("dramaId")), requestId: requestId(c) }),
+    );
+    app.post("/api/v1/drama-projects/:dramaId/script-analyses", async (c) =>
+      c.json({ data: await services.drama!.createScriptAnalysis(c.get("user").id, c.req.param("dramaId"), dramaAnalysisCreateSchema.parse(await c.req.json())), requestId: requestId(c) }, 202),
+    );
+    app.post("/api/v1/drama-projects/:dramaId/script-analyses/apply", async (c) =>
+      c.json({ data: await services.drama!.applyScriptAnalysis(c.get("user").id, c.req.param("dramaId"), dramaAnalysisApplySchema.parse(await c.req.json())), requestId: requestId(c) }, 201),
+    );
     app.post("/api/v1/drama-projects/:dramaId/entities", async (c) =>
       c.json(
         {
@@ -3327,6 +3336,15 @@ const dramaScriptSchema = z
     operation: z.enum(["revision", "split", "merge", "analysis"]),
   })
   .strict();
+const dramaAnalysisCreateSchema = z.object({
+  ...dramaMutationBase,
+  scriptVersionId: z.uuid(),
+  logicalModelId: z.string().trim().min(1).max(160),
+}).strict();
+const dramaAnalysisApplySchema = z.object({
+  ...dramaMutationBase,
+  jobId: z.uuid(),
+}).strict();
 const dramaEntitySchema = z
   .object({
     ...dramaMutationBase,

@@ -93,15 +93,17 @@ const assets = new AssetService(
   blobStore,
   Number(required("MAX_UPLOAD_BYTES")),
 );
+const generationJobs = new GenerationJobService(repository, jobRepository);
 const drama = new DramaService(
   repository,
   new PostgresDramaRepository(databaseUrl),
+  generationJobs,
 );
 const dramaProduction = new DramaProductionService(
   repository,
   drama,
   new PostgresDramaProductionRepository(databaseUrl),
-  new GenerationJobService(repository, jobRepository),
+  generationJobs,
 );
 const dramaRender = new DramaRenderService(
   repository,
@@ -124,7 +126,7 @@ const app = createApp({
   workspaces: new WorkspaceService(repository),
   projects,
   assets,
-  jobs: new GenerationJobService(repository, jobRepository),
+  jobs: generationJobs,
   jobRepository,
   eventRepository: new PostgresGenerationEventRepository(databaseUrl),
   workerToken,

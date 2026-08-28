@@ -18,12 +18,14 @@ export interface GenerationJobRepository {
     job: GenerationJob,
   ): Promise<{ job: GenerationJob; replayed: boolean }>;
   getForUser(userId: string, jobId: string): Promise<GenerationJob | null>;
+  getInWorkspace(workspaceId: string, jobId: string): Promise<GenerationJob | null>;
   getByClientRequest(
     userId: string,
     workspaceId: string,
     clientRequestId: string,
   ): Promise<GenerationJob | null>;
   listForUser(userId: string, workspaceId: string): Promise<GenerationJob[]>;
+  listInWorkspace(workspaceId: string): Promise<GenerationJob[]>;
   cancel(userId: string, jobId: string, now: string): Promise<GenerationJob>;
   retry(
     userId: string,
@@ -113,6 +115,10 @@ export class MemoryGenerationJobRepository implements GenerationJobRepository {
     const job = this.jobs.get(jobId);
     return job?.ownerId === userId ? job : null;
   }
+  async getInWorkspace(workspaceId: string, jobId: string) {
+    const job = this.jobs.get(jobId);
+    return job?.workspaceId === workspaceId ? job : null;
+  }
   async getByClientRequest(
     userId: string,
     workspaceId: string,
@@ -134,6 +140,9 @@ export class MemoryGenerationJobRepository implements GenerationJobRepository {
         (job) => job.ownerId === userId && job.workspaceId === workspaceId,
       )
       .sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+  }
+  async listInWorkspace(workspaceId: string) {
+    return [...this.jobs.values()].filter((job) => job.workspaceId === workspaceId).sort((a, b) => b.createdAt.localeCompare(a.createdAt));
   }
   async cancel(userId: string, jobId: string, now: string) {
     const job = this.requireUserJob(userId, jobId);
