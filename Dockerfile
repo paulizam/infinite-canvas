@@ -8,6 +8,8 @@ RUN corepack enable
 WORKDIR /app
 COPY . .
 RUN --mount=type=cache,target=/root/.local/share/pnpm/store pnpm install --frozen-lockfile
+RUN pnpm --filter @infinite-canvas/contracts build \
+    && pnpm --filter @infinite-canvas/canvas-core build
 RUN pnpm --filter infinite-canvas build
 
 # 运行镜像：Local mode 可由浏览器直连 Provider，Server mode 由 Nginx 反代平台 API。

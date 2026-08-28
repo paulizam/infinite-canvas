@@ -108,15 +108,30 @@ export class DramaService {
   async createScriptAnalysis(
     userId: string,
     id: string,
-    input: { expectedRevision: number; mutationId: string; scriptVersionId: string; logicalModelId: string },
+    input: {
+      expectedRevision: number;
+      mutationId: string;
+      scriptVersionId: string;
+      logicalModelId: string;
+    },
   ) {
-    if (!this.jobs) throw new DomainError("DRAMA_ANALYSIS_UNAVAILABLE", 502, "剧本分析服务未配置");
+    if (!this.jobs)
+      throw new DomainError(
+        "DRAMA_ANALYSIS_UNAVAILABLE",
+        502,
+        "剧本分析服务未配置",
+      );
     const d = await this.get(userId, id);
     if (d.project.revision !== input.expectedRevision)
       throw new DomainError("REVISION_CONFLICT", 409, "短剧项目版本冲突");
-    const script = d.scripts.find((value) => value.id === input.scriptVersionId);
-    if (!script) throw new DomainError("DRAMA_SCRIPT_NOT_FOUND", 404, "剧本版本不存在");
-    const sourceHash = createHash("sha256").update(script.content).digest("hex");
+    const script = d.scripts.find(
+      (value) => value.id === input.scriptVersionId,
+    );
+    if (!script)
+      throw new DomainError("DRAMA_SCRIPT_NOT_FOUND", 404, "剧本版本不存在");
+    const sourceHash = createHash("sha256")
+      .update(script.content)
+      .digest("hex");
     return this.jobs.create(userId, d.project.workspaceId, {
       capability: "text",
       logicalModelId: input.logicalModelId,
@@ -131,10 +146,19 @@ export class DramaService {
     });
   }
   async listScriptAnalyses(userId: string, id: string) {
-    if (!this.jobs) throw new DomainError("DRAMA_ANALYSIS_UNAVAILABLE", 502, "剧本分析服务未配置");
+    if (!this.jobs)
+      throw new DomainError(
+        "DRAMA_ANALYSIS_UNAVAILABLE",
+        502,
+        "剧本分析服务未配置",
+      );
     const d = await this.get(userId, id);
-    return (await this.jobs.listWorkspace(userId, d.project.workspaceId)).filter(
-      (job) => job.input.dramaOperation === "script_analysis" && job.input.dramaProjectId === id,
+    return (
+      await this.jobs.listWorkspace(userId, d.project.workspaceId)
+    ).filter(
+      (job) =>
+        job.input.dramaOperation === "script_analysis" &&
+        job.input.dramaProjectId === id,
     );
   }
   async applyScriptAnalysis(
@@ -142,23 +166,60 @@ export class DramaService {
     id: string,
     input: { expectedRevision: number; mutationId: string; jobId: string },
   ) {
-    if (!this.jobs) throw new DomainError("DRAMA_ANALYSIS_UNAVAILABLE", 502, "剧本分析服务未配置");
+    if (!this.jobs)
+      throw new DomainError(
+        "DRAMA_ANALYSIS_UNAVAILABLE",
+        502,
+        "剧本分析服务未配置",
+      );
     const d = await this.get(userId, id);
-    const job = await this.jobs.getWorkspace(userId, d.project.workspaceId, input.jobId);
-    if (!job || job.workspaceId !== d.project.workspaceId || job.input.dramaProjectId !== id || job.input.dramaOperation !== "script_analysis")
-      throw new DomainError("DRAMA_ANALYSIS_NOT_FOUND", 404, "剧本分析任务不存在");
+    const job = await this.jobs.getWorkspace(
+      userId,
+      d.project.workspaceId,
+      input.jobId,
+    );
+    if (
+      !job ||
+      job.workspaceId !== d.project.workspaceId ||
+      job.input.dramaProjectId !== id ||
+      job.input.dramaOperation !== "script_analysis"
+    )
+      throw new DomainError(
+        "DRAMA_ANALYSIS_NOT_FOUND",
+        404,
+        "剧本分析任务不存在",
+      );
     if (job.status !== "succeeded" || typeof job.result?.text !== "string")
-      throw new DomainError("DRAMA_ANALYSIS_NOT_READY", 409, "剧本分析任务尚未成功完成");
-    const script = d.scripts.find((value) => value.id === job.input.scriptVersionId);
-    if (!script || createHash("sha256").update(script.content).digest("hex") !== job.input.sourceHash)
-      throw new DomainError("DRAMA_ANALYSIS_SOURCE_DRIFT", 409, "剧本分析来源已漂移");
+      throw new DomainError(
+        "DRAMA_ANALYSIS_NOT_READY",
+        409,
+        "剧本分析任务尚未成功完成",
+      );
+    const script = d.scripts.find(
+      (value) => value.id === job.input.scriptVersionId,
+    );
+    if (
+      !script ||
+      createHash("sha256").update(script.content).digest("hex") !==
+        job.input.sourceHash
+    )
+      throw new DomainError(
+        "DRAMA_ANALYSIS_SOURCE_DRIFT",
+        409,
+        "剧本分析来源已漂移",
+      );
     const analysis = parseAnalysis(job.result.text);
     return this.addScript(userId, id, {
       expectedRevision: input.expectedRevision,
       mutationId: input.mutationId,
       content: script.content,
       segments: analysis.segments,
-      analysis: { summary: analysis.summary, safety: analysis.safety, sourceJobId: job.id, sourceScriptVersionId: script.id },
+      analysis: {
+        summary: analysis.summary,
+        safety: analysis.safety,
+        sourceJobId: job.id,
+        sourceScriptVersionId: script.id,
+      },
       reviewStatus: "reviewing",
       operation: "analysis",
     });
@@ -280,14 +341,54 @@ export class DramaService {
 function analysisPrompt(content: string) {
   return `你是短剧剧本分析器。只返回严格 JSON，不要 Markdown。结构：{"summary":"摘要","safety":{"status":"passed|needs_review","issues":["问题"]},"segments":[{"title":"分段标题","content":"原文片段","characters":["角色"],"scene":"场景"}]}。segments 必须忠于原文，不得添加原文没有的剧情。\n\n剧本：\n${content}`;
 }
-function parseAnalysis(text: string): { summary: string; safety: { status: "passed" | "needs_review"; issues: string[] }; segments: Array<Record<string, unknown>> } {
+function parseAnalysis(text: string): {
+  summary: string;
+  safety: { status: "passed" | "needs_review"; issues: string[] };
+  segments: Array<Record<string, unknown>>;
+} {
   let value: unknown;
-  try { value = JSON.parse(text.trim()); } catch { throw new DomainError("DRAMA_ANALYSIS_INVALID_RESULT", 422, "剧本分析结果不是有效 JSON"); }
-  if (!value || typeof value !== "object" || Array.isArray(value)) throw new DomainError("DRAMA_ANALYSIS_INVALID_RESULT", 422, "剧本分析结果结构无效");
-  const record = value as Record<string, unknown>, safety = record.safety as Record<string, unknown> | undefined;
-  if (typeof record.summary !== "string" || record.summary.length > 20_000 || !safety || !["passed", "needs_review"].includes(String(safety.status)) || !Array.isArray(safety.issues) || safety.issues.some((x) => typeof x !== "string") || safety.issues.length > 100 || !Array.isArray(record.segments) || record.segments.length > 10_000 || record.segments.some((x) => !x || typeof x !== "object" || Array.isArray(x)))
-    throw new DomainError("DRAMA_ANALYSIS_INVALID_RESULT", 422, "剧本分析结果结构无效");
-  return { summary: record.summary, safety: { status: safety.status as "passed" | "needs_review", issues: safety.issues as string[] }, segments: record.segments as Array<Record<string, unknown>> };
+  try {
+    value = JSON.parse(text.trim());
+  } catch {
+    throw new DomainError(
+      "DRAMA_ANALYSIS_INVALID_RESULT",
+      422,
+      "剧本分析结果不是有效 JSON",
+    );
+  }
+  if (!value || typeof value !== "object" || Array.isArray(value))
+    throw new DomainError(
+      "DRAMA_ANALYSIS_INVALID_RESULT",
+      422,
+      "剧本分析结果结构无效",
+    );
+  const record = value as Record<string, unknown>,
+    safety = record.safety as Record<string, unknown> | undefined;
+  if (
+    typeof record.summary !== "string" ||
+    record.summary.length > 20_000 ||
+    !safety ||
+    !["passed", "needs_review"].includes(String(safety.status)) ||
+    !Array.isArray(safety.issues) ||
+    safety.issues.some((x) => typeof x !== "string") ||
+    safety.issues.length > 100 ||
+    !Array.isArray(record.segments) ||
+    record.segments.length > 10_000 ||
+    record.segments.some((x) => !x || typeof x !== "object" || Array.isArray(x))
+  )
+    throw new DomainError(
+      "DRAMA_ANALYSIS_INVALID_RESULT",
+      422,
+      "剧本分析结果结构无效",
+    );
+  return {
+    summary: record.summary,
+    safety: {
+      status: safety.status as "passed" | "needs_review",
+      issues: safety.issues as string[],
+    },
+    segments: record.segments as Array<Record<string, unknown>>,
+  };
 }
 function mutationHash(m: DramaMutation) {
   let stable: unknown = m;

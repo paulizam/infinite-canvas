@@ -137,7 +137,11 @@ export class AdminService {
   listContent(kind?: "announcement" | "prompt") {
     return this.repository.listContent(kind);
   }
-  publishedPrompts(category?: string, tag?: string, now = new Date().toISOString()) {
+  publishedPrompts(
+    category?: string,
+    tag?: string,
+    now = new Date().toISOString(),
+  ) {
     return this.repository.listPublishedPrompts({
       category: category?.trim() || undefined,
       tag: tag?.trim() || undefined,

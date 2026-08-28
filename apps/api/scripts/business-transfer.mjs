@@ -156,8 +156,8 @@ async function importBusiness(database, source, allowNonempty) {
 async function validateForeignKeys(client, importedTables) {
   const constraints = await client.query(`
     SELECT c.conname, child.relname AS child_table, parent.relname AS parent_table,
-      ARRAY(SELECT a.attname FROM unnest(c.conkey) WITH ORDINALITY key(attnum,ord) JOIN pg_attribute a ON a.attrelid=c.conrelid AND a.attnum=key.attnum ORDER BY key.ord) child_columns,
-      ARRAY(SELECT a.attname FROM unnest(c.confkey) WITH ORDINALITY key(attnum,ord) JOIN pg_attribute a ON a.attrelid=c.confrelid AND a.attnum=key.attnum ORDER BY key.ord) parent_columns
+      ARRAY(SELECT a.attname::text FROM unnest(c.conkey) WITH ORDINALITY key(attnum,ord) JOIN pg_attribute a ON a.attrelid=c.conrelid AND a.attnum=key.attnum ORDER BY key.ord)::text[] child_columns,
+      ARRAY(SELECT a.attname::text FROM unnest(c.confkey) WITH ORDINALITY key(attnum,ord) JOIN pg_attribute a ON a.attrelid=c.confrelid AND a.attnum=key.attnum ORDER BY key.ord)::text[] parent_columns
     FROM pg_constraint c JOIN pg_class child ON child.oid=c.conrelid JOIN pg_class parent ON parent.oid=c.confrelid
     JOIN pg_namespace n ON n.oid=child.relnamespace WHERE c.contype='f' AND n.nspname='public'`);
   for (const fk of constraints.rows) {

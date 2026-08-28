@@ -451,7 +451,11 @@ const contentBody = z
     content: z.string().trim().min(1).max(100000),
     category: z.string().trim().min(1).max(80).default("general"),
     tags: z.array(z.string().trim().min(1).max(40)).max(20).default([]),
-    targets: z.array(z.enum(["agent", "canvas", "drama"])).min(1).max(3).default(["agent", "canvas", "drama"]),
+    targets: z
+      .array(z.enum(["agent", "canvas", "drama"]))
+      .min(1)
+      .max(3)
+      .default(["agent", "canvas", "drama"]),
     status: z.enum(["draft", "published", "archived"]),
     startsAt: z.iso.datetime().nullable().optional(),
     endsAt: z.iso.datetime().nullable().optional(),
