@@ -72,6 +72,7 @@ const manifest = {
             entry: `${plugin.id}.js`,
             integrity: await bundleIntegrity(plugin.id),
             permissions: PERMISSIONS,
+            revoked: false,
         })),
     ),
 };

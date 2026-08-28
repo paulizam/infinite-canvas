@@ -10,6 +10,7 @@ export type InstalledPlugin = {
     version: string;
     description?: string;
     url: string; // Installation source used for updates.
+    manifestUrl?: string;
     source: string; // Cached plugin source for offline use and pinned versions.
     enabled: boolean;
     local?: boolean; // Local plugin discovered in web/public/plugins; disabled by default and refetched from its URL when enabled.
@@ -19,6 +20,8 @@ export type InstalledPlugin = {
     integrity?: string;
     permissions?: PluginPermission[];
     installedAt: string;
+    lastError?: string;
+    lastCheckedAt?: string;
 };
 
 type PluginStore = {
@@ -26,6 +29,7 @@ type PluginStore = {
     upsert: (plugin: Omit<InstalledPlugin, "installedAt"> & { installedAt?: string }) => void;
     setEnabled: (id: string, enabled: boolean) => void;
     remove: (id: string) => void;
+    setDiagnostic: (id: string, lastError?: string) => void;
 };
 
 export const usePluginStore = create<PluginStore>()(
@@ -41,6 +45,7 @@ export const usePluginStore = create<PluginStore>()(
                 }),
             setEnabled: (id, enabled) => set((state) => ({ plugins: state.plugins.map((item) => (item.id === id ? { ...item, enabled } : item)) })),
             remove: (id) => set((state) => ({ plugins: state.plugins.filter((item) => item.id !== id) })),
+            setDiagnostic: (id, lastError) => set((state) => ({ plugins: state.plugins.map((item) => item.id === id ? { ...item, lastError, lastCheckedAt: new Date().toISOString() } : item) })),
         }),
         {
             name: "infinite-canvas:plugin_store",

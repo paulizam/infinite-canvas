@@ -6,6 +6,24 @@
 
 作者只写节点 UI 与逻辑,**类型、JSX、宿主 React、构建全部由 [`@infinite-canvas/plugin-sdk`](./sdk/README.md) 提供**,写 TSX 全程有代码提示;产物仍是宿主加载器现有契约的 ESM(React external、宿主单例)。
 
+## 第三方发布契约
+
+第三方插件必须通过无凭据 HTTPS `manifest.json` 安装，不再接受裸 JavaScript URL。清单使用 `PluginManifest` 契约，至少声明 `id`、SemVer `version`、`entry`、SHA-256 SRI 与最小权限：
+
+```json
+{
+  "id": "example-note",
+  "name": "Example Note",
+  "version": "1.0.0",
+  "minAppVersion": "0.16.0",
+  "entry": "./plugin.js",
+  "integrity": "sha256-...",
+  "permissions": ["canvas:read", "canvas:write"]
+}
+```
+
+远程 bundle 最多 2 MiB，在独立 Module Worker 中限时求值；网络权限必须按 `network:https://host.example/` 精确声明 origin。安装和升级前宿主展示新增权限，只有用户确认才替换当前固定版本。Registry 可用 `revoked: true` 与 `revokeReason` 撤销版本；撤销后宿主自动禁用。运行失败会记录最近检查时间与脱敏错误，节点原始数据不随禁用或卸载丢失。
+
 ## 目录约定
 
 ```

@@ -11,9 +11,11 @@ export type OfficialPluginEntry = {
     url: string;
     integrity: string;
     permissions: PluginPermission[];
+    revoked?: boolean;
+    revokeReason?: string;
 };
 
-type RawEntry = { id?: string; name?: string; version?: string; description?: string; icon?: string; entry?: string; url?: string; integrity?: string; permissions?: PluginPermission[] };
+type RawEntry = { id?: string; name?: string; version?: string; description?: string; icon?: string; entry?: string; url?: string; integrity?: string; permissions?: PluginPermission[]; revoked?: boolean; revokeReason?: string };
 type RawManifest = { version?: number; plugins?: RawEntry[] };
 
 // Fetch the official registry and resolve relative entries against its URL for the existing URL installation flow.
@@ -36,6 +38,8 @@ export function parseOfficialPluginManifest(data: RawManifest, registryUrl: stri
             url: item.url ? item.url : new URL(item.entry as string, registryUrl).toString(),
             integrity: item.integrity,
             permissions: item.permissions,
+            revoked: item.revoked,
+            revokeReason: item.revokeReason,
         }));
 }
 

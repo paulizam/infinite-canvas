@@ -3,6 +3,9 @@ import type { PluginPermission } from "@infinite-canvas/contracts";
 export type SandboxNodeDescriptor = { type: string; title: string; description?: string; defaultSize: { width: number; height: number }; defaultMetadata?: Record<string, unknown>; minimapColor?: string; showInCreateMenu?: boolean; hasSourceHandle?: boolean };
 export type SandboxPluginDescriptor = { id: string; name: string; version: string; description?: string; nodes: SandboxNodeDescriptor[] };
 
+const SANDBOX_TIMEOUT_MS = 5_000;
+const PLUGIN_SOURCE_BYTES_LIMIT = 2 * 1024 * 1024;
+
 const WORKER_SOURCE = `
 self.onmessage = async (event) => {
   const { source, version, networkOrigins } = event.data;
@@ -23,11 +26,13 @@ self.onmessage = async (event) => {
 };`;
 
 export function evaluateSandboxPlugin(source: string, appVersion: string, permissions: PluginPermission[]): Promise<SandboxPluginDescriptor> {
+    if (new TextEncoder().encode(source).byteLength > PLUGIN_SOURCE_BYTES_LIMIT) return Promise.reject(new Error("插件源码超过 2MiB 限额"));
     const workerUrl = URL.createObjectURL(new Blob([WORKER_SOURCE], { type: "text/javascript" }));
     const worker = new Worker(workerUrl, { type: "module", name: "canvas-plugin-sandbox" });
     const networkOrigins = networkOriginsFromPermissions(permissions);
     return new Promise((resolve, reject) => {
-        const finish = () => { worker.terminate(); URL.revokeObjectURL(workerUrl); };
+        const timeout = window.setTimeout(() => { finish(); reject(new Error("插件沙箱执行超时")); }, SANDBOX_TIMEOUT_MS);
+        const finish = () => { window.clearTimeout(timeout); worker.terminate(); URL.revokeObjectURL(workerUrl); };
         worker.onerror = (event) => { finish(); reject(new Error(event.message || "插件沙箱启动失败")); };
         worker.onmessage = (event: MessageEvent<{ type: string; value?: unknown; error?: string }>) => {
             finish();

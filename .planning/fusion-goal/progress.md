@@ -45,3 +45,4 @@
 - Compose 静态加固：API Asset volume 预置 node 用户权限；恢复流程改为 migration 成功后再启动 API/Worker；Nginx CSP 保留 Local mode 的显式 HTTP/WS Provider 能力。Compose YAML 已由 Python parser 验证，真实 Docker/PostgreSQL 仍因本机缺失标记 `[unverified]`。
 - OPS-009 数据治理纵切：新增 migration 026、账户递归脱敏导出、密码复核注销与 owner 转交；Retention 只清理过期 Session/终态 Generation progress event，保留不可变审计；Media GC 采用 dry-run、FK 兜底、数据库先删与 Blob outbox 失败重试。API 25 files / 69 tests 通过，真实 PostgreSQL 仍 `[unverified]`。
 - OPS-007/010 供应链门禁：新增本地 Secret scan、显式 Unknown/强 Copyleft License policy、第三方 notices、连续 migration checksum manifest 与品牌/版本/文档/敏感文件 release check；CI 增加质量、PostgreSQL 双迁移、Gitleaks、npm audit、Syft SPDX SBOM、Trivy FS/Image、Compose 与 Web/API/Worker 镜像构建，四条 tag 发布链均前置 release gate。
+- R4 插件生态加固：第三方插件改为 HTTPS manifest + SHA-256 SRI 安装，新增 SemVer/minAppVersion/权限 origin 校验、安装升级 permission diff 确认、手动版本固定、Registry 撤销自动禁用、2MiB/5秒沙箱限额与持久诊断；裸远程 JS URL 不再作为可信安装入口。

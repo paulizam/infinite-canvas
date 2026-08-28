@@ -8,6 +8,7 @@ import { verifyPluginIntegrity } from "@/lib/canvas/plugin-integrity";
 import { evaluateSandboxPlugin } from "@/lib/canvas/plugin-sandbox";
 import { createSandboxCanvasPlugin } from "@/lib/canvas/sandbox-canvas-plugin";
 import type { PluginPermission } from "@infinite-canvas/contracts";
+import { fetchPluginManifest, satisfiesMinAppVersion, type ResolvedPluginManifest } from "@/lib/canvas/plugin-manifest";
 
 const cleanups = new Map<string, () => void>();
 
@@ -51,9 +52,13 @@ export function deactivatePlugin(pluginId: string) {
 }
 
 async function fetchPluginSource(url: string) {
-    const response = await fetch(url, { credentials: "omit", referrerPolicy: "no-referrer" });
+    const response = await fetch(url, { credentials: "omit", redirect: "error", referrerPolicy: "no-referrer" });
     if (!response.ok) throw new Error(i18n.t("canvas.pluginErrors.downloadFailed", { status: response.status }));
-    return response.text();
+    const length = Number(response.headers.get("content-length") || 0);
+    if (length > 2 * 1024 * 1024) throw new Error("插件源码超过 2MiB 限额");
+    const source = await response.text();
+    if (new TextEncoder().encode(source).byteLength > 2 * 1024 * 1024) throw new Error("插件源码超过 2MiB 限额");
+    return source;
 }
 
 // Add a cache-busting parameter so watch builds load the latest output.
@@ -63,7 +68,7 @@ function withCacheBust(url: string) {
 
 // Install or replace a plugin from a URL and enable it immediately.
 // bustCache bypasses HTTP/CDN caches during upgrades while persisting a clean URL without the timestamp query.
-type PluginInstallOptions = { official?: boolean; bustCache?: boolean; id?: string; integrity?: string; permissions?: PluginPermission[] };
+type PluginInstallOptions = { official?: boolean; bustCache?: boolean; id?: string; integrity?: string; permissions?: PluginPermission[]; manifestUrl?: string };
 
 export async function installPluginFromUrl(url: string, opts?: PluginInstallOptions) {
     const local = isTrustedPluginUrl(url, window.location.origin);
@@ -74,14 +79,28 @@ export async function installPluginFromUrl(url: string, opts?: PluginInstallOpti
     const plugin = local || trustedOfficial ? await evaluateTrustedPluginSource(source) : await evaluateRemotePlugin(source, opts!);
     if (opts?.id && plugin.id !== opts.id) throw new Error("插件标识与清单不匹配");
     deactivatePlugin(plugin.id); // Replace the previous version.
-    usePluginStore.getState().upsert({ id: plugin.id, name: plugin.name || plugin.id, version: plugin.version || "0.0.0", description: plugin.description, url, source, enabled: true, official: opts?.official, local, trustedOfficial, sandboxed: !local && !trustedOfficial, integrity: opts?.integrity, permissions: opts?.permissions });
+    usePluginStore.getState().upsert({ id: plugin.id, name: plugin.name || plugin.id, version: plugin.version || "0.0.0", description: plugin.description, url, manifestUrl: opts?.manifestUrl, source, enabled: true, official: opts?.official, local, trustedOfficial, sandboxed: !local && !trustedOfficial, integrity: opts?.integrity, permissions: opts?.permissions, lastCheckedAt: new Date().toISOString() });
     activatePlugin(plugin);
     return plugin;
 }
 
 export async function updatePlugin(record: InstalledPlugin) {
+    if (record.manifestUrl) {
+        const manifest = await fetchPluginManifest(record.manifestUrl);
+        if (manifest.id !== record.id) throw new Error("插件标识与清单不匹配");
+        return installPluginManifest(manifest, record.official);
+    }
     // Upgrades must fetch the latest output and therefore always bypass caches.
     return installPluginFromUrl(record.url, { official: record.official, bustCache: true, id: record.id, integrity: record.integrity, permissions: record.permissions });
+}
+
+export async function installPluginFromManifest(manifestUrl: string, official = false) {
+    return installPluginManifest(await fetchPluginManifest(manifestUrl), official);
+}
+
+export async function installPluginManifest(manifest: ResolvedPluginManifest, official = false) {
+    if (!satisfiesMinAppVersion(getPluginRuntime().version, manifest.minAppVersion)) throw new Error(`插件要求应用版本 ${manifest.minAppVersion} 或更高`);
+    return installPluginFromUrl(manifest.entry, { official, id: manifest.id, integrity: manifest.integrity, permissions: manifest.permissions, manifestUrl: manifest.manifestUrl });
 }
 
 export async function setPluginEnabled(record: InstalledPlugin, enabled: boolean) {
@@ -121,6 +140,7 @@ export async function ensurePluginsLoaded() {
                 const source = record.local ? await fetchPluginSource(withCacheBust(record.url)) : record.source;
                 activatePlugin(await evaluateStoredPlugin(record, source));
             } catch (error) {
+                usePluginStore.getState().setDiagnostic(record.id, error instanceof Error ? error.message : String(error));
                 console.error(`[plugin] Failed to load: ${record.id}`, error);
             }
         }),
