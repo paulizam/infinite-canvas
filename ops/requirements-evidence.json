@@ -52,12 +52,6 @@
     "command": "pnpm --filter @infinite-canvas/api test",
     "runtime": "PostgreSQL plus S3-compatible object store"
   },
-  "AST-005": {
-    "sources": ["apps/api/src/blob-store.ts", "apps/api/src/asset-service.ts"],
-    "tests": ["apps/api/src/asset-service.test.ts", "apps/api/src/app.test.ts"],
-    "command": "pnpm --filter @infinite-canvas/api test",
-    "runtime": "Running API and S3-compatible object store"
-  },
   "AST-007": {
     "sources": ["web/src/services/webdav-sync.ts"],
     "tests": ["web/src/services/webdav-sync.test.ts"],

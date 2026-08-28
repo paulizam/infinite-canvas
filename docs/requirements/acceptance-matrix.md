@@ -5,9 +5,9 @@
 ## 汇总
 
 - 总需求：133
-- 已定位源码/测试入口：122
-- 实机/外部环境待验：11
-- 待验 ID：GEN-008、GEN-017、GEN-018、AST-002、AST-005、AST-007、PLG-005、DRM-008、BIL-005、BIL-006、BIL-007
+- 已定位源码/测试入口：123
+- 实机/外部环境待验：10
+- 待验 ID：GEN-008、GEN-017、GEN-018、AST-002、AST-007、PLG-005、DRM-008、BIL-005、BIL-006、BIL-007
 
 ## 逐项证据
 
@@ -82,7 +82,7 @@
 | AST-002 | P0 | RUNTIME-PENDING | local/S3 provider；历史资产按自身 provider 读取。 | `apps/api/src/blob-store.ts`<br>`apps/api/src/asset-service.ts`<br>`apps/api/src/postgres-repository.ts`<br>`apps/api/migrations/029_asset_storage_provider.sql`<br>`apps/api/src/asset-service.test.ts`<br>`apps/api/src/data-governance-service.test.ts`<br>Command: `pnpm --filter @infinite-canvas/api test`<br>Needs: PostgreSQL plus S3-compatible object store |
 | AST-003 | P0 | SOURCE-EVIDENCE | stable storageKey/AssetRef，原件与 preview variant 分离。 | `apps/api/src/asset-references.test.ts`<br>`web/src/services/webdav-sync.ts` |
 | AST-004 | P0 | SOURCE-EVIDENCE | 上传格式、大小、归属校验；服务端 UUID 重命名。 | `apps/api/src/asset-references.test.ts`<br>`web/src/services/webdav-sync.ts` |
-| AST-005 | P0 | RUNTIME-PENDING | 鉴权媒体读取和短期 signed URL，不暴露 bucket secret。 | `apps/api/src/blob-store.ts`<br>`apps/api/src/asset-service.ts`<br>`apps/api/src/asset-service.test.ts`<br>`apps/api/src/app.test.ts`<br>Command: `pnpm --filter @infinite-canvas/api test`<br>Needs: Running API and S3-compatible object store |
+| AST-005 | P0 | SOURCE-EVIDENCE | 鉴权媒体读取和短期 signed URL，不暴露 bucket secret。 | `apps/api/src/asset-references.test.ts`<br>`web/src/services/webdav-sync.ts` |
 | AST-006 | P1 | SOURCE-EVIDENCE | 引用保护、对象迁移、孤儿扫描、retention GC。 | `apps/api/src/asset-references.test.ts`<br>`web/src/services/webdav-sync.ts` |
 | AST-007 | P1 | RUNTIME-PENDING | WebDAV 分域同步 Canvas/Assets/生成记录与媒体。 | `web/src/services/webdav-sync.ts`<br>`web/src/services/webdav-sync.test.ts`<br>Command: `pnpm --dir web test -- web/src/services/webdav-sync.test.ts`<br>Needs: CORS-enabled WebDAV test account |
 | AST-008 | P1 | SOURCE-EVIDENCE | 七个内置 Prompt sources，自定义 JSON source、刷新、缓存、标签检索。 | `apps/api/src/asset-references.test.ts`<br>`web/src/services/webdav-sync.ts` |

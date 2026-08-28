@@ -33,3 +33,24 @@ FFMPEG_PATH=/path/to/ffmpeg pnpm --filter @infinite-canvas/worker test -- src/dr
 - Gitleaks artifact：`gitleaks-results.sarif`（artifact `9677031066`）
 
 该 Run 使用隔离分支 `ci/runtime-validation` 注册 workflow，产品实现同步于 `feat/fusion-platform`；隔离分支不替代产品分支源码和 release gate。
+
+## AST-005 S3-compatible asset round-trip
+
+- 验证日期：2026-08-28
+- 本机服务：MinIO `RELEASE.2025-09-07T16-13-09Z`，Windows amd64
+- 二进制 SHA-256：`AF709E6BA68488404E85ACDD22A3030D0F5E56A108D4B27D744F18CEB50861B4`
+- 隔离 endpoint：`http://127.0.0.1:19000`（验收后已停止进程并确认端口释放）
+- Test：`apps/api/src/blob-store-runtime.integration.test.ts`
+- 链路：CreateBucket → PutObject → GetObject → presigned HTTP GET → DeleteObject → missing-object assertion → DeleteBucket
+- 断言：二进制字节完全一致、signed URL 返回 HTTP 200、删除后读取失败
+
+本地复验：
+
+```powershell
+$env:S3_TEST_ENDPOINT = "http://127.0.0.1:19000"
+$env:S3_TEST_ACCESS_KEY = "<sandbox-access-key>"
+$env:S3_TEST_SECRET_KEY = "<sandbox-secret-key>"
+pnpm --filter @infinite-canvas/api test -- src/blob-store-runtime.integration.test.ts
+```
+
+未设置 `S3_TEST_ENDPOINT` 时该 integration test 显式 skip，不能作为 Runtime PASS。
