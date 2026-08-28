@@ -5,13 +5,14 @@
 ## Summary
 
 - Requirements: 133
-- Direct test references: 56
-- Without direct test reference: 77
+- Direct test references: 57
+- Without direct test reference: 76
 
 ## Direct references
 
 | ID | P | Tests |
 |---|---:|---|
+| BAS-001 | P0 | `web/src/i18n/drama-i18n.test.ts` |
 | BAS-002 | P0 | `web/src/lib/canvas/canvas-export.test.ts`<br>`web/src/lib/canvas/canvas-import.test.ts`<br>`web/src/stores/canvas/use-canvas-store.test.ts` |
 | BAS-003 | P0 | `apps/api/src/app.test.ts` |
 | BAS-004 | P0 | `apps/api/src/app.test.ts`<br>`web/src/services/cloud-platform.test.ts`<br>`web/src/services/installation-route.test.ts` |
@@ -58,7 +59,7 @@
 | COL-005 | P1 | `apps/api/src/app.test.ts` |
 | COL-006 | P2 | `web/src/services/cloud-canvas-sync.test.ts` |
 | COL-007 | P2 | `apps/api/src/app.test.ts` |
-| DRM-001 | P2 | `web/src/services/cloud-platform.test.ts` |
+| DRM-001 | P2 | `web/src/i18n/drama-i18n.test.ts`<br>`web/src/services/cloud-platform.test.ts` |
 | DRM-002 | P2 | `apps/api/src/drama-api.test.ts`<br>`web/src/services/cloud-platform.test.ts` |
 | DRM-003 | P2 | `web/src/services/cloud-platform.test.ts` |
 | DRM-004 | P2 | `web/src/services/cloud-platform.test.ts` |
@@ -71,7 +72,6 @@
 
 ## Missing direct references
 
-- BAS-001 (P0)
 - BAS-009 (P2)
 - BAS-010 (P1)
 - CAN-002 (P0)
