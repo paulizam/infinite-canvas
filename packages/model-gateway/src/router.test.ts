@@ -96,7 +96,7 @@ const catalog: ModelRoutingCatalog = {
 };
 
 describe("logical model router", () => {
-  it("orders by priority but honors an explicit preferred healthy channel", () => {
+  it("[GEN-007] orders by priority but honors an explicit preferred healthy channel", () => {
     expect(
       resolveModelCandidates(catalog, "image", "IMAGE.DEFAULT").map(
         (item) => item.channel.id,
@@ -108,7 +108,7 @@ describe("logical model router", () => {
       })[0]?.channel.id,
     ).toBe("backup");
   });
-  it("filters cooldown, disabled credentials and capability mismatches", () => {
+  it("[GEN-007] filters cooldown, disabled credentials and capability mismatches", () => {
     const copy = structuredClone(catalog);
     copy.upstreamModels[0]!.healthState = "cooldown";
     copy.upstreamModels[0]!.cooldownUntil = "2099-01-01T00:00:00.000Z";
@@ -122,7 +122,7 @@ describe("logical model router", () => {
 });
 
 describe("model capability validation", () => {
-  it("reports every incompatible request dimension", () => {
+  it("[GEN-007] reports every incompatible request dimension", () => {
     const issues = validateModelParameters(
       {
         supportsReferenceImage: true,
@@ -150,7 +150,7 @@ describe("model capability validation", () => {
 });
 
 describe("OpenAI-compatible request policy", () => {
-  it("normalizes capability endpoints and prevents model override", () => {
+  it("[GEN-005][GEN-008] normalizes capability endpoints and prevents model override", () => {
     const request = buildOpenAiCompatibleRequest({
       baseUrl: "https://api.example.com",
       apiKey: "secret",
@@ -172,7 +172,7 @@ describe("OpenAI-compatible request policy", () => {
 });
 
 describe("provider adapters", () => {
-  it("builds Gemini content without putting credentials in the URL", () => {
+  it("[GEN-008] builds Gemini content without putting credentials in the URL", () => {
     const request = buildGeminiRequest({
       baseUrl: "https://generativelanguage.googleapis.com",
       apiKey: "gemini-secret",

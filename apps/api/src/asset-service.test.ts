@@ -100,7 +100,7 @@ describe("AssetService storage provider routing", () => {
     ).rejects.toMatchObject({ code: "ASSET_STORAGE_UNAVAILABLE", status: 502 });
   });
 
-  it("returns a provider signed URL without proxying object bytes", async () => {
+  it("[GEN-015] returns an original provider-signed download without proxying object bytes", async () => {
     const get = vi.fn(async () => Buffer.from("must-not-load"));
     const signedReadUrl = vi.fn(
       async () => "https://objects.example/signed?opaque=1",
@@ -127,7 +127,7 @@ describe("AssetService storage provider routing", () => {
     expect(get).not.toHaveBeenCalled();
   });
 
-  it("[AST-003][AST-005] signs the preview variant independently from the original", async () => {
+  it("[AST-003][AST-005][GEN-015] signs the WebP preview independently from the original", async () => {
     const signedReadUrl = vi.fn(
       async (key: string) => `https://objects.example/${key}`,
     );

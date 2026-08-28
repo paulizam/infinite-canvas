@@ -220,7 +220,8 @@ export default {
         deleteSelected: "删除选中",
         deleteAll: "删除全部",
         import: "导入画布",
-        create: "新建画布",`r`n        templates: { blank: "空白画布", storyboard: "故事分镜模板", campaign: "营销创意模板" },
+        create: "新建画布",
+        templates: { blank: "空白画布", storyboard: "故事分镜模板", campaign: "营销创意模板" },
         empty: "还没有画布",
         emptyDescription: "新建一个画布后，就可以独立保存节点、连线和画布外观。",
         collapsePanel: "收起面板",
@@ -623,4 +624,3 @@ export default {
         enUS: "English",
     },
 };
-

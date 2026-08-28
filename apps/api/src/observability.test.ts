@@ -3,7 +3,7 @@ import { Hono } from "hono";
 import { ApiObservability, sanitizedError } from "./observability.js";
 
 describe("API observability", () => {
-  it("propagates W3C trace IDs and normalizes metric routes", async () => {
+  it("[GEN-014] exposes stuck generation and lost-worker heartbeat metrics", async () => {
     const telemetry = new ApiObservability();
     const app = new Hono<{
       Variables: { requestId: string; traceId: string };

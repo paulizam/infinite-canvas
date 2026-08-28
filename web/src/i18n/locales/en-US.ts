@@ -220,7 +220,8 @@ export default {
         deleteSelected: "Delete selected",
         deleteAll: "Delete all",
         import: "Import canvas",
-        create: "New canvas",`r`n        templates: { blank: "Blank canvas", storyboard: "Storyboard template", campaign: "Campaign template" },
+        create: "New canvas",
+        templates: { blank: "Blank canvas", storyboard: "Storyboard template", campaign: "Campaign template" },
         empty: "No canvases yet",
         emptyDescription: "Create a canvas to save its nodes, connections, and appearance independently.",
         collapsePanel: "Collapse panel",
@@ -623,4 +624,3 @@ export default {
         enUS: "English",
     },
 };
-

@@ -81,14 +81,14 @@ describe("cloud generation orchestration", () => {
         expect(client.cancelGenerationJob).toHaveBeenCalledWith("job-1");
     });
 
-    it("preserves terminal diagnostics for failed and review jobs", async () => {
+    it("[GEN-014][GEN-015] preserves terminal diagnostics for failed and review jobs", async () => {
         const failed = { ...queued, phase: "needs_review", status: "needs_review", errorMessage: "manual review" } as GenerationJob;
         await expect(waitForGeneration({} as never, failed)).rejects.toEqual(expect.objectContaining<Partial<CloudGenerationError>>({ message: "manual review", job: failed }));
     });
 });
 
 describe("cloud generation result parsing", () => {
-    it("accepts normalized, OpenAI and asset results", () => {
+    it("[GEN-015] restores normalized text and batch asset results", () => {
         expect(generationText({ ...queued, result: { text: "Gemini" } } as GenerationJob)).toBe("Gemini");
         expect(generationText({ ...queued, result: { choices: [{ message: { content: "OpenAI" } }] } } as GenerationJob)).toBe("OpenAI");
         expect(generationAssets({ ...queued, result: { assets: [{ assetId: "asset-1", mimeType: "image/png" }, { nope: true }] } } as GenerationJob)).toEqual([{ assetId: "asset-1", mimeType: "image/png" }]);

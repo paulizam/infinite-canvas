@@ -14,7 +14,7 @@ const base = {
 };
 
 describe("provider-specific adapters", () => {
-  it("builds Seedance multimodal tasks and encodes task operations", () => {
+  it("[GEN-008] builds Seedance multimodal tasks and encodes task operations", () => {
     const request = buildProviderSpecificRequest("seedance", {
       ...base,
       capability: "video",
@@ -40,7 +40,7 @@ describe("provider-specific adapters", () => {
       }).url,
     ).toContain("a%2Fb");
   });
-  it("maps A1111 and Forge img2img without allowing model override", () => {
+  it("[GEN-008] maps A1111 and Forge img2img without allowing model override", () => {
     const request = buildProviderSpecificRequest("stable-diffusion", {
       ...base,
       capability: "image",
@@ -59,7 +59,7 @@ describe("provider-specific adapters", () => {
       override_settings: { sd_model_checkpoint: "model-1" },
     });
   });
-  it("normalizes Stable Diffusion images and MediaKit result URLs", () => {
+  it("[GEN-008][GEN-018] normalizes Stable Diffusion images and MediaKit result URLs", () => {
     expect(
       normalizeProviderSpecificPayload("stable-diffusion", { images: ["abc"] }),
     ).toMatchObject({ status: "succeeded", data: [{ base64: "abc" }] });

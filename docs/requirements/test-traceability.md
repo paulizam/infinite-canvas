@@ -5,8 +5,8 @@
 ## Summary
 
 - Requirements: 133
-- Direct test references: 66
-- Without direct test reference: 67
+- Direct test references: 73
+- Without direct test reference: 60
 
 ## Direct references
 
@@ -39,13 +39,20 @@
 | GEN-002 | P0 | `web/src/services/canvas-generation-provider.test.ts` |
 | GEN-003 | P0 | `web/src/services/canvas-generation-provider.test.ts` |
 | GEN-004 | P0 | `apps/worker/src/gateway-handler.test.ts` |
+| GEN-005 | P0 | `packages/model-gateway/src/router.test.ts`<br>`web/src/services/api/model-channel-discovery.test.ts`<br>`web/src/stores/model-channel-config.test.ts` |
 | GEN-006 | P0 | `apps/api/src/model-gateway-api.test.ts` |
+| GEN-007 | P0 | `packages/model-gateway/src/router.test.ts` |
+| GEN-008 | P1 | `packages/model-gateway/src/provider-specific.test.ts`<br>`packages/model-gateway/src/router.test.ts` |
 | GEN-009 | P1 | `apps/api/src/model-gateway-api.test.ts` |
 | GEN-010 | P0 | `apps/api/src/generation-job-api.test.ts` |
 | GEN-011 | P0 | `apps/api/src/generation-job-api.test.ts` |
 | GEN-012 | P0 | `apps/worker/src/gateway-handler.test.ts` |
 | GEN-013 | P0 | `apps/api/src/generation-job-api.test.ts` |
+| GEN-014 | P1 | `apps/api/src/admin-service.test.ts`<br>`apps/api/src/observability.test.ts`<br>`web/src/services/cloud-generation.test.ts` |
+| GEN-015 | P1 | `apps/api/src/asset-service.test.ts`<br>`web/src/services/cloud-generation.test.ts` |
 | GEN-016 | P1 | `apps/api/src/generation-job-api.test.ts` |
+| GEN-017 | P2 | `packages/model-gateway/src/volcengine.test.ts` |
+| GEN-018 | P2 | `packages/model-gateway/src/provider-specific.test.ts` |
 | AST-001 | P0 | `apps/api/src/app.test.ts` |
 | AST-003 | P0 | `apps/api/src/asset-service.test.ts` |
 | AST-004 | P0 | `apps/api/src/app.test.ts` |
@@ -84,13 +91,6 @@
 - BAS-009 (P2)
 - BAS-010 (P1)
 - CAN-006 (P0)
-- GEN-005 (P0)
-- GEN-007 (P0)
-- GEN-008 (P1)
-- GEN-014 (P1)
-- GEN-015 (P1)
-- GEN-017 (P2)
-- GEN-018 (P2)
 - AGT-001 (P0)
 - AGT-002 (P0)
 - AGT-003 (P1)

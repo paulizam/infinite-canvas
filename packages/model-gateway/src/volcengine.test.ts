@@ -14,7 +14,7 @@ const base = {
 };
 
 describe("Volcengine AK/SK adapter", () => {
-  it("signs generation without putting credentials in URL or body", () => {
+  it("[GEN-017] signs generation without putting credentials in URL or body", () => {
     const request = buildVolcengineRequest({
       ...base,
       capability: "video",
@@ -34,7 +34,7 @@ describe("Volcengine AK/SK adapter", () => {
       prompt: "scene",
     });
   });
-  it("signs inventory, usage and task operations deterministically", () => {
+  it("[GEN-017] signs inventory, usage and task operations deterministically", () => {
     expect(
       signedVolcengineQuery({ ...base, action: "ListResourcePackages" }).url,
     ).toContain("Action=ListResourcePackages");
