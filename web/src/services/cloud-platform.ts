@@ -178,6 +178,124 @@ export type CloudAgentRunDetail = {
     results: Array<{ id: string; kind: string; payload: Record<string, unknown>; assetId: string | null }>;
     approvals: Array<{ id: string; action: "delete" | "batch_paid_generation" | "external_access"; status: "pending" | "approved" | "declined"; request: Record<string, unknown> }>;
 };
+export type CloudDramaProject = {
+    id: string;
+    workspaceId: string;
+    ownerId: string;
+    title: string;
+    sourceText: string;
+    sourceAssetId: string | null;
+    revision: number;
+    createdAt: string;
+    updatedAt: string;
+};
+export type CloudDramaScriptVersion = {
+    id: string;
+    projectId: string;
+    workspaceId: string;
+    version: number;
+    content: string;
+    segments: unknown[];
+    analysis: Record<string, unknown>;
+    reviewStatus: "draft" | "reviewing" | "approved" | "rejected";
+    operation: "import" | "revision" | "split" | "merge" | "analysis";
+    createdBy: string;
+    createdAt: string;
+};
+export type CloudDramaEntity = {
+    id: string;
+    projectId: string;
+    workspaceId: string;
+    kind: "character" | "scene" | "prop";
+    name: string;
+    description: string;
+    prompt: string;
+    referenceAssetId: string | null;
+    sortOrder: number;
+    createdAt: string;
+    updatedAt: string;
+};
+export type CloudDramaShot = {
+    id: string;
+    projectId: string;
+    workspaceId: string;
+    title: string;
+    prompt: string;
+    framing: string;
+    cameraMovement: string;
+    durationMs: number;
+    sortOrder: number;
+    currentVersion: number;
+    createdAt: string;
+    updatedAt: string;
+};
+export type CloudDramaDetail = { project: CloudDramaProject; scripts: CloudDramaScriptVersion[]; entities: CloudDramaEntity[]; shots: CloudDramaShot[] };
+export type CloudDramaGeneration = {
+    id: string;
+    projectId: string;
+    workspaceId: string;
+    shotId: string;
+    generationJobId: string;
+    capability: "image" | "video";
+    selectedAssetId: string | null;
+    selected: boolean;
+    createdBy: string;
+    createdAt: string;
+};
+export type CloudDramaTimelineItem = {
+    id: string;
+    projectId: string;
+    workspaceId: string;
+    shotId: string | null;
+    kind: "dialogue" | "voice" | "bgm" | "subtitle";
+    textContent: string;
+    voice: string;
+    assetId: string | null;
+    startMs: number;
+    endMs: number;
+    sortOrder: number;
+    createdBy: string;
+    createdAt: string;
+};
+export type CloudDramaReview = {
+    id: string;
+    projectId: string;
+    workspaceId: string;
+    shotId: string;
+    status: "pending" | "approved" | "changes_requested";
+    comment: string;
+    reviewerId: string;
+    createdAt: string;
+};
+export type CloudDramaProductionState = { generations: CloudDramaGeneration[]; timeline: CloudDramaTimelineItem[]; reviews: CloudDramaReview[] };
+export type CloudDramaProductionMutationResult = { revision: number; state: CloudDramaProductionState; replayed: boolean };
+export type CloudDramaRenderJob = {
+    id: string;
+    projectId: string;
+    workspaceId: string;
+    ownerId: string;
+    kind: "ffmpeg" | "jianying";
+    status: "queued" | "running" | "succeeded" | "failed" | "cancelled";
+    progress: number;
+    attempt: number;
+    retryOf: string | null;
+    input: { assetIds: string[]; timeline: unknown[]; settings: Record<string, unknown> };
+    outputAssetId: string | null;
+    errorCode: string | null;
+    errorMessage: string | null;
+    workerId: string | null;
+    leaseUntil: string | null;
+    mutationId: string;
+    createdAt: string;
+    updatedAt: string;
+};
+export type CloudDramaRenderVersion = { id: string; projectId: string; workspaceId: string; renderJobId: string; version: number; kind: "ffmpeg" | "jianying"; assetId: string; createdBy: string; createdAt: string };
+export type CloudDramaRenderState = { jobs: CloudDramaRenderJob[]; versions: CloudDramaRenderVersion[] };
+export type CloudDramaMutationResult = { detail: CloudDramaDetail; replayed: boolean };
+type DramaMutationBase = { expectedRevision: number; mutationId: string };
+export type CloudDramaTransferTarget =
+    | { type: "entity"; kind: CloudDramaEntity["kind"]; name: string; description?: string; prompt?: string; sortOrder: number }
+    | { type: "timeline"; shotId?: string; kind: CloudDramaTimelineItem["kind"]; textContent?: string; voice?: string; startMs: number; endMs: number; sortOrder: number };
 
 type FetchLike = (input: RequestInfo | URL, init?: RequestInit) => Promise<Response>;
 type Envelope<T> = { data: T; requestId: string };
@@ -398,6 +516,61 @@ export class CloudPlatformClient {
     }
     decideAgentApproval(approvalId: string, decision: "approved" | "declined") {
         return this.request<CloudAgentRunDetail>(`/api/v1/agent-approvals/${encodeURIComponent(approvalId)}/decision`, { method: "POST", body: JSON.stringify({ decision }) });
+    }
+
+    listDramaProjects(workspaceId: string) {
+        return this.request<CloudDramaProject[]>(`/api/v1/workspaces/${encodeURIComponent(workspaceId)}/drama-projects`);
+    }
+    createDramaProject(workspaceId: string, input: { title: string; sourceText?: string; sourceAssetId?: string }) {
+        return this.request<CloudDramaDetail>(`/api/v1/workspaces/${encodeURIComponent(workspaceId)}/drama-projects`, { method: "POST", body: JSON.stringify(input) });
+    }
+    getDramaProject(dramaId: string) {
+        return this.request<CloudDramaDetail>(`/api/v1/drama-projects/${encodeURIComponent(dramaId)}`);
+    }
+    updateDramaProject(dramaId: string, input: DramaMutationBase & { title: string; sourceText?: string; sourceAssetId?: string | null }) {
+        return this.request<CloudDramaMutationResult>(`/api/v1/drama-projects/${encodeURIComponent(dramaId)}`, { method: "PATCH", body: JSON.stringify(input) });
+    }
+    addDramaScriptVersion(dramaId: string, input: DramaMutationBase & { content: string; segments?: unknown[]; analysis?: Record<string, unknown>; reviewStatus: CloudDramaScriptVersion["reviewStatus"]; operation: Exclude<CloudDramaScriptVersion["operation"], "import"> }) {
+        return this.request<CloudDramaMutationResult>(`/api/v1/drama-projects/${encodeURIComponent(dramaId)}/script-versions`, { method: "POST", body: JSON.stringify(input) });
+    }
+    addDramaEntity(dramaId: string, input: DramaMutationBase & { kind: CloudDramaEntity["kind"]; name: string; description?: string; prompt?: string; referenceAssetId?: string; sortOrder: number }) {
+        return this.request<CloudDramaMutationResult>(`/api/v1/drama-projects/${encodeURIComponent(dramaId)}/entities`, { method: "POST", body: JSON.stringify(input) });
+    }
+    addDramaShot(dramaId: string, input: DramaMutationBase & { title: string; prompt?: string; framing?: string; cameraMovement?: string; durationMs: number; sortOrder: number }) {
+        return this.request<CloudDramaMutationResult>(`/api/v1/drama-projects/${encodeURIComponent(dramaId)}/shots`, { method: "POST", body: JSON.stringify(input) });
+    }
+    getDramaProduction(dramaId: string) {
+        return this.request<CloudDramaProductionState>(`/api/v1/drama-projects/${encodeURIComponent(dramaId)}/production`);
+    }
+    createDramaGeneration(dramaId: string, input: DramaMutationBase & { shotId: string; capability: "image" | "video"; logicalModelId: string; parameters: Record<string, unknown> }) {
+        return this.request<CloudDramaProductionMutationResult>(`/api/v1/drama-projects/${encodeURIComponent(dramaId)}/generations`, { method: "POST", body: JSON.stringify(input) });
+    }
+    selectDramaGeneration(dramaId: string, input: DramaMutationBase & { generationId: string; assetId: string }) {
+        return this.request<CloudDramaProductionMutationResult>(`/api/v1/drama-projects/${encodeURIComponent(dramaId)}/generation-selection`, { method: "POST", body: JSON.stringify(input) });
+    }
+    addDramaTimelineItem(dramaId: string, input: DramaMutationBase & { shotId?: string; kind: CloudDramaTimelineItem["kind"]; textContent?: string; voice?: string; assetId?: string; startMs: number; endMs: number; sortOrder: number }) {
+        return this.request<CloudDramaProductionMutationResult>(`/api/v1/drama-projects/${encodeURIComponent(dramaId)}/timeline`, { method: "POST", body: JSON.stringify(input) });
+    }
+    addDramaReview(dramaId: string, input: DramaMutationBase & { shotId: string; status: CloudDramaReview["status"]; comment?: string }) {
+        return this.request<CloudDramaProductionMutationResult>(`/api/v1/drama-projects/${encodeURIComponent(dramaId)}/reviews`, { method: "POST", body: JSON.stringify(input) });
+    }
+    listDramaRenders(dramaId: string) {
+        return this.request<CloudDramaRenderState>(`/api/v1/drama-projects/${encodeURIComponent(dramaId)}/renders`);
+    }
+    createDramaRender(dramaId: string, input: DramaMutationBase & { kind: CloudDramaRenderJob["kind"]; settings: Record<string, unknown> }) {
+        return this.request<{ job: CloudDramaRenderJob; replayed: boolean }>(`/api/v1/drama-projects/${encodeURIComponent(dramaId)}/renders`, { method: "POST", body: JSON.stringify(input) });
+    }
+    retryDramaRender(renderId: string, mutationId: string) {
+        return this.request<CloudDramaRenderJob>(`/api/v1/drama-renders/${encodeURIComponent(renderId)}/retry`, { method: "POST", body: JSON.stringify({ mutationId }) });
+    }
+    sendDramaAssetToCanvas(dramaId: string, input: { canvasProjectId: string; assetId: string; expectedCanvasRevision: number; mutationId: string; title?: string; position: { x: number; y: number } }) {
+        return this.request<{ node: unknown; mutation: { project: CloudProject; replayed: boolean } }>(`/api/v1/drama-projects/${encodeURIComponent(dramaId)}/transfers/to-canvas`, { method: "POST", body: JSON.stringify(input) });
+    }
+    importDramaFromAsset(dramaId: string, input: { assetId: string; expectedDramaRevision: number; mutationId: string; target: CloudDramaTransferTarget }) {
+        return this.request<CloudDramaMutationResult | CloudDramaProductionMutationResult>(`/api/v1/drama-projects/${encodeURIComponent(dramaId)}/transfers/from-asset`, { method: "POST", body: JSON.stringify(input) });
+    }
+    importDramaFromCanvas(dramaId: string, input: { canvasProjectId: string; nodeId: string; expectedDramaRevision: number; mutationId: string; target: CloudDramaTransferTarget }) {
+        return this.request<CloudDramaMutationResult | CloudDramaProductionMutationResult>(`/api/v1/drama-projects/${encodeURIComponent(dramaId)}/transfers/from-canvas`, { method: "POST", body: JSON.stringify(input) });
     }
 
     listModels() {

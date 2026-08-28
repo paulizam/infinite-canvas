@@ -14,6 +14,8 @@ import ImagePage from "@/pages/image";
 import NotFound from "@/pages/not-found";
 import InstallPage from "@/pages/install";
 import PromptsPage from "@/pages/prompts";
+import DramaPage from "@/pages/drama";
+import DramaProjectPage from "@/pages/drama/project";
 import VideoPage from "@/pages/video";
 import { cloudModeEnabled, cloudPlatform } from "@/services/cloud-platform";
 import { installationRedirect } from "@/services/installation-route";
@@ -37,6 +39,8 @@ export const router = createBrowserRouter([
             { path: "/video", element: <VideoPage /> },
             { path: "/assets", element: <AssetsPage /> },
             { path: "/prompts", element: <PromptsPage /> },
+            { path: "/drama", element: <DramaPage /> },
+            { path: "/drama/:id", element: <DramaProjectPage /> },
             { path: "/canvas", element: <CanvasPage /> },
             { path: "/canvas/:id", element: <CanvasProjectPage /> },
             { path: "/canvas/:id/studio", element: <StudioProjectPage /> },

@@ -5,8 +5,8 @@
 ## Summary
 
 - Requirements: 133
-- Direct test references: 46
-- Without direct test reference: 87
+- Direct test references: 55
+- Without direct test reference: 78
 
 ## Direct references
 
@@ -58,6 +58,15 @@
 | COL-005 | P1 | `apps/api/src/app.test.ts` |
 | COL-006 | P2 | `web/src/services/cloud-canvas-sync.test.ts` |
 | COL-007 | P2 | `apps/api/src/app.test.ts` |
+| DRM-001 | P2 | `web/src/services/cloud-platform.test.ts` |
+| DRM-003 | P2 | `web/src/services/cloud-platform.test.ts` |
+| DRM-004 | P2 | `web/src/services/cloud-platform.test.ts` |
+| DRM-005 | P2 | `web/src/services/cloud-platform.test.ts` |
+| DRM-006 | P2 | `web/src/services/cloud-platform.test.ts` |
+| DRM-007 | P2 | `web/src/services/cloud-platform.test.ts` |
+| DRM-008 | P2 | `web/src/services/cloud-platform.test.ts` |
+| DRM-009 | P2 | `web/src/services/cloud-platform.test.ts` |
+| DRM-010 | P3 | `web/src/services/cloud-platform.test.ts` |
 
 ## Missing direct references
 
@@ -104,16 +113,7 @@
 - WFL-010 (P2)
 - AST-002 (P0)
 - AST-007 (P1)
-- DRM-001 (P2)
 - DRM-002 (P2)
-- DRM-003 (P2)
-- DRM-004 (P2)
-- DRM-005 (P2)
-- DRM-006 (P2)
-- DRM-007 (P2)
-- DRM-008 (P2)
-- DRM-009 (P2)
-- DRM-010 (P3)
 - COM-001 (P2)
 - COM-002 (P2)
 - COM-003 (P2)

@@ -415,6 +415,10 @@ Render Worker 已接入独立租约循环。输入/输出 API 均校验 Worker t
 
 Drama 可将来源、实体参考、镜头选择、时间轴或成片 Asset 投递为 Canvas media node；Canvas 中绑定云端 assetId 的节点可反向导入 Drama 实体或时间轴，Asset Library 亦可直接导入。所有路径强制同 Workspace、目标 revision、mutationId 与 payload hash，Canvas Asset reference 会阻止仍在画布使用的素材被删除。
 
+### Drama Studio Web 产品面（2026-08-28）
+
+`/drama` 与 `/drama/:id` 是 Drama domain 的 Server-mode 产品入口。Web 仅通过 `CloudPlatformClient` 的 typed contract 调用领域 API，不在浏览器复制状态机；每次写操作携带当前 project revision 与随机 mutationId，成功后并行重取 project、production、render 三个 read model。工作台按剧本、实体、分镜、生成、时间轴、审批、交付与互通拆分视图，并以统一 Generation Job billing 汇总镜头成本。FFmpeg/剪映只创建 durable render job，浏览器不直接执行媒体工具链；产物始终通过受鉴权 Asset 下载接口读取。
+
 ## R3 Community COM-001～005（2026-08-28）
 
 作品社区采用独立 Publication aggregate：草稿关联同 Workspace Canvas，提交时冻结完整 document snapshot，审核通过复制为不可变发布版本。公开 Feed/Search/Tag/Cursor、详情、分享链接与作者页无需 Session；草稿、点赞、关注、举报要求登录。审核、驳回、下架、恢复由 Maintenance 边界执行并记录 requestId 幂等 audit trail；互动使用唯一约束保证计数一致。

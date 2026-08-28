@@ -167,6 +167,53 @@ describe("CloudPlatformClient", () => {
         expect(fetcher).toHaveBeenNthCalledWith(8, "/api/v1/agent-approvals/approval%2Fa/decision", expect.objectContaining({ body: JSON.stringify({ decision: "approved" }) }));
     });
 
+    it("[DRM-001][DRM-003][DRM-004] uses encoded drama authoring endpoints and revision guards", async () => {
+        const fetcher = vi.fn(async () => Response.json({ data: {}, requestId: "drama-authoring" }));
+        const client = new CloudPlatformClient("", fetcher);
+        const mutation = { expectedRevision: 3, mutationId: "mutation-123" };
+        await client.listDramaProjects("team/a");
+        await client.createDramaProject("team/a", { title: "Pilot", sourceText: "Scene one" });
+        await client.getDramaProject("drama/a");
+        await client.addDramaScriptVersion("drama/a", { ...mutation, content: "Revision", reviewStatus: "reviewing", operation: "revision" });
+        await client.addDramaEntity("drama/a", { ...mutation, kind: "character", name: "Ada", sortOrder: 0 });
+        await client.addDramaShot("drama/a", { ...mutation, title: "Opening", durationMs: 3000, sortOrder: 0 });
+        expect(fetcher).toHaveBeenNthCalledWith(1, "/api/v1/workspaces/team%2Fa/drama-projects", expect.any(Object));
+        expect(fetcher).toHaveBeenNthCalledWith(2, "/api/v1/workspaces/team%2Fa/drama-projects", expect.objectContaining({ method: "POST" }));
+        expect(fetcher).toHaveBeenNthCalledWith(3, "/api/v1/drama-projects/drama%2Fa", expect.any(Object));
+        expect(fetcher).toHaveBeenNthCalledWith(4, "/api/v1/drama-projects/drama%2Fa/script-versions", expect.objectContaining({ body: JSON.stringify({ ...mutation, content: "Revision", reviewStatus: "reviewing", operation: "revision" }) }));
+        expect(fetcher).toHaveBeenNthCalledWith(6, "/api/v1/drama-projects/drama%2Fa/shots", expect.objectContaining({ method: "POST" }));
+    });
+
+    it("[DRM-005][DRM-006][DRM-007][DRM-008][DRM-010] exposes drama production and render lifecycle", async () => {
+        const fetcher = vi.fn(async () => Response.json({ data: {}, requestId: "drama-production" }));
+        const client = new CloudPlatformClient("", fetcher);
+        const mutation = { expectedRevision: 4, mutationId: "mutation-456" };
+        await client.getDramaProduction("drama/a");
+        await client.createDramaGeneration("drama/a", { ...mutation, shotId: "shot", capability: "video", logicalModelId: "video/default", parameters: { prompt: "Rain" } });
+        await client.selectDramaGeneration("drama/a", { ...mutation, generationId: "generation", assetId: "asset" });
+        await client.addDramaTimelineItem("drama/a", { ...mutation, kind: "subtitle", textContent: "Hello", startMs: 0, endMs: 1000, sortOrder: 0 });
+        await client.addDramaReview("drama/a", { ...mutation, shotId: "shot", status: "approved" });
+        await client.listDramaRenders("drama/a");
+        await client.createDramaRender("drama/a", { ...mutation, kind: "jianying", settings: { fps: 30 } });
+        await client.retryDramaRender("render/a", "mutation-789");
+        expect(fetcher).toHaveBeenNthCalledWith(2, "/api/v1/drama-projects/drama%2Fa/generations", expect.objectContaining({ method: "POST" }));
+        expect(fetcher).toHaveBeenNthCalledWith(5, "/api/v1/drama-projects/drama%2Fa/reviews", expect.objectContaining({ method: "POST" }));
+        expect(fetcher).toHaveBeenNthCalledWith(7, "/api/v1/drama-projects/drama%2Fa/renders", expect.objectContaining({ body: JSON.stringify({ ...mutation, kind: "jianying", settings: { fps: 30 } }) }));
+        expect(fetcher).toHaveBeenNthCalledWith(8, "/api/v1/drama-renders/render%2Fa/retry", expect.objectContaining({ body: JSON.stringify({ mutationId: "mutation-789" }) }));
+    });
+
+    it("[DRM-009] exposes bidirectional transfers without placing asset ids in URLs", async () => {
+        const fetcher = vi.fn(async () => Response.json({ data: {}, requestId: "drama-transfer" }));
+        const client = new CloudPlatformClient("", fetcher);
+        const target = { type: "entity", kind: "prop", name: "Key", sortOrder: 0 } as const;
+        await client.sendDramaAssetToCanvas("drama/a", { canvasProjectId: "canvas/a", assetId: "asset/a", expectedCanvasRevision: 2, mutationId: "transfer-123", position: { x: 10, y: 20 } });
+        await client.importDramaFromAsset("drama/a", { assetId: "asset/a", expectedDramaRevision: 3, mutationId: "transfer-456", target });
+        await client.importDramaFromCanvas("drama/a", { canvasProjectId: "canvas/a", nodeId: "node/a", expectedDramaRevision: 4, mutationId: "transfer-789", target });
+        expect(fetcher).toHaveBeenNthCalledWith(1, "/api/v1/drama-projects/drama%2Fa/transfers/to-canvas", expect.objectContaining({ method: "POST" }));
+        expect(fetcher).toHaveBeenNthCalledWith(2, "/api/v1/drama-projects/drama%2Fa/transfers/from-asset", expect.objectContaining({ body: expect.stringContaining('"assetId":"asset/a"') }));
+        expect(fetcher).toHaveBeenNthCalledWith(3, "/api/v1/drama-projects/drama%2Fa/transfers/from-canvas", expect.objectContaining({ body: expect.stringContaining('"nodeId":"node/a"') }));
+    });
+
     it("uses encoded checkpoint lifecycle endpoints and sends the expected revision", async () => {
         const fetcher = vi.fn(async () => Response.json({ data: [], requestId: "checkpoint" }));
         const client = new CloudPlatformClient("", fetcher);

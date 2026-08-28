@@ -318,6 +318,7 @@ export default {
         image: "Image Studio",
         video: "Video Studio",
         prompts: "Prompt Library",
+        drama: "Drama Studio",
         assets: "My Assets",
         config: "Settings",
     },
