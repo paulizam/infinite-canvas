@@ -15,13 +15,13 @@ const evidence = {
   COL: ["apps/api/src/collaboration.test.ts", "web/src/services/cloud-collaboration.test.ts"],
   DRM: ["apps/api/src/drama-api.test.ts", "apps/worker/src/drama-render-runtime.test.ts"],
   COM: ["apps/api/src/community-api.test.ts", "apps/api/src/community-service.ts"],
-  BIL: ["apps/api/src/commerce-api.test.ts", "apps/api/src/payment-service.test.ts"],
+  BIL: ["apps/api/src/commerce-api.test.ts", "apps/api/src/payment-service.test.ts", "apps/api/src/payment-sandbox-runtime.integration.test.ts"],
   ADM: ["apps/api/src/admin-domain-api.test.ts", "web/src/pages/admin/model-commerce.tsx"],
   OPS: [".github/workflows/quality-security.yml", "ops/README.md"],
 };
 const runtimePending = new Set([
   "GEN-008", "GEN-017", "GEN-018",
-  "DRM-008", "BIL-005", "BIL-006", "BIL-007",
+  "DRM-008",
 ]);
 
 if (Object.keys(detailedEvidence).sort().join() !== [...runtimePending].sort().join())

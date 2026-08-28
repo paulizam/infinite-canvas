@@ -121,9 +121,9 @@
 | BIL-002 | P1 | `apps/api/src/generation-job-api.test.ts` |
 | BIL-003 | P2 | `apps/api/src/commerce-api.test.ts` |
 | BIL-004 | P2 | `apps/api/src/commerce-api.test.ts` |
-| BIL-005 | P2 | `apps/api/src/payment-service.test.ts` |
-| BIL-006 | P2 | `apps/api/src/payment-service.test.ts` |
-| BIL-007 | P2 | `apps/api/src/payment-service.test.ts` |
+| BIL-005 | P2 | `apps/api/src/payment-sandbox-runtime.integration.test.ts`<br>`apps/api/src/payment-service.test.ts` |
+| BIL-006 | P2 | `apps/api/src/payment-sandbox-runtime.integration.test.ts`<br>`apps/api/src/payment-service.test.ts` |
+| BIL-007 | P2 | `apps/api/src/payment-sandbox-runtime.integration.test.ts`<br>`apps/api/src/payment-service.test.ts` |
 | BIL-008 | P2 | `apps/api/src/admin-domain-api.test.ts` |
 | ADM-001 | P1 | `apps/api/src/admin-service.test.ts` |
 | ADM-002 | P1 | `apps/api/src/admin-service.test.ts` |

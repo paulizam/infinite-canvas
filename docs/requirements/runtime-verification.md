@@ -119,3 +119,24 @@ pnpm --filter @infinite-canvas/api test -- src/asset-provider-switch-runtime.int
 ```
 
 未同时设置 `ASSET_PROVIDER_TEST_DATABASE_URL` 与 `S3_TEST_ENDPOINT` 时该 integration test 显式 skip，不能作为 Runtime PASS。
+
+## BIL-005 / BIL-006 / BIL-007 payment sandbox lifecycle
+
+- 验证日期：2026-08-28
+- Provider：独立本机 HTTP payment sandbox，严格经过生产 `HttpPaymentAdapter`；Bearer token、JSON wire contract、`Idempotency-Key` 和响应限制均生效
+- Persistence：原生 PostgreSQL `17.2` 隔离数据库，完整执行 32 个 migrations
+- Test：`apps/api/src/payment-sandbox-runtime.integration.test.ts`
+- BIL-005：创建订单 → provider checkout URL/二维码 → 同幂等键不重复请求渠道 → 查询状态 → 到期批量关闭
+- BIL-006：sandbox payment event 使用 HMAC-SHA256 原始 body 签名 → fulfillment/积分入账 → 同 event id + payload 重放幂等 → 错误签名拒绝
+- BIL-007：持久化 refund 后调用 provider → 积分回滚；另一路由先返回 HTTP 503 → 标记 `refund_failed` → 使用同一 durable refund id 重试成功
+- 数据断言：两笔 payment events、两笔 refund ledger、最终 wallet balance 为 0；测试连续运行两次均 PASS
+- 清理：HTTP sandbox 与 PostgreSQL 进程均停止，监听端口释放
+
+本机复验需准备已执行 migrations 的隔离 PostgreSQL database：
+
+```powershell
+$env:PAYMENT_SANDBOX_TEST_DATABASE_URL = "postgresql://<user>:<password>@127.0.0.1:19432/<database>"
+pnpm --filter @infinite-canvas/api test -- src/payment-sandbox-runtime.integration.test.ts
+```
+
+未设置 `PAYMENT_SANDBOX_TEST_DATABASE_URL` 时该 integration test 显式 skip，不能作为 Runtime PASS。测试自行启动动态端口 payment sandbox，不接触真实资金。

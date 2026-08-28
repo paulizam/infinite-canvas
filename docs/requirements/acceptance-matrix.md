@@ -5,9 +5,9 @@
 ## 汇总
 
 - 总需求：133
-- 已定位源码/测试入口：126
-- 实机/外部环境待验：7
-- 待验 ID：GEN-008、GEN-017、GEN-018、DRM-008、BIL-005、BIL-006、BIL-007
+- 已定位源码/测试入口：129
+- 实机/外部环境待验：4
+- 待验 ID：GEN-008、GEN-017、GEN-018、DRM-008
 
 ## 逐项证据
 
@@ -118,14 +118,14 @@
 | COM-004 | P2 | SOURCE-EVIDENCE | 作者主页、点赞、关注及计数一致性。 | `apps/api/src/community-api.test.ts`<br>`apps/api/src/community-service.ts` |
 | COM-005 | P2 | SOURCE-EVIDENCE | 举报、治理原因、操作人、时间与 audit trail。 | `apps/api/src/community-api.test.ts`<br>`apps/api/src/community-service.ts` |
 | COM-006 | P3 | SOURCE-EVIDENCE | 评论、收藏、合集；均具备反滥用与可治理能力。 | `apps/api/src/community-api.test.ts`<br>`apps/api/src/community-service.ts` |
-| BIL-001 | P1 | SOURCE-EVIDENCE | 积分钱包、不可变流水、余额查询与后台调整审计。 | `apps/api/src/commerce-api.test.ts`<br>`apps/api/src/payment-service.test.ts` |
-| BIL-002 | P1 | SOURCE-EVIDENCE | 模型基础价、参数倍率、预估价、原子扣费与幂等退款。 | `apps/api/src/commerce-api.test.ts`<br>`apps/api/src/payment-service.test.ts` |
-| BIL-003 | P2 | SOURCE-EVIDENCE | 商品/套餐、免费额度、促销、优惠券、CDK。 | `apps/api/src/commerce-api.test.ts`<br>`apps/api/src/payment-service.test.ts` |
-| BIL-004 | P2 | SOURCE-EVIDENCE | 邀请码、邀请关系、奖励规则和防重复领取。 | `apps/api/src/commerce-api.test.ts`<br>`apps/api/src/payment-service.test.ts` |
-| BIL-005 | P2 | RUNTIME-PENDING | 订单创建、支付跳转/二维码、状态查询与过期关闭。 | `apps/api/src/payment-service.ts`<br>`apps/api/src/app.ts`<br>`apps/api/src/payment-service.test.ts`<br>`apps/api/src/commerce-api.test.ts`<br>Command: `pnpm --filter @infinite-canvas/api test`<br>Needs: Payment provider sandbox |
-| BIL-006 | P2 | RUNTIME-PENDING | 支付 webhook 签名、重放防护、event id 去重。 | `apps/api/src/payment-service.ts`<br>`apps/api/src/app.ts`<br>`apps/api/src/payment-service.test.ts`<br>Command: `pnpm --filter @infinite-canvas/api test`<br>Needs: Payment provider signed webhook sandbox |
-| BIL-007 | P2 | RUNTIME-PENDING | 退款申请、渠道退款、积分回滚、失败补偿。 | `apps/api/src/payment-service.ts`<br>`apps/api/src/postgres-payment-repository.ts`<br>`apps/api/src/admin-api.ts`<br>`apps/api/src/payment-service.test.ts`<br>`apps/api/src/admin-domain-api.test.ts`<br>`apps/api/src/commerce-api.test.ts`<br>Command: `pnpm --filter @infinite-canvas/api test`<br>Needs: Payment provider refund sandbox |
-| BIL-008 | P2 | SOURCE-EVIDENCE | 对账、财务流水、收入/退款/模型成本统计。 | `apps/api/src/commerce-api.test.ts`<br>`apps/api/src/payment-service.test.ts` |
+| BIL-001 | P1 | SOURCE-EVIDENCE | 积分钱包、不可变流水、余额查询与后台调整审计。 | `apps/api/src/commerce-api.test.ts`<br>`apps/api/src/payment-service.test.ts`<br>`apps/api/src/payment-sandbox-runtime.integration.test.ts` |
+| BIL-002 | P1 | SOURCE-EVIDENCE | 模型基础价、参数倍率、预估价、原子扣费与幂等退款。 | `apps/api/src/commerce-api.test.ts`<br>`apps/api/src/payment-service.test.ts`<br>`apps/api/src/payment-sandbox-runtime.integration.test.ts` |
+| BIL-003 | P2 | SOURCE-EVIDENCE | 商品/套餐、免费额度、促销、优惠券、CDK。 | `apps/api/src/commerce-api.test.ts`<br>`apps/api/src/payment-service.test.ts`<br>`apps/api/src/payment-sandbox-runtime.integration.test.ts` |
+| BIL-004 | P2 | SOURCE-EVIDENCE | 邀请码、邀请关系、奖励规则和防重复领取。 | `apps/api/src/commerce-api.test.ts`<br>`apps/api/src/payment-service.test.ts`<br>`apps/api/src/payment-sandbox-runtime.integration.test.ts` |
+| BIL-005 | P2 | SOURCE-EVIDENCE | 订单创建、支付跳转/二维码、状态查询与过期关闭。 | `apps/api/src/commerce-api.test.ts`<br>`apps/api/src/payment-service.test.ts`<br>`apps/api/src/payment-sandbox-runtime.integration.test.ts` |
+| BIL-006 | P2 | SOURCE-EVIDENCE | 支付 webhook 签名、重放防护、event id 去重。 | `apps/api/src/commerce-api.test.ts`<br>`apps/api/src/payment-service.test.ts`<br>`apps/api/src/payment-sandbox-runtime.integration.test.ts` |
+| BIL-007 | P2 | SOURCE-EVIDENCE | 退款申请、渠道退款、积分回滚、失败补偿。 | `apps/api/src/commerce-api.test.ts`<br>`apps/api/src/payment-service.test.ts`<br>`apps/api/src/payment-sandbox-runtime.integration.test.ts` |
+| BIL-008 | P2 | SOURCE-EVIDENCE | 对账、财务流水、收入/退款/模型成本统计。 | `apps/api/src/commerce-api.test.ts`<br>`apps/api/src/payment-service.test.ts`<br>`apps/api/src/payment-sandbox-runtime.integration.test.ts` |
 | ADM-001 | P1 | SOURCE-EVIDENCE | Dashboard：用户、任务、调用、媒体、积分与系统健康。 | `apps/api/src/admin-domain-api.test.ts`<br>`web/src/pages/admin/model-commerce.tsx` |
 | ADM-002 | P1 | SOURCE-EVIDENCE | 用户检索、状态、角色、积分、Session 撤销和操作审计。 | `apps/api/src/admin-domain-api.test.ts`<br>`web/src/pages/admin/model-commerce.tsx` |
 | ADM-003 | P1 | SOURCE-EVIDENCE | 五步模型渠道向导、协议、连接测试、模型同步、逻辑模型启用。 | `apps/api/src/admin-domain-api.test.ts`<br>`web/src/pages/admin/model-commerce.tsx` |
