@@ -448,7 +448,7 @@ export function startHttpServer() {
         console.log("Infinite Canvas Agent");
         checkVersions();
         console.log(`Local URL: ${config.url}`);
-        console.log(`Connect token: ${config.token}`);
+        console.log("Connect token: configured (not printed)");
         console.log("Codex MCP is not installed by this command.");
         console.log("Optional MCP add: codex mcp add infinite-canvas -- npx -y @basketikun/canvas-agent mcp");
         console.log("Remove manually added MCP: codex mcp remove infinite-canvas");
