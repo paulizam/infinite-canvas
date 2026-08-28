@@ -9,6 +9,7 @@ export function ModelAdmin() {
         [catalog, setCatalog] = useState<AdminModelCatalog | null>(null),
         [channelId, setChannelId] = useState(() => crypto.randomUUID()),
         [protocolId, setProtocolId] = useState("openai"),
+        [protocolAdapter, setProtocolAdapter] = useState("openai-compatible"),
         [discovered, setDiscovered] = useState<Array<{ id: string; displayName?: string }>>([]),
         [selected, setSelected] = useState<string[]>([]),
         [capability, setCapability] = useState<Record<string, (typeof capabilities)[number]>>({}),
@@ -67,6 +68,7 @@ export function ModelAdmin() {
                             void run(async () => {
                                 await adminPlatform.saveProtocol(x.id, { name: x.name, adapter: x.adapter, enabled: true, config: x.adapter === "custom" ? { modelCatalogPath: "/v1/models" } : {} });
                                 setProtocolId(x.id);
+                                setProtocolAdapter(x.adapter);
                                 setStep(1);
                             })
                         }
@@ -78,7 +80,7 @@ export function ModelAdmin() {
                             <Input />
                         </Form.Item>
                         <Form.Item name="adapter" label="Adapter">
-                            <Radio.Group options={["openai-compatible", "gemini", "seedance", "stable-diffusion", "media-kit", "custom"].map((value) => ({ value, label: value }))} />
+                            <Radio.Group options={["openai-compatible", "gemini", "seedance", "stable-diffusion", "media-kit", "volcengine", "custom"].map((value) => ({ value, label: value }))} />
                         </Form.Item>
                         <Button type="primary" htmlType="submit" loading={busy}>
                             保存并下一步
@@ -93,7 +95,14 @@ export function ModelAdmin() {
                         initialValues={{ name: "Primary Channel", baseUrl: "https://api.example.com/v1", apiKey: "" }}
                         onFinish={(x) =>
                             void run(async () => {
-                                await adminPlatform.saveChannel(channelId, { name: x.name, protocolId, baseUrl: x.baseUrl, enabled: true, config: {}, apiKey: x.apiKey });
+                                await adminPlatform.saveChannel(channelId, {
+                                    name: x.name,
+                                    protocolId,
+                                    baseUrl: x.baseUrl,
+                                    enabled: true,
+                                    config: protocolAdapter === "volcengine" ? { accessKeyId: x.accessKeyId, region: x.region || "cn-north-1", service: x.service || "ark" } : {},
+                                    apiKey: x.apiKey,
+                                });
                                 setStep(2);
                             })
                         }
@@ -104,9 +113,23 @@ export function ModelAdmin() {
                         <Form.Item name="baseUrl" label="Base URL" rules={[{ required: true, type: "url" }]}>
                             <Input />
                         </Form.Item>
-                        <Form.Item name="apiKey" label="API Key" rules={[{ required: true }]}>
+                        <Form.Item name="apiKey" label={protocolAdapter === "volcengine" ? "Secret Access Key (SK)" : "API Key"} rules={[{ required: true }]}>
                             <Input.Password autoComplete="new-password" />
                         </Form.Item>
+                        {protocolAdapter === "volcengine" ? (
+                            <>
+                                <Form.Item name="accessKeyId" label="Access Key ID (AK)" rules={[{ required: true }]}>
+                                    <Input autoComplete="off" />
+                                </Form.Item>
+                                <Form.Item name="region" label="Region" initialValue="cn-north-1">
+                                    <Input />
+                                </Form.Item>
+                                <Form.Item name="service" label="Service" initialValue="ark">
+                                    <Input />
+                                </Form.Item>
+                                <Alert className="mb-4" type="info" showIcon message="AK 作为非秘密标识保存在渠道 config；SK 加密保存且不回显。" />
+                            </>
+                        ) : null}
                         <Button type="primary" htmlType="submit" loading={busy}>
                             保存并下一步
                         </Button>
@@ -130,6 +153,22 @@ export function ModelAdmin() {
                         <Button type="primary" loading={busy} onClick={() => void discover()}>
                             测试并拉取模型
                         </Button>
+                        {protocolAdapter === "volcengine"
+                            ? (["models", "resources", "usage"] as const).map((kind) => (
+                                  <Button
+                                      key={kind}
+                                      loading={busy}
+                                      onClick={() =>
+                                          void run(async () => {
+                                              const result = await adminPlatform.volcengine(channelId, kind);
+                                              message.success(`${kind} 查询成功：${JSON.stringify(result.payload).slice(0, 120)}`);
+                                          })
+                                      }
+                                  >
+                                      {kind}
+                                  </Button>
+                              ))
+                            : null}
                     </Space>
                 </Card>
             ) : null}

@@ -25,5 +25,6 @@
   "024_admin_control_plane.sql": "97d6a32ef71fd576bd237c5d8edaddf93112e613566880b7e7fa0035f78872cd",
   "025_admin_mfa.sql": "8a02be021e41dde0ef951895d49ded4053a9795f40e99d34e5911b031362afac",
   "026_data_governance.sql": "9cab8fa3c097974d106648a8af9e642b36f799e11917f1b42de9df58878d0bcb",
-  "027_provider_adapters.sql": "cd6521e0aad365424e88fdc7d2e62688152b100f221acfa829f0e17f7d2b9d62"
+  "027_provider_adapters.sql": "cd6521e0aad365424e88fdc7d2e62688152b100f221acfa829f0e17f7d2b9d62",
+  "028_volcengine_adapter.sql": "e2e3aaf315dff58c314fa22a8085c63c8cdda60959fdff63122e79fcbab72361"
 }

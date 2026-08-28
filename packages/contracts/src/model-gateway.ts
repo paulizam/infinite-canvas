@@ -5,6 +5,7 @@ export type ModelProtocolAdapter =
   | "seedance"
   | "stable-diffusion"
   | "media-kit"
+  | "volcengine"
   | "custom";
 export type ModelHealthState = "healthy" | "degraded" | "cooldown" | "disabled";
 

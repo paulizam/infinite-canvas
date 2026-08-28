@@ -48,3 +48,4 @@
 - R4 插件生态加固：第三方插件改为 HTTPS manifest + SHA-256 SRI 安装，新增 SemVer/minAppVersion/权限 origin 校验、安装升级 permission diff 确认、手动版本固定、Registry 撤销自动禁用、2MiB/5秒沙箱限额与持久诊断；裸远程 JS URL 不再作为可信安装入口。
 - OPS-003 脱敏业务迁移包：repeatable-read 导出所有非安全态业务表，排除 Session/MFA/渠道密钥/API Token/支付原始事件，匿名化用户与密码并递归清洗 secret；包内 SHA-256、512MiB 上限、空库门禁、显式确认、单事务导入和动态 FK 复验，失败完整回滚。
 - GEN-008/018 Provider runtime：新增 Seedance 异步任务、Stable Diffusion/A1111/Forge txt2img/img2img、MediaKit image/video 增强 adapter；扩展 protocol contract/migration/Admin，Worker 统一 submit/poll/cancel/normalize，用户参数不可覆盖 upstream model。
+- GEN-017 Volcengine：新增标准 HMAC-SHA256 AK/SK signer 与 protocol adapter，Worker 支持签名 submit/poll/cancel；Admin 可查询模型、资源包与消耗，沿用 DNS 后 SSRF 阻断、response ceiling 和 Secret 不回显边界。

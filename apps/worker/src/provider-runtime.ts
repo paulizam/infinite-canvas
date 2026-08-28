@@ -9,6 +9,9 @@ import {
   buildProviderSpecificRequest,
   providerSpecificOperation,
   normalizeProviderSpecificPayload,
+  buildVolcengineRequest,
+  buildVolcengineOperation,
+  normalizeVolcenginePayload,
 } from "@infinite-canvas/model-gateway";
 import type { WorkerResolvedModel } from "./client.js";
 
@@ -26,6 +29,12 @@ export function buildSubmitRequest(
     allowInsecure: resolved.channel.config.allowInsecure === true,
   };
   if (resolved.protocol.adapter === "gemini") return buildGeminiRequest(input);
+  if (resolved.protocol.adapter === "volcengine")
+    return buildVolcengineRequest({
+      ...input,
+      secretAccessKey: resolved.apiKey,
+      config: { ...resolved.protocol.config, ...resolved.channel.config },
+    });
   if (
     ["seedance", "stable-diffusion", "media-kit"].includes(
       resolved.protocol.adapter,
@@ -80,6 +89,15 @@ export function buildOperationRequest(
   operation: "poll" | "cancel",
   taskId: string,
 ) {
+  if (resolved.protocol.adapter === "volcengine")
+    return buildVolcengineOperation({
+      baseUrl: resolved.channel.baseUrl,
+      secretAccessKey: resolved.apiKey,
+      taskId,
+      operation,
+      config: { ...resolved.protocol.config, ...resolved.channel.config },
+      allowInsecure: resolved.channel.config.allowInsecure === true,
+    });
   if (resolved.protocol.adapter === "openai-compatible")
     return {
       url: openAiOperationUrl(resolved, capability, taskId, operation),
@@ -121,6 +139,8 @@ export function normalizePayload(
   payload: Record<string, unknown>,
   capability: ModelCapability,
 ) {
+  if (resolved.protocol.adapter === "volcengine")
+    return normalizeVolcenginePayload(payload);
   if (
     ["seedance", "stable-diffusion", "media-kit"].includes(
       resolved.protocol.adapter,

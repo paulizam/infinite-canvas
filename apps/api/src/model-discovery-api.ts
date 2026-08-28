@@ -33,6 +33,24 @@ export function createModelDiscoveryApi(
       requestId: c.get("requestId"),
     }),
   );
+  app.get("/:id/volcengine/:kind", async (c) => {
+    const kind = c.req.param("kind");
+    if (kind !== "models" && kind !== "resources" && kind !== "usage")
+      return c.json(
+        {
+          error: {
+            code: "INVALID_VOLCENGINE_QUERY",
+            message: "kind 必须为 models/resources/usage",
+          },
+          requestId: c.get("requestId"),
+        },
+        400,
+      );
+    return c.json({
+      data: await service.volcengineInventory(c.req.param("id"), kind),
+      requestId: c.get("requestId"),
+    });
+  });
   return app;
 }
 

@@ -33,6 +33,7 @@ class AdminPlatform {
     saveChannel = (id: string, body: Omit<ModelChannel, "id" | "credentialConfigured"> & { apiKey?: string; clearCredential?: boolean }) => this.send<ModelChannel>(`/models/channels/${id}`, "PUT", body);
     discover = (id: string) => this.send<{ models: Array<{ id: string; displayName?: string }>; latencyMs: number }>(`/models/channels/${id}/discover`, "POST", {});
     testChannel = (id: string) => this.send<{ ok: boolean; modelCount: number; latencyMs: number }>(`/models/channels/${id}/test`, "POST", {});
+    volcengine = (id: string, kind: "models" | "resources" | "usage") => this.get<{ kind: string; payload: unknown }>(`/models/channels/${id}/volcengine/${kind}`);
     saveUpstream = (id: string, body: Omit<UpstreamModel, "id">) => this.send<UpstreamModel>(`/models/upstream/${id}`, "PUT", body);
     saveLogical = (id: string, body: Omit<LogicalModel, "id">) => this.send<LogicalModel>(`/models/logical/${encodeURIComponent(id)}`, "PUT", body);
     saveBinding = (id: string, body: Omit<LogicalModelBinding, "id">) => this.send<LogicalModelBinding>(`/models/bindings/${id}`, "PUT", body);

@@ -426,3 +426,5 @@ Drama 可将来源、实体参考、镜头选择、时间轴或成片 Asset 投�
 ## Provider-specific Runtime（2026-08-28）
 
 Model Protocol 除 OpenAI-compatible、Gemini 与声明式 Custom 外，新增独立 `seedance`、`stable-diffusion`、`media-kit` adapter。Worker 按 adapter 构造请求、轮询/取消并归一化媒体结果；Seedance 使用异步任务语义，Stable Diffusion 同时覆盖 A1111/Forge 的 txt2img 与 img2img，MediaKit 提供画质增强类 image/video capability。渠道凭据继续只在 Worker 租约执行期间解密，用户参数不能覆盖权威 upstream model，所有路径仍受 HTTPS/无凭据 URL/安全相对路径约束。
+
+Volcengine adapter 使用 HMAC-SHA256 AK/SK 签名；AK 作为渠道标识保存在 config，SK 沿用 AES-GCM credential boundary。Worker 支持签名后的 submit/poll/cancel，Admin Maintenance API 支持模型、资源包与剩余额度三类查询，并复用 DNS 后内网阻断、禁止 redirect、30 秒 timeout 与 2MiB response ceiling。签名 Secret 不进入 URL、响应、审计 metadata 或日志。

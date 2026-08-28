@@ -9,9 +9,11 @@ async function runtime(
     | "seedance"
     | "stable-diffusion"
     | "media-kit"
+    | "volcengine"
     | "custom",
   baseUrl = "https://api.example.com/v1",
   protocolConfig: Record<string, unknown> = {},
+  channelConfig: Record<string, unknown> = {},
 ) {
   const repository = new MemoryModelGatewayRepository();
   await repository.saveProtocol({
@@ -28,7 +30,7 @@ async function runtime(
     baseUrl,
     enabled: true,
     credentialConfigured: false,
-    config: {},
+    config: channelConfig,
     apiKey: "secret",
   });
   return repository;
@@ -136,5 +138,34 @@ describe("ModelDiscoveryService", () => {
         async () => ["8.8.8.8"],
       ).discover("c"),
     ).rejects.toMatchObject({ code: "MODEL_CATALOG_TOO_LARGE" });
+  });
+
+  it("signs Volcengine resource and usage inventory without exposing AK/SK", async () => {
+    const repository = await runtime(
+      "volcengine",
+      "https://open.volcengineapi.com",
+      {},
+      { accessKeyId: "AKLTEXAMPLE", region: "cn-north-1", service: "ark" },
+    );
+    const fetcher = vi.fn(async () =>
+      Response.json({ Result: { RemainingUnits: 42 } }),
+    );
+    const service = new ModelDiscoveryService(
+      repository,
+      fetcher as typeof fetch,
+      async () => ["8.8.8.8"],
+    );
+    const result = await service.volcengineInventory("c", "usage");
+    expect(result).toMatchObject({
+      kind: "usage",
+      payload: { Result: { RemainingUnits: 42 } },
+    });
+    const [url, init] = fetcher.mock.calls[0] as unknown as [string, RequestInit];
+    expect(String(url)).toContain("Action=GetResourceUsage");
+    expect(String(url)).not.toContain("AKLTEXAMPLE");
+    expect(JSON.stringify(init)).not.toContain("secret");
+    expect((init?.headers as Record<string, string>).authorization).toContain(
+      "AKLTEXAMPLE",
+    );
   });
 });

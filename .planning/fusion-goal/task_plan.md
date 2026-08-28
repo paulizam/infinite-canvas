@@ -19,7 +19,7 @@
 - [x] WebSocket collaboration hub
 - [x] Asset storage（magic-byte、SHA-256、Local/S3、RBAC、AssetRef 保护）
 - [x] Generation Job Worker（contract/state/schema/repository/API、独立 runtime、heartbeat/lease recovery）
-- [▶] Model Gateway（OpenAI-compatible、Gemini、声明式 Custom runtime、媒体 Asset、health/cooldown、provider cancel、连接测试/模型发现已完成；streaming、provider-specific adapter 待完成）；Billing、Web 预估/余额、Cloud Job、AssetRef 回填、Canvas Retry/编辑全路径已完成，运营对账待完成
+- [x] Model Gateway（OpenAI-compatible、Gemini、Seedance、Stable Diffusion/A1111/Forge、MediaKit、Volcengine AK/SK、声明式 Custom runtime、媒体 Asset、streaming、health/cooldown、provider cancel、连接测试/模型发现/资源消耗查询）；Billing、运营对账、Web 预估/余额、Cloud Job、AssetRef 回填、Canvas Retry/编辑全路径已完成
 
 ## 错误账本
 

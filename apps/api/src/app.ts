@@ -3104,6 +3104,7 @@ const protocolSchema = z
       "seedance",
       "stable-diffusion",
       "media-kit",
+      "volcengine",
       "custom",
     ]),
     enabled: z.boolean(),

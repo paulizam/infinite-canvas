@@ -1,6 +1,7 @@
 import { lookup } from "node:dns/promises";
 import { isIP } from "node:net";
 import { DomainError } from "./domain.js";
+import { signedVolcengineQuery } from "@infinite-canvas/model-gateway";
 import type {
   ModelChannelRuntime,
   ModelGatewayRepository,
@@ -26,6 +27,16 @@ export class ModelDiscoveryService {
         409,
         "渠道、协议或凭据未完整配置",
       );
+    if (runtime.protocol.adapter === "volcengine") {
+      const startedAt = Date.now();
+      const inventory = await this.volcengineInventory(channelId, "models");
+      return {
+        channelId,
+        adapter: runtime.protocol.adapter,
+        models: parseModels(inventory.payload),
+        latencyMs: Date.now() - startedAt,
+      };
+    }
     const request = await this.request(runtime);
     const startedAt = Date.now();
     let response: Response;
@@ -55,6 +66,63 @@ export class ModelDiscoveryService {
     };
   }
 
+  async volcengineInventory(
+    channelId: string,
+    kind: "models" | "resources" | "usage",
+  ) {
+    const runtime = await this.repository.channelRuntime(channelId);
+    if (!runtime || runtime.protocol.adapter !== "volcengine")
+      throw new DomainError(
+        "VOLCENGINE_CHANNEL_REQUIRED",
+        409,
+        "渠道未配置为 Volcengine AK/SK",
+      );
+    const config = { ...runtime.protocol.config, ...runtime.channel.config };
+    const defaults = {
+      models: "ListFoundationModels",
+      resources: "ListResourcePackages",
+      usage: "GetResourceUsage",
+    } as const;
+    const configured = config[`${kind}Action`];
+    const request = signedVolcengineQuery({
+      baseUrl: runtime.channel.baseUrl,
+      secretAccessKey: runtime.apiKey,
+      config,
+      action: typeof configured === "string" ? configured : defaults[kind],
+      version: typeof config.version === "string" ? config.version : undefined,
+      allowInsecure: runtime.channel.config.allowInsecure === true,
+    });
+    await this.assertSafeUrl(
+      new URL(request.url),
+      runtime.channel.config.allowPrivateNetwork === true,
+    );
+    let response: Response;
+    try {
+      response = await this.fetcher(request.url, {
+        ...request.init,
+        redirect: "error",
+        signal: AbortSignal.timeout(30_000),
+      });
+    } catch {
+      throw new DomainError(
+        "VOLCENGINE_QUERY_FAILED",
+        502,
+        "无法连接 Volcengine 渠道",
+      );
+    }
+    if (!response.ok)
+      throw new DomainError(
+        "VOLCENGINE_QUERY_FAILED",
+        502,
+        `Volcengine 渠道返回 HTTP ${response.status}`,
+      );
+    return {
+      channelId,
+      kind,
+      payload: await readJsonLimited(response, 2 * 1024 * 1024),
+    };
+  }
+
   private async request(runtime: ModelChannelRuntime) {
     const url = new URL(runtime.channel.baseUrl);
     const basePath = url.pathname.replace(/\/+$/, "");
@@ -67,17 +135,10 @@ export class ModelDiscoveryService {
             basePath.toLowerCase().endsWith("/v1beta")
           ? `${basePath}/models`
           : `${basePath}${path}`.replace(/\/{2,}/g, "/");
-    if (runtime.channel.config.allowPrivateNetwork !== true) {
-      const addresses = isIP(url.hostname)
-        ? [url.hostname]
-        : await this.resolveHost(url.hostname).catch(() => []);
-      if (!addresses.length || addresses.some(isPrivateAddress))
-        throw new DomainError(
-          "UNSAFE_CHANNEL_URL",
-          400,
-          "模型渠道地址不允许访问内网或保留地址",
-        );
-    }
+    await this.assertSafeUrl(
+      url,
+      runtime.channel.config.allowPrivateNetwork === true,
+    );
     const headers: Record<string, string> = {};
     if (runtime.protocol.adapter === "gemini")
       headers["x-goog-api-key"] = runtime.apiKey;
@@ -88,6 +149,19 @@ export class ModelDiscoveryService {
       headers["x-api-key"] = runtime.apiKey;
     else headers.authorization = `Bearer ${runtime.apiKey}`;
     return { url: url.toString(), headers };
+  }
+
+  private async assertSafeUrl(url: URL, allowPrivateNetwork: boolean) {
+    if (allowPrivateNetwork) return;
+    const addresses = isIP(url.hostname)
+      ? [url.hostname]
+      : await this.resolveHost(url.hostname).catch(() => []);
+    if (!addresses.length || addresses.some(isPrivateAddress))
+      throw new DomainError(
+        "UNSAFE_CHANNEL_URL",
+        400,
+        "模型渠道地址不允许访问内网或保留地址",
+      );
   }
 }
 
@@ -162,11 +236,21 @@ function catalogPath(runtime: ModelChannelRuntime) {
 function parseModels(value: unknown): DiscoveredModel[] {
   if (!value || typeof value !== "object" || Array.isArray(value)) return [];
   const record = value as Record<string, unknown>;
+  const result =
+    record.Result &&
+    typeof record.Result === "object" &&
+    !Array.isArray(record.Result)
+      ? (record.Result as Record<string, unknown>)
+      : undefined;
   const source = Array.isArray(record.data)
     ? record.data
     : Array.isArray(record.models)
       ? record.models
-      : [];
+      : Array.isArray(result?.Models)
+        ? result.Models
+        : Array.isArray(result?.Items)
+          ? result.Items
+          : [];
   const models = source.flatMap((item): DiscoveredModel[] => {
     if (typeof item === "string" && item.trim())
       return [{ id: normalizeId(item) }];

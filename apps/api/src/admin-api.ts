@@ -248,6 +248,21 @@ export function createAdminApi(
           : result,
       );
     });
+    app.get("/models/channels/:id/volcengine/:kind", async (c) => {
+      const id = z.uuid().parse(c.req.param("id"));
+      const kind = z
+        .enum(["models", "resources", "usage"])
+        .parse(c.req.param("kind"));
+      const result = await domains.modelDiscovery.volcengineInventory(id, kind);
+      await service.record(
+        actor(c),
+        `model.channel.volcengine.${kind}`,
+        "model_channel",
+        id,
+        {},
+      );
+      return ok(c, result);
+    });
     app.put("/models/upstream/:id", async (c) => {
       const id = z.uuid().parse(c.req.param("id")),
         value = await domains.modelGateway.saveUpstreamModel({
@@ -450,6 +465,7 @@ const protocolBody = z
       "seedance",
       "stable-diffusion",
       "media-kit",
+      "volcengine",
       "custom",
     ]),
     enabled: z.boolean(),
