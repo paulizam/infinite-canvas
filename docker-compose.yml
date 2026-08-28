@@ -15,7 +15,7 @@ services:
     restart: unless-stopped
   migrate:
     build: { context: ., dockerfile: infra/docker/Dockerfile.api }
-    command: ["pnpm", "--filter", "@infinite-canvas/api", "db:migrate"]
+    command: ["node", "dist/migrate.js"]
     environment:
       DATABASE_URL: postgresql://${POSTGRES_USER:-infinite_canvas}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-infinite_canvas}
       BLOB_STORAGE_DRIVER: ${BLOB_STORAGE_DRIVER:-local}
