@@ -49,3 +49,4 @@
 - OPS-003 脱敏业务迁移包：repeatable-read 导出所有非安全态业务表，排除 Session/MFA/渠道密钥/API Token/支付原始事件，匿名化用户与密码并递归清洗 secret；包内 SHA-256、512MiB 上限、空库门禁、显式确认、单事务导入和动态 FK 复验，失败完整回滚。
 - GEN-008/018 Provider runtime：新增 Seedance 异步任务、Stable Diffusion/A1111/Forge txt2img/img2img、MediaKit image/video 增强 adapter；扩展 protocol contract/migration/Admin，Worker 统一 submit/poll/cancel/normalize，用户参数不可覆盖 upstream model。
 - GEN-017 Volcengine：新增标准 HMAC-SHA256 AK/SK signer 与 protocol adapter，Worker 支持签名 submit/poll/cancel；Admin 可查询模型、资源包与消耗，沿用 DNS 后 SSRF 阻断、response ceiling 和 Secret 不回显边界。
+- 建立 133 项机器生成 requirement-to-evidence 矩阵：所有 ID 与证据路径受 release gate 校验；118 项已定位 source/test entry，15 项明确标记 Docker/PostgreSQL/Provider/WebDAV/支付/媒体工具链 RUNTIME-PENDING，不以宽泛测试冒充最终 PASS。
