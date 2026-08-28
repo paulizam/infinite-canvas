@@ -49,6 +49,13 @@ describe("plugin lifecycle", () => {
         expect(usePluginStore.getState().plugins[0]?.enabled).toBe(false);
     });
 
+    it("rejects enabling an app-incompatible pinned plugin [PLG-005] [PLG-007]", async () => {
+        const incompatible = { ...installed, enabled: false, minAppVersion: "1.0.0" };
+        usePluginStore.setState({ plugins: [incompatible] });
+        await expect(setPluginEnabled(incompatible, true)).rejects.toThrow("1.0.0");
+        expect(usePluginStore.getState().plugins[0]?.enabled).toBe(false);
+    });
+
     it("rolls back registered nodes when plugin setup throws", () => {
         const plugin = {
             id: "broken",

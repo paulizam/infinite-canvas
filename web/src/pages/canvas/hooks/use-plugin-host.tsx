@@ -7,7 +7,9 @@ import { requestVideoGeneration, storeGeneratedVideo } from "@/services/api/vide
 import { decodeChannelModel, selectableModelsByCapability, type AiConfig, type ModelCapability } from "@/stores/use-config-store";
 import { buildGenerationConfig } from "@/lib/canvas/canvas-generation-helpers";
 import { buildNodeContext } from "@/lib/canvas/plugin-node-context";
-import { getNodeDefinition } from "@/lib/canvas/node-registry";
+import { getNodeDefinition, getNodePluginId } from "@/lib/canvas/node-registry";
+import { PluginErrorBoundary } from "@/components/canvas/plugin-error-boundary";
+import { usePluginStore } from "@/stores/canvas/use-plugin-store";
 import { ensurePluginsLoaded } from "@/lib/canvas/plugin-loader";
 import { canvasThemes } from "@/lib/canvas-theme";
 import type { CanvasNodeToolbarItem, CanvasPluginAi, CanvasPluginHost } from "@/types/canvas-plugin";
@@ -135,7 +137,7 @@ export function usePluginHost(params: PluginHostParams) {
             const Panel = getNodeDefinition(panelNode.type)?.Panel;
             if (!Panel) return null;
             const ctx = buildNodeContext(pluginHost, panelNode, theme, viewportRef.current.k);
-            return <Panel ctx={ctx} onClose={() => setDialogNodeId(null)} />;
+            return <PluginErrorBoundary pluginId={getNodePluginId(panelNode.type)} surface="panel" resetKey={`${panelNode.id}:${panelNode.type}`}><Panel ctx={ctx} onClose={() => setDialogNodeId(null)} /></PluginErrorBoundary>;
         },
         [pluginHost, theme],
     );
@@ -145,7 +147,14 @@ export function usePluginHost(params: PluginHostParams) {
         (node: CanvasNodeData): CanvasNodeToolbarItem[] => {
             const definition = getNodeDefinition(node.type);
             const ctx = buildNodeContext(pluginHost, node, theme, viewportRef.current.k);
-            const custom = definition?.toolbar?.(ctx) || [];
+            let custom: CanvasNodeToolbarItem[] = [];
+            try {
+                custom = definition?.toolbar?.(ctx) || [];
+            } catch (error) {
+                const message = `toolbar: ${error instanceof Error ? error.message : String(error)}`;
+                usePluginStore.getState().setDiagnostic(getNodePluginId(node.type), message);
+                console.error(`[plugin] ${getNodePluginId(node.type)} ${message}`);
+            }
             // Show the interaction/move toggle only for nodes with content that are not forced into an interactive state.
             if (!definition?.interactionToggle || !node.metadata?.content || definition.forceInteractive?.(node)) return custom;
             const interactive = Boolean(node.metadata?.interactive);

@@ -8,6 +8,7 @@ export type InstalledPlugin = {
     id: string;
     name: string;
     version: string;
+    minAppVersion?: string;
     description?: string;
     url: string; // Installation source used for updates.
     manifestUrl?: string;

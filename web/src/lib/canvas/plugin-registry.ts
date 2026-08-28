@@ -6,6 +6,7 @@ export type OfficialPluginEntry = {
     id: string;
     name: string;
     version: string;
+    minAppVersion?: string;
     description?: string;
     icon?: string;
     url: string;
@@ -15,7 +16,7 @@ export type OfficialPluginEntry = {
     revokeReason?: string;
 };
 
-type RawEntry = { id?: string; name?: string; version?: string; description?: string; icon?: string; entry?: string; url?: string; integrity?: string; permissions?: PluginPermission[]; revoked?: boolean; revokeReason?: string };
+type RawEntry = { id?: string; name?: string; version?: string; minAppVersion?: string; description?: string; icon?: string; entry?: string; url?: string; integrity?: string; permissions?: PluginPermission[]; revoked?: boolean; revokeReason?: string };
 type RawManifest = { version?: number; plugins?: RawEntry[] };
 
 // Fetch the official registry and resolve relative entries against its URL for the existing URL installation flow.
@@ -33,6 +34,7 @@ export function parseOfficialPluginManifest(data: RawManifest, registryUrl: stri
             id: item.id,
             name: item.name || item.id,
             version: item.version || "0.0.0",
+            minAppVersion: item.minAppVersion,
             description: item.description,
             icon: item.icon,
             url: item.url ? item.url : new URL(item.entry as string, registryUrl).toString(),

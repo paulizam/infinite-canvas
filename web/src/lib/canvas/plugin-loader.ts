@@ -75,9 +75,10 @@ function withCacheBust(url: string) {
 
 // Install or replace a plugin from a URL and enable it immediately.
 // bustCache bypasses HTTP/CDN caches during upgrades while persisting a clean URL without the timestamp query.
-type PluginInstallOptions = { official?: boolean; bustCache?: boolean; id?: string; integrity?: string; permissions?: PluginPermission[]; manifestUrl?: string };
+type PluginInstallOptions = { official?: boolean; bustCache?: boolean; id?: string; integrity?: string; permissions?: PluginPermission[]; manifestUrl?: string; minAppVersion?: string };
 
 export async function installPluginFromUrl(url: string, opts?: PluginInstallOptions) {
+    if (!satisfiesMinAppVersion(getPluginRuntime().version, opts?.minAppVersion)) throw new Error(`插件要求应用版本 ${opts?.minAppVersion} 或更高`);
     const local = isTrustedPluginUrl(url, window.location.origin);
     if (!local && (!opts?.integrity || !opts.permissions)) throw new Error("远程插件必须提供完整性与权限清单");
     const source = await fetchPluginSource(opts?.bustCache ? withCacheBust(url) : url);
@@ -92,6 +93,7 @@ export async function installPluginFromUrl(url: string, opts?: PluginInstallOpti
             id: plugin.id,
             name: plugin.name || plugin.id,
             version: plugin.version || "0.0.0",
+            minAppVersion: opts?.minAppVersion || plugin.minAppVersion,
             description: plugin.description,
             url,
             manifestUrl: opts?.manifestUrl,
@@ -116,7 +118,7 @@ export async function updatePlugin(record: InstalledPlugin) {
         return installPluginManifest(manifest, record.official);
     }
     // Upgrades must fetch the latest output and therefore always bypass caches.
-    return installPluginFromUrl(record.url, { official: record.official, bustCache: true, id: record.id, integrity: record.integrity, permissions: record.permissions });
+    return installPluginFromUrl(record.url, { official: record.official, bustCache: true, id: record.id, integrity: record.integrity, permissions: record.permissions, minAppVersion: record.minAppVersion });
 }
 
 export async function installPluginFromManifest(manifestUrl: string, official = false) {
@@ -125,7 +127,7 @@ export async function installPluginFromManifest(manifestUrl: string, official = 
 
 export async function installPluginManifest(manifest: ResolvedPluginManifest, official = false) {
     if (!satisfiesMinAppVersion(getPluginRuntime().version, manifest.minAppVersion)) throw new Error(`插件要求应用版本 ${manifest.minAppVersion} 或更高`);
-    return installPluginFromUrl(manifest.entry, { official, id: manifest.id, integrity: manifest.integrity, permissions: manifest.permissions, manifestUrl: manifest.manifestUrl });
+    return installPluginFromUrl(manifest.entry, { official, id: manifest.id, integrity: manifest.integrity, permissions: manifest.permissions, manifestUrl: manifest.manifestUrl, minAppVersion: manifest.minAppVersion });
 }
 
 export async function setPluginEnabled(record: InstalledPlugin, enabled: boolean) {
@@ -134,6 +136,7 @@ export async function setPluginEnabled(record: InstalledPlugin, enabled: boolean
         deactivatePlugin(record.id);
         return;
     }
+    if (!satisfiesMinAppVersion(getPluginRuntime().version, record.minAppVersion)) throw new Error(`插件要求应用版本 ${record.minAppVersion} 或更高`);
     // Reload local plugins from their URL when enabled because the cached source may be stale.
     const source = record.local ? await fetchPluginSource(withCacheBust(record.url)) : record.source;
     const plugin = await evaluateStoredPlugin(record, source);

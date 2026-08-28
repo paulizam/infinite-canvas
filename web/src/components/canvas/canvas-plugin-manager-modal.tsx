@@ -9,6 +9,8 @@ import { fetchOfficialPlugins, hasUpgrade, type OfficialPluginEntry } from "@/li
 import { fetchPluginManifest, permissionDiff } from "@/lib/canvas/plugin-manifest";
 import { useThemeStore } from "@/stores/use-theme-store";
 import { usePluginStore, type InstalledPlugin } from "@/stores/canvas/use-plugin-store";
+import { inspectPluginCompatibility } from "@/lib/canvas/plugin-compatibility";
+import { getPluginRuntime } from "@/lib/canvas/plugin-runtime";
 
 export function CanvasPluginManagerModal({ open, onClose }: { open: boolean; onClose: () => void }) {
     const { t } = useTranslation();
@@ -86,7 +88,7 @@ export function CanvasPluginManagerModal({ open, onClose }: { open: boolean; onC
             if (entry.revoked) throw new Error(entry.revokeReason || "插件版本已被撤销");
             const added = permissionDiff(recordById.get(entry.id)?.permissions, entry.permissions);
             if (!(await confirmPermissions(entry.name, added))) return;
-            const plugin = await installPluginFromUrl(entry.url, { official: true, id: entry.id, integrity: entry.integrity, permissions: entry.permissions });
+            const plugin = await installPluginFromUrl(entry.url, { official: true, id: entry.id, integrity: entry.integrity, permissions: entry.permissions, minAppVersion: entry.minAppVersion });
             message.success(t("canvas.plugins.installed", { name: plugin.name }));
         } catch (error) {
             message.error(t("canvas.plugins.installFailed", { error: error instanceof Error ? error.message : String(error) }));
@@ -126,7 +128,7 @@ export function CanvasPluginManagerModal({ open, onClose }: { open: boolean; onC
                             if (entry) {
                                 if (entry.revoked) throw new Error(entry.revokeReason || "插件版本已被撤销");
                                 if (!(await confirmPermissions(entry.name, permissionDiff(record.permissions, entry.permissions)))) return;
-                                await installPluginFromUrl(entry.url, { official: true, id: entry.id, integrity: entry.integrity, permissions: entry.permissions });
+                                await installPluginFromUrl(entry.url, { official: true, id: entry.id, integrity: entry.integrity, permissions: entry.permissions, minAppVersion: entry.minAppVersion });
                             } else if (record.manifestUrl) {
                                 const manifest = await fetchPluginManifest(record.manifestUrl);
                                 if (!(await confirmPermissions(manifest.name, permissionDiff(record.permissions, manifest.permissions)))) return;
@@ -230,7 +232,11 @@ export function CanvasPluginManagerModal({ open, onClose }: { open: boolean; onC
         </div>
     );
 
-    const diagnostic = (record: InstalledPlugin) => record.lastError ? `${record.description || record.url} · ${record.lastError}` : record.description || record.url;
+    const diagnostic = (record: InstalledPlugin) => {
+        const report = inspectPluginCompatibility(record, getPluginRuntime().version);
+        const summary = report.issues.map((issue) => issue.message).join(" · ");
+        return [record.description || record.url, summary || `已固定 v${report.pinnedVersion}${report.sandboxed ? " · sandbox" : ""}`].filter(Boolean).join(" · ");
+    };
     const localTab = <div className="thin-scrollbar max-h-[52vh] space-y-2 overflow-auto">{localPlugins.map((record) => row(record.id, <Puzzle className="size-4" />, record.name, record.version, diagnostic(record), installedControls(record)))}</div>;
 
     const thirdPartyTab = (

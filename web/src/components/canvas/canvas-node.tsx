@@ -12,6 +12,8 @@ import { CanvasNodeType, type CanvasNodeData, type CanvasNodeImage, type CanvasN
 import type { CanvasNodeContext, CanvasPluginHost } from "@/types/canvas-plugin";
 import type { CanvasResourceReference } from "@/lib/canvas/canvas-resource-references";
 import { useTranslation } from "react-i18next";
+import { getNodePluginId } from "@/lib/canvas/node-registry";
+import { PluginErrorBoundary } from "./plugin-error-boundary";
 
 type ResizeCorner = "top-left" | "top-right" | "bottom-left" | "bottom-right";
 const selectionBlue = "#2f80ff";
@@ -461,7 +463,8 @@ function NodeContent(props: NodeContentRendererProps) {
     const definition = getNodeDefinition(props.node.type);
     if (definition?.Content && props.pluginContext) {
         const PluginContent = definition.Content;
-        return <PluginContent ctx={props.pluginContext} />;
+        const pluginId = getNodePluginId(props.node.type);
+        return <PluginErrorBoundary pluginId={pluginId} surface="content" resetKey={`${props.node.id}:${props.node.type}`}><PluginContent ctx={props.pluginContext} /></PluginErrorBoundary>;
     }
     return <MissingPluginContent theme={props.theme} type={props.node.type} />;
 }
