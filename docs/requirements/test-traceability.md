@@ -5,8 +5,8 @@
 ## Summary
 
 - Requirements: 133
-- Direct test references: 42
-- Without direct test reference: 91
+- Direct test references: 43
+- Without direct test reference: 90
 
 ## Direct references
 
@@ -45,6 +45,7 @@
 | AST-009 | P1 | `apps/api/src/admin-service.test.ts`<br>`web/src/services/api/prompts.test.ts`<br>`web/src/services/cloud-platform.test.ts`<br>`web/src/services/prompt-handoff.test.ts` |
 | AST-010 | P2 | `apps/api/src/asset-service.test.ts` |
 | PLG-001 | P0 | `web/src/lib/canvas/canvas-export.test.ts`<br>`web/src/lib/canvas/plugin-node-codec.test.ts` |
+| PLG-004 | P0 | `web/src/lib/canvas/plugin-lifecycle.test.ts` |
 | PLG-005 | P1 | `web/src/lib/canvas/plugin-compatibility.test.ts`<br>`web/src/lib/canvas/plugin-lifecycle.test.ts` |
 | PLG-007 | P2 | `web/src/lib/canvas/plugin-compatibility.test.ts`<br>`web/src/lib/canvas/plugin-lifecycle.test.ts` |
 | COL-001 | P1 | `apps/api/src/collaboration.test.ts` |
@@ -102,7 +103,6 @@
 - AST-007 (P1)
 - PLG-002 (P0)
 - PLG-003 (P0)
-- PLG-004 (P0)
 - PLG-006 (P1)
 - DRM-001 (P2)
 - DRM-002 (P2)

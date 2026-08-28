@@ -3,11 +3,17 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 const unregisterPluginNodes = vi.fn();
 const registerNodeDefinitions = vi.fn();
 const fetchOfficialPlugins = vi.fn();
+const evaluateSandboxPlugin = vi.fn();
+const verifyPluginIntegrity = vi.fn();
+const createSandboxCanvasPlugin = vi.fn();
 
 vi.stubGlobal("localStorage", { getItem: () => null, setItem: () => undefined, removeItem: () => undefined });
 vi.stubGlobal("window", { location: { origin: "https://canvas.example" } });
 vi.mock("@/lib/canvas/node-registry", () => ({ registerNodeDefinitions, unregisterPluginNodes }));
 vi.mock("@/lib/canvas/plugin-registry", () => ({ fetchOfficialPlugins }));
+vi.mock("@/lib/canvas/plugin-integrity", () => ({ verifyPluginIntegrity }));
+vi.mock("@/lib/canvas/plugin-sandbox", () => ({ evaluateSandboxPlugin }));
+vi.mock("@/lib/canvas/sandbox-canvas-plugin", () => ({ createSandboxCanvasPlugin }));
 vi.mock("@/lib/canvas/plugin-runtime", () => ({
     getPluginRuntime: () => ({ version: "0.16.0", injectCSS: vi.fn(() => vi.fn()) }),
 }));
@@ -32,6 +38,8 @@ const installed = {
 describe("plugin lifecycle", () => {
     beforeEach(() => {
         vi.clearAllMocks();
+        evaluateSandboxPlugin.mockResolvedValue({ id: installed.id, name: installed.name, version: installed.version, nodes: [{ type: `${installed.id}:node`, title: "Node", defaultSize: { width: 10, height: 10 } }] });
+        createSandboxCanvasPlugin.mockImplementation((descriptor: { nodes: object[]; [key: string]: unknown }) => ({ ...descriptor, nodes: descriptor.nodes.map((node: object) => ({ ...node, icon: null })) }));
         usePluginStore.setState({ plugins: [{ ...installed }] });
     });
 
@@ -47,6 +55,15 @@ describe("plugin lifecycle", () => {
         usePluginStore.setState({ plugins: [legacy] });
         await expect(setPluginEnabled(legacy, true)).rejects.toThrow("Blocked legacy remote plugin");
         expect(usePluginStore.getState().plugins[0]?.enabled).toBe(false);
+    });
+
+    it("migrates official remote records into the Worker sandbox [PLG-004]", async () => {
+        const disabled = { ...installed, enabled: false };
+        usePluginStore.setState({ plugins: [disabled] });
+        await setPluginEnabled(disabled, true);
+        expect(verifyPluginIntegrity).toHaveBeenCalledWith(disabled.source, disabled.integrity);
+        expect(evaluateSandboxPlugin).toHaveBeenCalledWith(disabled.source, "0.16.0", disabled.permissions);
+        expect(usePluginStore.getState().plugins[0]).toMatchObject({ enabled: true, sandboxed: true, trustedOfficial: false });
     });
 
     it("rejects enabling an app-incompatible pinned plugin [PLG-005] [PLG-007]", async () => {

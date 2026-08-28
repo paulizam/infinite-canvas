@@ -22,5 +22,6 @@ describe("plugin compatibility report [PLG-005] [PLG-007]", () => {
         expect(report.compatible).toBe(false);
         expect(report.issues.map((issue) => issue.code)).toEqual(["APP_VERSION", "LEGACY_REMOTE", "INTEGRITY", "PERMISSIONS"]);
     });
+    it("does not treat the deprecated official trust marker as a sandbox", () => expect(inspectPluginCompatibility({ ...installed, sandboxed: false, trustedOfficial: true }, "0.16.0").issues.map((issue) => issue.code)).toContain("LEGACY_REMOTE"));
     it("preserves isolated runtime diagnostics as a warning", () => expect(inspectPluginCompatibility({ ...installed, lastError: "render failed" }, "0.16.0").issues).toContainEqual({ code: "RUNTIME", severity: "warning", message: "render failed" }));
 });

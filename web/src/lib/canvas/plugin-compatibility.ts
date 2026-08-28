@@ -19,7 +19,7 @@ export type PluginCompatibilityReport = {
 export function inspectPluginCompatibility(record: InstalledPlugin, appVersion: string, checkedAt = new Date().toISOString()): PluginCompatibilityReport {
     const issues: PluginCompatibilityIssue[] = [];
     if (!satisfiesMinAppVersion(appVersion, record.minAppVersion)) issues.push({ code: "APP_VERSION", severity: "error", message: `需要应用版本 ${record.minAppVersion} 或更高` });
-    if (!record.local && !record.sandboxed && !record.trustedOfficial) issues.push({ code: "LEGACY_REMOTE", severity: "error", message: "旧版远程插件未运行在沙箱中" });
+    if (!record.local && !record.sandboxed) issues.push({ code: "LEGACY_REMOTE", severity: "error", message: "旧版远程插件未运行在沙箱中" });
     if (!record.local && !record.integrity) issues.push({ code: "INTEGRITY", severity: "error", message: "远程插件缺少 integrity" });
     if (!record.local && !record.permissions) issues.push({ code: "PERMISSIONS", severity: "error", message: "远程插件缺少权限清单" });
     if (record.lastError) issues.push({ code: "RUNTIME", severity: "warning", message: record.lastError });

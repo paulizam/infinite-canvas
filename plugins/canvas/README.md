@@ -22,7 +22,7 @@
 }
 ```
 
-远程 bundle 最多 2 MiB，在独立 Module Worker 中限时求值；网络权限必须按 `network:https://host.example/` 精确声明 origin。安装和升级前宿主展示新增权限，只有用户确认才替换当前固定版本。Registry 可用 `revoked: true` 与 `revokeReason` 撤销版本；撤销后宿主自动禁用。运行失败会记录最近检查时间与脱敏错误，节点原始数据不随禁用或卸载丢失。
+远程 bundle 最多 2 MiB，在独立 Module Worker 中限时求值；网络权限必须按 `network:https://host.example/` 精确声明 origin。官方 Registry 与第三方来源遵循完全相同的沙箱边界，`official` 只影响目录分组与撤销策略，不授予主 Window Realm 执行权。安装和升级前宿主展示新增权限，只有用户确认才替换当前固定版本。Registry 可用 `revoked: true` 与 `revokeReason` 撤销版本；撤销后宿主自动禁用。运行失败会记录最近检查时间与脱敏错误，节点原始数据不随禁用或卸载丢失。
 
 ## 目录约定
 
@@ -61,11 +61,11 @@ npm run build   # → dist/<name>.js,并同步到 web/public/plugins/<name>.js
 npm run dev     # watch,改动自动构建并同步
 ```
 
-把 `dist/<name>.js` 托管到任意静态地址(CDN、GitHub Raw、对象存储),用户在画布「节点插件」管理器填该 URL 安装。升级时重新构建覆盖同一 URL,用户点「更新」即可。
+把 `dist/<name>.js` 与声明 integrity/permissions 的 `manifest.json` 托管到 HTTPS 静态地址(CDN、GitHub Raw、对象存储),用户在画布「节点插件」管理器填 manifest URL 安装。升级时发布新版本与新 integrity,用户确认权限 diff 后更新。
 
 ## 官方插件注册表
 
-本项目官方插件由 CI 集中构建后发布到孤儿分支 `plugins-dist`(**构建产物不进 git**),画布「节点插件」面板顶部的**官方插件**区经 jsDelivr 从该分支远程拉取并一键安装;第三方插件仍走下方「第三方插件」的 JS URL 安装。构建脚本与发布说明见 [`registry/`](./registry/README.md);清单地址可用 `VITE_PLUGIN_REGISTRY_URL` 覆盖成自建来源。
+本项目官方插件由 CI 集中构建后发布到孤儿分支 `plugins-dist`(**构建产物不进 git**),画布「节点插件」面板顶部的**官方插件**区经 jsDelivr 读取目录；第三方插件走下方 manifest URL 安装。任何非同源 bundle 都只能进入 Worker sandbox。构建脚本与发布说明见 [`registry/`](./registry/README.md);清单地址可用 `VITE_PLUGIN_REGISTRY_URL` 覆盖成自建来源。
 
 ## 本地开发
 
@@ -177,5 +177,5 @@ ctx.applyOps([
 
 ## 注意
 
-- 插件代码会在画布页面内**直接执行**,可访问浏览器本地数据(含 AI API Key)。发布前请自审,用户也只应安装可信来源。
+- 只有随应用发布的同源 `/plugins/*.js` 内置插件在宿主 Realm 执行；所有非同源插件（包括官方 Registry）均经 integrity 校验后进入 Worker sandbox，不能直接读取 storage、DOM 或 AI API Key。历史 `trustedOfficial` 记录会自动降权迁移。
 - 交互控件记得 `onMouseDown={(e) => e.stopPropagation()}`(避免触发节点拖拽),滚动区域加 `onWheel={(e) => e.stopPropagation()}` 与容器 `data-canvas-no-zoom`(避免被画布缩放拦截)。

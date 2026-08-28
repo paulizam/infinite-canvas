@@ -82,9 +82,7 @@ export async function installPluginFromUrl(url: string, opts?: PluginInstallOpti
     const local = isTrustedPluginUrl(url, window.location.origin);
     if (!local && (!opts?.integrity || !opts.permissions)) throw new Error("远程插件必须提供完整性与权限清单");
     const source = await fetchPluginSource(opts?.bustCache ? withCacheBust(url) : url);
-    const trustedOfficial = !local && Boolean(opts?.official);
-    if (trustedOfficial) await verifyPluginIntegrity(source, opts!.integrity!);
-    const plugin = local || trustedOfficial ? await evaluateTrustedPluginSource(source) : await evaluateRemotePlugin(source, opts!);
+    const plugin = local ? await evaluateTrustedPluginSource(source) : await evaluateRemotePlugin(source, opts!);
     if (opts?.id && plugin.id !== opts.id) throw new Error("插件标识与清单不匹配");
     deactivatePlugin(plugin.id); // Replace the previous version.
     usePluginStore
@@ -101,8 +99,8 @@ export async function installPluginFromUrl(url: string, opts?: PluginInstallOpti
             enabled: true,
             official: opts?.official,
             local,
-            trustedOfficial,
-            sandboxed: !local && !trustedOfficial,
+            trustedOfficial: false,
+            sandboxed: !local,
             integrity: opts?.integrity,
             permissions: opts?.permissions,
             lastCheckedAt: new Date().toISOString(),
@@ -136,6 +134,7 @@ export async function setPluginEnabled(record: InstalledPlugin, enabled: boolean
         deactivatePlugin(record.id);
         return;
     }
+    record = secureStoredPluginRecord(record);
     if (!satisfiesMinAppVersion(getPluginRuntime().version, record.minAppVersion)) throw new Error(`插件要求应用版本 ${record.minAppVersion} 或更高`);
     // Reload local plugins from their URL when enabled because the cached source may be stale.
     const source = record.local ? await fetchPluginSource(withCacheBust(record.url)) : record.source;
@@ -161,9 +160,11 @@ export async function ensurePluginsLoaded() {
     await enforceOfficialRevocations();
     const records = usePluginStore.getState().plugins.filter((record) => record.enabled);
     await Promise.all(
-        records.map(async (record) => {
+        records.map(async (storedRecord) => {
+            let record = storedRecord;
             try {
-                if (!record.local && !record.sandboxed && !record.trustedOfficial) {
+                record = secureStoredPluginRecord(record);
+                if (!record.local && !record.sandboxed) {
                     usePluginStore.getState().setEnabled(record.id, false);
                     throw new Error("Blocked legacy remote plugin");
                 }
@@ -246,6 +247,7 @@ async function loadDevPlugins() {
     await Promise.all(
         urls.map(async (url) => {
             try {
+                assertTrustedPluginUrl(url, window.location.origin);
                 const source = await fetchPluginSource(withCacheBust(url));
                 const plugin = await evaluateTrustedPluginSource(source);
                 deactivatePlugin(plugin.id);
@@ -269,10 +271,14 @@ async function evaluateStoredPlugin(record: InstalledPlugin, source: string): Pr
         assertTrustedPluginUrl(record.url, window.location.origin);
         return evaluateTrustedPluginSource(source);
     }
-    if (record.trustedOfficial && record.integrity) {
-        await verifyPluginIntegrity(source, record.integrity);
-        return evaluateTrustedPluginSource(source);
-    }
     if (!record.sandboxed || !record.integrity || !record.permissions) throw new Error("Blocked legacy remote plugin");
     return evaluateRemotePlugin(source, { id: record.id, integrity: record.integrity, permissions: record.permissions });
+}
+
+// Migrate releases installed before ADR-007 removed the official-remote main-Realm exception.
+export function secureStoredPluginRecord(record: InstalledPlugin): InstalledPlugin {
+    if (record.local || record.sandboxed || !record.trustedOfficial || !record.integrity || !record.permissions) return record;
+    const secured = { ...record, sandboxed: true, trustedOfficial: false };
+    usePluginStore.getState().upsert(secured);
+    return secured;
 }
