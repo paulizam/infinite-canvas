@@ -12,6 +12,8 @@ curl -fsS http://localhost:3000/health
 
 `migrate` must complete before API starts. PostgreSQL and Asset data use named volumes. Web only exposes port 3000 and reverse-proxies API/WebSocket traffic.
 
+`migrate`、API 与 Worker 以非 root 镜像运行；Compose 进一步启用只读根文件系统、drop all capabilities、`no-new-privileges` 和 `noexec/nosuid/nodev` tmpfs。API 的 `/data/assets` 命名卷是本地存储模式唯一持久可写路径；API/Worker 使用 init shim 回收子进程，尤其是中断的 FFmpeg 任务。PostgreSQL 保留官方 entrypoint 所需权限，不套用会破坏首次卷初始化的统一 capability 策略。
+
 Because Compose constructs `DATABASE_URL` from `POSTGRES_PASSWORD`, use a high-entropy URL-safe value (for example base64url) rather than reserved URI characters. API startup validates required values, encryption-key shape, token length, token separation, and previous-token expiry.
 
 ## Backup and restore

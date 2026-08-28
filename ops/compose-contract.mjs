@@ -32,6 +32,18 @@ const required = [
     /S3_SECRET_ACCESS_KEY: \$\{S3_SECRET_ACCESS_KEY:-\}/,
   ],
   ["asset volume", /asset-data:\/data\/assets/],
+  [
+    "API runtime hardening",
+    /api:[\s\S]*?init: true[\s\S]*?read_only: true[\s\S]*?cap_drop: \[ALL\][\s\S]*?no-new-privileges:true/,
+  ],
+  [
+    "Worker runtime hardening",
+    /worker:[\s\S]*?init: true[\s\S]*?read_only: true[\s\S]*?cap_drop: \[ALL\][\s\S]*?no-new-privileges:true/,
+  ],
+  [
+    "restricted temporary storage",
+    /tmp:rw,noexec,nosuid,nodev/,
+  ],
 ];
 
 for (const [name, pattern] of required)
