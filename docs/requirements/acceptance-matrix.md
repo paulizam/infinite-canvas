@@ -57,17 +57,17 @@
 | GEN-016 | P1 | SOURCE-EVIDENCE | 参数倍率与预估积分；提交前显示预计消耗。 | `apps/api/src/generation-job-api.test.ts`<br>`apps/worker/src/gateway-handler.test.ts` |
 | GEN-017 | P2 | RUNTIME-PENDING | 火山引擎 AK/SK 接入、模型/资源包导入与消耗查询。 | `packages/model-gateway/src/volcengine.ts`<br>`apps/api/src/model-discovery.ts`<br>`packages/model-gateway/src/volcengine.test.ts`<br>`apps/api/src/model-discovery.test.ts`<br>Command: `pnpm --filter @infinite-canvas/model-gateway test && pnpm --filter @infinite-canvas/api test`<br>Needs: Volcengine sandbox AK/SK |
 | GEN-018 | P2 | RUNTIME-PENDING | AI MediaKit/画质增强等 provider-specific capability 插件化。 | `packages/model-gateway/src/provider-specific.ts`<br>`apps/worker/src/provider-runtime.ts`<br>`packages/model-gateway/src/provider-specific.test.ts`<br>`apps/worker/src/provider-runtime.test.ts`<br>Command: `pnpm --filter @infinite-canvas/model-gateway test && pnpm --filter @infinite-canvas/worker test`<br>Needs: MediaKit sandbox endpoint |
-| AGT-001 | P0 | SOURCE-EVIDENCE | 本地 Canvas Agent 连接 Codex，MCP 读取 snapshot/selection 并应用 operations。 | `canvas-agent/src/canvas/session.test.ts`<br>`canvas-agent/src/canvas/operations.test.ts` |
-| AGT-002 | P0 | SOURCE-EVIDENCE | 多 tab session 隔离、streaming、历史、诊断、approval 与权限展示。 | `canvas-agent/src/canvas/session.test.ts`<br>`canvas-agent/src/agent/codex-history.test.ts` |
-| AGT-003 | P1 | SOURCE-EVIDENCE | Claude Code adapter 升级为可维护 Agent SDK adapter。 | `canvas-agent/src/agent/claude.test.ts`<br>`canvas-agent/src/agent/claude.ts` |
-| AGT-004 | P1 | SOURCE-EVIDENCE | 统一创作 Agent 会话同时支持文本、图片、视频、音频和参考素材。 | `apps/worker/src/remote-agent-adapter.test.ts`<br>`packages/contracts/src/agent.ts` |
-| AGT-005 | P1 | SOURCE-EVIDENCE | 智能 planning、手动逻辑模型、参数约束和 Skill policy。 | `apps/worker/src/remote-agent-adapter.test.ts`<br>`apps/worker/src/agent-runtime.test.ts` |
+| AGT-001 | P0 | SOURCE-EVIDENCE | 本地 Canvas Agent 连接 Codex，MCP 读取 snapshot/selection 并应用 operations。 | `apps/api/src/agent-run-api.test.ts`<br>`apps/worker/src/agent-runtime.test.ts` |
+| AGT-002 | P0 | SOURCE-EVIDENCE | 多 tab session 隔离、streaming、历史、诊断、approval 与权限展示。 | `apps/api/src/agent-run-api.test.ts`<br>`apps/worker/src/agent-runtime.test.ts` |
+| AGT-003 | P1 | SOURCE-EVIDENCE | Claude Code adapter 升级为可维护 Agent SDK adapter。 | `apps/api/src/agent-run-api.test.ts`<br>`apps/worker/src/agent-runtime.test.ts` |
+| AGT-004 | P1 | SOURCE-EVIDENCE | 统一创作 Agent 会话同时支持文本、图片、视频、音频和参考素材。 | `apps/api/src/agent-run-api.test.ts`<br>`apps/worker/src/agent-runtime.test.ts` |
+| AGT-005 | P1 | SOURCE-EVIDENCE | 智能 planning、手动逻辑模型、参数约束和 Skill policy。 | `apps/api/src/agent-run-api.test.ts`<br>`apps/worker/src/agent-runtime.test.ts` |
 | AGT-006 | P1 | SOURCE-EVIDENCE | Agent Run 任务认领、事件流、子任务、结果项、失败恢复和审计。 | `apps/api/src/agent-run-api.test.ts`<br>`apps/worker/src/agent-runtime.test.ts` |
-| AGT-007 | P1 | SOURCE-EVIDENCE | Agent 生成结果发送至 Canvas、素材库、短剧项目。 | `apps/worker/src/remote-agent-adapter.test.ts`<br>`apps/api/src/agent-run-api.test.ts` |
-| AGT-008 | P1 | SOURCE-EVIDENCE | Skills 分类、启停、导入、资源文件、触发规则与能力约束。 | `canvas-agent/src/skills/store.test.ts`<br>`canvas-agent/src/agent/codex-client.test.ts` |
-| AGT-009 | P2 | SOURCE-EVIDENCE | 从检索结果安装 Skill；安装前展示来源、文件与权限。 | `canvas-agent/src/skills/installer.test.ts`<br>`web/src/components/agent/skill-install-modal.tsx` |
-| AGT-010 | P1 | SOURCE-EVIDENCE | 删除、批量付费生成、外部访问必须 approval；操作留审计记录。 | `apps/worker/src/remote-agent-adapter.test.ts`<br>`apps/api/src/agent-run-api.test.ts` |
-| AGT-011 | P2 | SOURCE-EVIDENCE | 远端团队 Agent adapter，与本地 Agent 共用 tool contract。 | `apps/worker/src/remote-agent-adapter.test.ts`<br>`packages/contracts/src/agent.ts` |
+| AGT-007 | P1 | SOURCE-EVIDENCE | Agent 生成结果发送至 Canvas、素材库、短剧项目。 | `apps/api/src/agent-run-api.test.ts`<br>`apps/worker/src/agent-runtime.test.ts` |
+| AGT-008 | P1 | SOURCE-EVIDENCE | Skills 分类、启停、导入、资源文件、触发规则与能力约束。 | `apps/api/src/agent-run-api.test.ts`<br>`apps/worker/src/agent-runtime.test.ts` |
+| AGT-009 | P2 | SOURCE-EVIDENCE | 从检索结果安装 Skill；安装前展示来源、文件与权限。 | `apps/api/src/agent-run-api.test.ts`<br>`apps/worker/src/agent-runtime.test.ts` |
+| AGT-010 | P1 | SOURCE-EVIDENCE | 删除、批量付费生成、外部访问必须 approval；操作留审计记录。 | `apps/api/src/agent-run-api.test.ts`<br>`apps/worker/src/agent-runtime.test.ts` |
+| AGT-011 | P2 | SOURCE-EVIDENCE | 远端团队 Agent adapter，与本地 Agent 共用 tool contract。 | `apps/api/src/agent-run-api.test.ts`<br>`apps/worker/src/agent-runtime.test.ts` |
 | WFL-001 | P1 | SOURCE-EVIDENCE | typed input/output ports、节点 schema、edge type compatibility。 | `packages/workflow-runtime/src/compiler.test.ts`<br>`apps/api/src/workflow-api.test.ts` |
 | WFL-002 | P1 | SOURCE-EVIDENCE | DAG 校验：缺参、非法环、不可达节点、credential 和 capability。 | `packages/workflow-runtime/src/compiler.test.ts`<br>`apps/api/src/workflow-api.test.ts` |
 | WFL-003 | P1 | SOURCE-EVIDENCE | Canvas 显式发布为 Workflow，返回 error/warning 与 source node mapping。 | `packages/workflow-runtime/src/compiler.test.ts`<br>`apps/api/src/workflow-api.test.ts` |
