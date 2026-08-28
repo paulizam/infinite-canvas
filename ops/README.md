@@ -50,3 +50,20 @@ pnpm release:check
 ```
 
 `release:check` verifies VERSION/tag consistency, product brand, required documentation, sensitive tracked files, the immutable migration checksum manifest and generated third-party notices. `quality-security.yml` additionally runs Gitleaks, PostgreSQL migrations twice, Syft SPDX SBOM generation, Trivy filesystem/image scans, Compose validation and all three container builds. When adding a migration, never edit a previously shipped SQL file; add the next numbered file and deliberately run `node ops/migration-manifest.mjs`.
+
+## External runtime preflight
+
+在执行真实 Provider、Volcengine 或剪映桌面验收前运行：
+
+```powershell
+pnpm runtime:preflight -- --allow-pending
+pnpm runtime:preflight -- --json --allow-pending
+```
+
+严格模式 `pnpm runtime:preflight` 在任一条件缺失时返回 exit code `2`，适合验收脚本 fail closed；`--allow-pending` 只用于查看准备状态。报告只显示环境变量或路径是否存在，不输出 API Key、AK/SK 或文件内容。所需配置包括：
+
+- `PROVIDER_SANDBOX_CASES_FILE` 及 case 中声明的 `apiKeyEnv`
+- `VOLCENGINE_SANDBOX_BASE_URL`、`VOLCENGINE_SANDBOX_ACCESS_KEY_ID`、`VOLCENGINE_SANDBOX_SECRET_ACCESS_KEY`
+- `JIANYING_EXECUTABLE`、`JIANYING_DRAFT_ROOT`、`FFMPEG_PATH`
+
+Case file 必须保存在仓库外，只保存密钥环境变量名称，不保存密钥本身；Preflight 强制 Provider URL 使用 HTTPS。

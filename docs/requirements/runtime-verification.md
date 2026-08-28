@@ -2,6 +2,17 @@
 
 本文件记录不能由纯 mock/contract test 代替的运行验收。持续集成中的对应命令是权威可重复证据。
 
+统一准备检查：
+
+```powershell
+# 查看 Pending，不输出任何 secret
+pnpm runtime:preflight -- --allow-pending
+# 所有外部条件未就绪时返回 exit code 2
+pnpm runtime:preflight
+```
+
+`ops/runtime-preflight.mjs` 校验 Provider case schema/HTTPS/动态密钥变量、Volcengine 三项配置以及 Windows 剪映 executable、draft root、FFmpeg；它只证明环境已准备，不能替代下述真实 harness。
+
 ## DRM-007 FFmpeg render
 
 - 验证日期：2026-08-28
