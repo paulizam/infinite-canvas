@@ -1,10 +1,43 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import {
   buildFfmpegArgs,
   buildJianyingPackage,
+  runDramaRenderCycle,
 } from "./drama-render-runtime.js";
 import { deterministicZip } from "./deterministic-zip.js";
 import type { DramaRenderJob } from "./drama-render-types.js";
+import type { WorkerApiClient } from "./client.js";
+
+const renderJob = (kind: DramaRenderJob["kind"]): DramaRenderJob => ({
+  id: `render-${kind}`,
+  projectId: "drama-1",
+  workspaceId: "workspace-1",
+  ownerId: "owner-1",
+  kind,
+  status: "running",
+  progress: 0,
+  attempt: 1,
+  input: {
+    assetIds: ["asset-1"],
+    timeline: [{ kind: "video", startMs: 0, endMs: 1000 }],
+    settings: {},
+  },
+  leaseUntil: "2026-01-01T00:00:00.000Z",
+  updatedAt: "2026-01-01T00:00:00.000Z",
+});
+
+function clientFor(job: DramaRenderJob) {
+  return {
+    claimDramaRenders: vi.fn(async () => [job]),
+    heartbeatDramaRenders: vi.fn(async () => 1),
+    readDramaRenderAsset: vi.fn(async () => ({
+      mimeType: "video/mp4",
+      bytes: Buffer.from("video"),
+    })),
+    transitionDramaRender: vi.fn(async () => job),
+    persistDramaRenderOutput: vi.fn(async () => ({ id: "output-asset" })),
+  } as unknown as WorkerApiClient;
+}
 describe("Drama render runtime", () => {
   it("builds byte-identical ZIP packages with canonical order", () => {
     const files = [
@@ -63,5 +96,50 @@ describe("Drama render runtime", () => {
         "out",
       ),
     ).toThrow("DRAMA_RENDER_VISUAL_REQUIRED");
+  });
+
+  it("runs the Jianying worker lifecycle through persisted output", async () => {
+    const client = clientFor(renderJob("jianying"));
+    await expect(
+      runDramaRenderCycle({
+        client,
+        workerId: "worker-1",
+        limit: 1,
+        leaseMs: 60_000,
+      }),
+    ).resolves.toBe(1);
+    expect(client.persistDramaRenderOutput).toHaveBeenCalledWith(
+      "worker-1",
+      "render-jianying",
+      expect.any(Uint8Array),
+      "drama-1-jianying.zip",
+      undefined,
+    );
+    expect(
+      vi
+        .mocked(client.transitionDramaRender)
+        .mock.calls.map((call) => [call[2], call[3]]),
+    ).toEqual([
+      ["running", { progress: 5 }],
+      ["running", { progress: 35 }],
+      ["running", { progress: 90 }],
+      ["succeeded", { progress: 100, outputAssetId: "output-asset" }],
+    ]);
+  });
+
+  it("persists a sanitized failure when FFmpeg cannot start", async () => {
+    const client = clientFor(renderJob("ffmpeg"));
+    await runDramaRenderCycle({
+      client,
+      workerId: "worker-1",
+      limit: 1,
+      leaseMs: 60_000,
+      ffmpegPath: "Z:\\missing-private\\ffmpeg.exe",
+    });
+    const failure = vi.mocked(client.transitionDramaRender).mock.calls.at(-1);
+    expect(failure?.[2]).toBe("failed");
+    expect(failure?.[3]).toMatchObject({ errorCode: "DRAMA_RENDER_FAILED" });
+    expect(JSON.stringify(failure?.[3])).not.toContain("missing-private");
+    expect(client.persistDramaRenderOutput).not.toHaveBeenCalled();
   });
 });
