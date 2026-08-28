@@ -56,6 +56,11 @@ jobs:
           const r=await p.query('select count(*)::int count from schema_migrations');
           const expected=Object.keys(JSON.parse(readFileSync('../../ops/migration-manifest.json'))).length;
           if(r.rows[0].count!==expected) throw new Error('migration count mismatch: '+r.rows[0].count); await p.end();"
+      - name: Exercise sanitized business transfer
+        run: |
+          pnpm --filter @infinite-canvas/api business:transfer export /tmp/business-transfer.json
+          pnpm --filter @infinite-canvas/api business:transfer verify /tmp/business-transfer.json
+          CONFIRM_BUSINESS_IMPORT=IMPORT pnpm --filter @infinite-canvas/api business:transfer import /tmp/business-transfer.json
 
   supply-chain:
     runs-on: ubuntu-latest
