@@ -178,6 +178,7 @@ pnpm --filter @infinite-canvas/worker test -- src/provider-sandbox-runtime.integ
 ## GEN-017 Volcengine AK/SK harness (pending credentials)
 
 - Test：`packages/model-gateway/src/volcengine-sandbox-runtime.integration.test.ts`
+- 已迁移 z3cz 的资源包计量语义：跨状态按 InstanceNo 去重，按 ConfigurationCode 聚合 quota/used/remaining/expired，并拒绝混合单位；Admin 直接展示可用额度而非截断 raw JSON
 - 真链：使用生产 HMAC-SHA256 signer 分别请求 models、resource packages、usage；要求 HTTP 2xx、JSON 小于 2 MiB、无 `ResponseMetadata.Error`
 - 配置：`VOLCENGINE_SANDBOX_BASE_URL`、`VOLCENGINE_SANDBOX_ACCESS_KEY_ID`、`VOLCENGINE_SANDBOX_SECRET_ACCESS_KEY`；region/service/version/action 可用同名前缀变量覆盖
 - 密钥只从进程环境读取，不写入 case、日志或仓库
