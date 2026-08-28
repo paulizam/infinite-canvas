@@ -32,6 +32,55 @@ inventory.Unknown = [
   ...(inventory.Unknown || []),
   ...agentSdkPlatforms.map((name) => ({ name, versions: agentSdkVersions })),
 ];
+// Native optional packages vary by runner OS even though the lockfile is the
+// same. Preserve their license evidence under stable platform-family labels.
+const nativeFamilies = [
+  [/^@esbuild\/.+$/, "@esbuild/<platform>"],
+  [/^@napi-rs\/lzma-.+$/, "@napi-rs/lzma-<platform>"],
+  [/^@next\/swc-.+$/, "@next/swc-<platform>"],
+  [/^@node-rs\/argon2-.+$/, "@node-rs/argon2-<platform>"],
+  [/^@rollup\/rollup-.+$/, "@rollup/rollup-<platform>"],
+  [/^@tailwindcss\/oxide-.+$/, "@tailwindcss/oxide-<platform>"],
+  [/^lightningcss-.+$/, "lightningcss-<platform>"],
+];
+for (const packages of Object.values(inventory))
+  for (const entry of packages) {
+    for (const [pattern, canonical] of nativeFamilies)
+      if (pattern.test(entry.name)) entry.name = canonical;
+    if (entry.name === "@openai/codex")
+      entry.versions = entry.versions?.map((version) =>
+        version.replace(/-(?:win32|linux|darwin)-.+$/, ""),
+      );
+  }
+const lockfile = readFileSync(
+  new URL("../pnpm-lock.yaml", import.meta.url),
+  "utf8",
+);
+const lockedVersion = (pattern) => lockfile.match(pattern)?.[1];
+const sharpVersion = lockedVersion(
+  /'@img\/sharp-(?:win32|linux|darwin)[^@]*@([^']+)'/,
+);
+const libvipsVersion = lockedVersion(/'@img\/sharp-libvips-[^@]+@([^']+)'/);
+const lzmaVersion = lockedVersion(/'@napi-rs\/lzma-[^@]+@([^']+)'/);
+for (const packages of Object.values(inventory))
+  packages.splice(
+    0,
+    packages.length,
+    ...packages.filter((entry) => !entry.name.startsWith("@img/sharp-")),
+  );
+inventory["Apache-2.0"] = [
+  ...(inventory["Apache-2.0"] || []),
+  { name: "@img/sharp-<platform>", versions: [sharpVersion] },
+];
+inventory["LGPL-3.0-or-later"] = [
+  ...(inventory["LGPL-3.0-or-later"] || []),
+  { name: "@img/sharp-libvips-<platform>", versions: [libvipsVersion] },
+];
+if (!inventory.MIT?.some((entry) => entry.name === "@napi-rs/lzma-<platform>"))
+  inventory.MIT = [
+    ...(inventory.MIT || []),
+    { name: "@napi-rs/lzma-<platform>", versions: [lzmaVersion] },
+  ];
 const unknown = (inventory.Unknown || []).map((x) => x.name);
 const unapprovedUnknown = unknown.filter(
   (name) => !policy.allowedUnknown[name],
