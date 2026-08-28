@@ -12,6 +12,7 @@ export default function AdminPage() {
         [audit, setAudit] = useState<AdminAudit[]>([]),
         [settings, setSettings] = useState<AdminSetting[]>([]),
         [content, setContent] = useState<AdminContent[]>([]),
+        [mfa, setMfa] = useState<{ enabled: boolean; sessionVerified: boolean; verifiedAt: string | null } | null>(null),
         [error, setError] = useState<string | null>(null),
         [loading, setLoading] = useState(true);
     const refresh = useCallback(async () => {
@@ -32,9 +33,22 @@ export default function AdminPage() {
             setLoading(false);
         }
     }, []);
-    useEffect(() => {
-        void refresh();
+    const initialize = useCallback(async () => {
+        setLoading(true);
+        setError(null);
+        try {
+            const status = await adminPlatform.mfaStatus();
+            setMfa(status);
+            if (status.sessionVerified) await refresh();
+        } catch (e) {
+            setError(e instanceof Error ? e.message : String(e));
+        } finally {
+            setLoading(false);
+        }
     }, [refresh]);
+    useEffect(() => {
+        void initialize();
+    }, [initialize]);
     const mutate = async (action: () => Promise<unknown>) => {
         try {
             await action();
@@ -74,9 +88,109 @@ export default function AdminPage() {
                         刷新
                     </Button>
                 </div>
-                {error ? <Alert className="mb-5" type="error" showIcon message="无法进入管理后台" description={error} /> : <Tabs items={items} />}
+                {error ? <Alert className="mb-5" type="error" showIcon message="无法进入管理后台" description={error} /> : !mfa?.sessionVerified ? <MfaGate status={mfa} onVerified={initialize} /> : <Tabs items={items} />}
             </div>
         </main>
+    );
+}
+function MfaGate({ status, onVerified }: { status: { enabled: boolean; sessionVerified: boolean } | null; onVerified: () => Promise<void> }) {
+    const [enrollment, setEnrollment] = useState<{ secret: string; otpauthUri: string } | null>(null),
+        [recovery, setRecovery] = useState<string[]>([]),
+        [busy, setBusy] = useState(false);
+    const submit = async (fn: () => Promise<unknown>) => {
+        setBusy(true);
+        try {
+            await fn();
+            await onVerified();
+        } catch (e) {
+            message.error(e instanceof Error ? e.message : String(e));
+        } finally {
+            setBusy(false);
+        }
+    };
+    const confirm = async (code: string) => {
+        setBusy(true);
+        try {
+            const x = await adminPlatform.mfaConfirm(code);
+            setRecovery(x.recoveryCodes);
+        } catch (e) {
+            message.error(e instanceof Error ? e.message : String(e));
+        } finally {
+            setBusy(false);
+        }
+    };
+    if (!status) return <Card loading />;
+    if (recovery.length)
+        return (
+            <Card title="MFA 已启用">
+                <Alert type="warning" showIcon message="立即保存以下恢复码；关闭后不再显示。" />
+                <pre className="my-4 grid grid-cols-2 gap-2 rounded bg-stone-950 p-4 text-white">{recovery.join("\n")}</pre>
+                <Button type="primary" onClick={() => void onVerified()}>
+                    我已安全保存
+                </Button>
+            </Card>
+        );
+    if (!status.enabled)
+        return (
+            <Card className="max-w-2xl" title="管理员必须启用 MFA">
+                {!enrollment ? (
+                    <Button type="primary" loading={busy} onClick={() => void submit(async () => setEnrollment(await adminPlatform.mfaEnroll()))}>
+                        开始配置 TOTP
+                    </Button>
+                ) : (
+                    <>
+                        <Alert type="info" message="在 Authenticator 中导入以下 otpauth URI 或 Secret" />
+                        <Typography.Paragraph className="mt-3" copyable={{ text: enrollment.otpauthUri }}>
+                            <code className="break-all">{enrollment.otpauthUri}</code>
+                        </Typography.Paragraph>
+                        <Typography.Text copyable>{enrollment.secret}</Typography.Text>
+                        <Form className="mt-4" layout="vertical" onFinish={(x) => void confirm(x.code)}>
+                            <Form.Item name="code" label="6 位验证码" rules={[{ required: true, pattern: /^\d{6}$/ }]}>
+                                <Input inputMode="numeric" maxLength={6} />
+                            </Form.Item>
+                            <Button type="primary" htmlType="submit" loading={busy}>
+                                验证并启用
+                            </Button>
+                        </Form>
+                    </>
+                )}
+            </Card>
+        );
+    return (
+        <Card className="max-w-md" title="验证管理员 MFA">
+            <Tabs
+                items={[
+                    {
+                        key: "totp",
+                        label: "Authenticator",
+                        children: (
+                            <Form layout="vertical" onFinish={(x) => void submit(() => adminPlatform.mfaVerify({ code: x.code }))}>
+                                <Form.Item name="code" label="6 位验证码" rules={[{ required: true, pattern: /^\d{6}$/ }]}>
+                                    <Input inputMode="numeric" maxLength={6} />
+                                </Form.Item>
+                                <Button type="primary" htmlType="submit" loading={busy}>
+                                    验证
+                                </Button>
+                            </Form>
+                        ),
+                    },
+                    {
+                        key: "recovery",
+                        label: "恢复码",
+                        children: (
+                            <Form layout="vertical" onFinish={(x) => void submit(() => adminPlatform.mfaVerify({ recoveryCode: x.code }))}>
+                                <Form.Item name="code" label="一次性恢复码" rules={[{ required: true }]}>
+                                    <Input />
+                                </Form.Item>
+                                <Button type="primary" htmlType="submit" loading={busy}>
+                                    使用恢复码
+                                </Button>
+                            </Form>
+                        ),
+                    },
+                ]}
+            />
+        </Card>
     );
 }
 function Dashboard({ value, storage }: { value: AdminDashboard | null; storage: Record<string, unknown> }) {

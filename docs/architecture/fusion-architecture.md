@@ -245,6 +245,8 @@ queued -> claimed -> submitting -> submitted -> polling
 
 Admin Web 通过同一控制面编排 Model Gateway、Discovery、Commerce 与 Payment：模型渠道按协议→渠道/Secret→连接测试→模型同步→逻辑模型绑定五步配置；商业运营覆盖套餐、促销、优惠券/CDK、订单、退款、对账和财务统计。桥接层不复制领域数据，所有写操作仍落到原领域 Service/Repository，并追加不含 Secret 的管理员审计事件。
 
+管理员控制面强制 Session 级 TOTP MFA assurance。TOTP seed 使用独立 AES-256-GCM master key 和 user-specific AAD，HMAC-SHA256 counter 在数据库中单调推进以拒绝并发重放；恢复码以独立 pepper 做 keyed hash 并仅能原子消费一次。Worker/Maintenance Token 轮换允许带明确过期时间的 previous token，过期或跨权限复用会阻断启动。
+
 ## 7. 关键数据契约
 
 ```ts

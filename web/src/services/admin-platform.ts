@@ -11,6 +11,10 @@ export type AdminModelCatalog = { protocols: ModelProtocol[]; channels: ModelCha
 export type AdminCommerce = { products: Array<Record<string, unknown>>; promotions: Array<Record<string, unknown>>; codes: Array<Record<string, unknown>>; referrals: Array<Record<string, unknown>> };
 
 class AdminPlatform {
+    mfaStatus = () => this.get<{ enabled: boolean; sessionVerified: boolean; verifiedAt: string | null }>("/mfa/status");
+    mfaEnroll = () => this.send<{ secret: string; otpauthUri: string }>("/mfa/enroll", "POST", {});
+    mfaConfirm = (code: string) => this.send<{ recoveryCodes: string[] }>("/mfa/confirm", "POST", { code });
+    mfaVerify = (body: { code?: string; recoveryCode?: string }) => this.send<{ verified: boolean; recoveryUsed: boolean }>("/mfa/verify", "POST", body);
     dashboard = () => this.get<AdminDashboard>("/dashboard");
     users = (q = "") => this.get<{ items: AdminUser[]; nextCursor: string | null }>(`/users?q=${encodeURIComponent(q)}`);
     updateUser = (id: string, body: Partial<Pick<AdminUser, "status" | "platformRole">>) => this.send<AdminUser>(`/users/${id}`, "PATCH", body);

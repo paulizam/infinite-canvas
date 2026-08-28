@@ -6,11 +6,13 @@ import type { ModelGatewayRepository } from "./model-gateway-repository.js";
 import type { ModelDiscoveryService } from "./model-discovery.js";
 import type { CommerceService } from "./commerce-service.js";
 import type { PaymentService } from "./payment-service.js";
+import type { AdminMfaService } from "./admin-mfa-service.js";
 
 type Env = {
   Variables: {
     requestId: string;
     user?: import("./domain.js").PublicUser;
+    sessionToken?: string;
   };
 };
 export function createAdminApi(
@@ -21,6 +23,7 @@ export function createAdminApi(
     modelDiscovery: ModelDiscoveryService;
     commerce?: CommerceService;
     payments?: PaymentService;
+    mfa?: AdminMfaService;
   },
 ) {
   const app = new Hono<Env>();
@@ -29,8 +32,52 @@ export function createAdminApi(
       const user = c.get("user");
       if (!user) throw new Error("Authenticated user context missing");
       await service.requireAdmin(user.id);
+      if (domains?.mfa && !c.req.path.includes("/mfa/"))
+        await domains.mfa.authorize(user.id, c.get("sessionToken") || "");
       await next();
     });
+  if (mode === "user" && domains?.mfa) {
+    app.get("/mfa/status", async (c) =>
+      ok(
+        c,
+        await domains.mfa!.status(
+          c.get("user")!.id,
+          c.get("sessionToken") || "",
+        ),
+      ),
+    );
+    app.post("/mfa/enroll", async (c) =>
+      ok(
+        c,
+        await domains.mfa!.begin(
+          c.get("user")!.id,
+          c.get("user")!.email,
+          c.get("sessionToken") || "",
+        ),
+        201,
+      ),
+    );
+    app.post("/mfa/confirm", async (c) =>
+      ok(
+        c,
+        await domains.mfa!.confirm(
+          c.get("user")!.id,
+          c.get("sessionToken") || "",
+          mfaCode.parse(await c.req.json()).code,
+        ),
+      ),
+    );
+    app.post("/mfa/verify", async (c) =>
+      ok(
+        c,
+        await domains.mfa!.verify(
+          c.get("user")!.id,
+          c.get("sessionToken") || "",
+          mfaVerify.parse(await c.req.json()),
+        ),
+      ),
+    );
+  }
   app.get("/dashboard", async (c) => ok(c, await service.dashboard()));
   app.get("/users", async (c) =>
     ok(
@@ -383,6 +430,17 @@ const contentBody = z
   })
   .strict();
 const capability = z.enum(["text", "image", "video", "audio"]);
+const mfaCode = z.object({ code: z.string().regex(/^\d{6}$/) }).strict();
+const mfaVerify = z
+  .object({
+    code: z
+      .string()
+      .regex(/^\d{6}$/)
+      .optional(),
+    recoveryCode: z.string().trim().min(10).max(100).optional(),
+  })
+  .strict()
+  .refine((x) => !!x.code !== !!x.recoveryCode, "必须且只能提供验证码或恢复码");
 const protocolBody = z
   .object({
     name: z.string().trim().min(1).max(160),

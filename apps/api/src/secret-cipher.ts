@@ -4,10 +4,10 @@ export type EncryptedSecret = { ciphertext: Buffer; iv: Buffer; tag: Buffer };
 
 export class SecretCipher {
   private readonly key: Buffer;
-  constructor(encodedKey: string) {
+  constructor(encodedKey: string, keyName = "MODEL_SECRET_KEY") {
     this.key = decodeKey(encodedKey);
     if (this.key.length !== 32)
-      throw new Error("MODEL_SECRET_KEY must decode to exactly 32 bytes");
+      throw new Error(`${keyName} must decode to exactly 32 bytes`);
   }
   encrypt(plaintext: string, context: string): EncryptedSecret {
     if (!plaintext) throw new Error("Cannot encrypt an empty model credential");

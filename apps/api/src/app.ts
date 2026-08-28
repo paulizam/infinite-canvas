@@ -32,6 +32,7 @@ import type { CommunitySocialService } from "./community-social-service.js";
 import type { CommerceService } from "./commerce-service.js";
 import type { PaymentService } from "./payment-service.js";
 import type { AdminService } from "./admin-service.js";
+import type { AdminMfaService } from "./admin-mfa-service.js";
 import { createAdminApi } from "./admin-api.js";
 import { ModelDiscoveryService } from "./model-discovery.js";
 import { createModelDiscoveryApi } from "./model-discovery-api.js";
@@ -52,7 +53,7 @@ export type AppServices = {
   jobs: GenerationJobService;
   jobRepository: GenerationJobRepository;
   eventRepository?: GenerationEventRepository;
-  workerToken: string;
+  workerToken: string | readonly string[];
   workerStaleMs: number;
   modelGateway: ModelGatewayRepository;
   workflows?: WorkflowPublicationService;
@@ -71,7 +72,8 @@ export type AppServices = {
   commerce?: CommerceService;
   payments?: PaymentService;
   admin?: AdminService;
-  maintenanceToken: string;
+  adminMfa?: AdminMfaService;
+  maintenanceToken: string | readonly string[];
   secureCookies: boolean;
   modelDiscovery?: ModelDiscoveryService;
   collaboration?: {
@@ -2162,6 +2164,7 @@ export function createApp(services: AppServices) {
         modelDiscovery,
         commerce: services.commerce,
         payments: services.payments,
+        mfa: services.adminMfa,
       }),
     );
   if (services.admin)
@@ -2179,13 +2182,17 @@ export function createApp(services: AppServices) {
 
 function requireBearerToken(
   header: string | undefined,
-  expected: string,
+  expected: string | readonly string[],
   subject: string,
 ) {
   const supplied = header?.startsWith("Bearer ") ? header.slice(7) : "";
-  const left = Buffer.from(supplied);
-  const right = Buffer.from(expected);
-  if (left.length !== right.length || !timingSafeEqual(left, right))
+  const left = Buffer.from(supplied),
+    candidates = typeof expected === "string" ? [expected] : expected;
+  const valid = candidates.some((candidate) => {
+    const right = Buffer.from(candidate);
+    return left.length === right.length && timingSafeEqual(left, right);
+  });
+  if (!valid)
     throw new DomainError("UNAUTHENTICATED", 401, `${subject} 凭据无效`);
 }
 

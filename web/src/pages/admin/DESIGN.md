@@ -36,7 +36,7 @@ Admin React Route
 ## 已知限制
 
 - Admin route 已独立 lazy chunk；主应用仍有既有第三方依赖体积警告。
-- 管理员 MFA 在 OPS-008 阶段补齐；角色与 Session 权限已先行落地。
+- 管理员必须先完成 TOTP enrollment/Session verification；恢复码只显示一次。
 
 ## 变更历史
 

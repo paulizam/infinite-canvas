@@ -134,3 +134,9 @@ Admin mutations append an immutable audit event with actor, action, resource and
 ### Admin domain bridges
 
 The Admin API composes existing Model Gateway, Discovery, Commerce, and Payment services rather than creating duplicate control-plane state. Its model flow covers protocol selection, credential-bearing channel creation, connection testing, bounded model discovery, upstream import, and logical-model binding. Credential plaintext is accepted only on channel mutation and catalog DTOs expose only `credentialConfigured`. Commerce management lists products, promotions, safe code metadata, referrals, orders, refunds, and financial reports; CDK plaintext appears only in the create response and hashes never leave persistence. Mutations append cross-domain admin audit records without secret values.
+
+### Administrator MFA and token rotation
+
+Browser administrators must enroll RFC-compatible TOTP with HMAC-SHA256 and complete MFA per Session before any control-plane route is readable. The encrypted TOTP seed uses a dedicated `MFA_SECRET_KEY`; recovery codes use high entropy, keyed hashes under `MFA_RECOVERY_PEPPER`, and atomic one-time consumption. A monotonically increasing database counter rejects TOTP replay, including concurrent requests. Enrollment and verification routes are the only Admin routes reachable without MFA assurance; Maintenance Token remains a separate break-glass boundary.
+
+Worker and Maintenance bearer credentials support a deployment rotation ring containing current and previous tokens. Previous-token acceptance requires an explicit future ISO-8601 expiry, expired configuration fails startup, and the two privilege rings may not share any token.

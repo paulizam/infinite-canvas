@@ -28,7 +28,10 @@ beforeEach(() => {
     ),
     jobs: new GenerationJobService(repository, jobRepository),
     jobRepository,
-    workerToken: "test-worker-token-32-characters-long",
+    workerToken: [
+      "test-worker-token-32-characters-long",
+      "previous-worker-token-32-characters",
+    ],
     workerStaleMs: 120_000,
     modelGateway: new MemoryModelGatewayRepository(),
     maintenanceToken: "test-maintenance-token-32-characters",
@@ -53,6 +56,21 @@ async function register(email = "creator@example.com", name = "创作者") {
 }
 
 describe("cloud workspace API", () => {
+  it("accepts the bounded previous worker token during rotation", async () => {
+    const response = await app.request("/internal/v1/generation/claim", {
+      method: "POST",
+      headers: {
+        authorization: "Bearer previous-worker-token-32-characters",
+        "content-type": "application/json",
+      },
+      body: JSON.stringify({
+        workerId: "rotation-test",
+        limit: 1,
+        leaseMs: 30000,
+      }),
+    });
+    expect(response.status).toBe(200);
+  });
   it("registers, authenticates and logs out a session", async () => {
     const { response, body, cookie } = await register();
     expect(response.status).toBe(201);

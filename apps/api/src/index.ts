@@ -39,6 +39,8 @@ import { HttpPaymentAdapter, PaymentService } from "./payment-service.js";
 import { PostgresPaymentRepository } from "./postgres-payment-repository.js";
 import { AdminService } from "./admin-service.js";
 import { PostgresAdminRepository } from "./postgres-admin-repository.js";
+import { AdminMfaService } from "./admin-mfa-service.js";
+import { PostgresAdminMfaRepository } from "./postgres-admin-mfa-repository.js";
 import {
   IdentityService,
   ProjectService,
@@ -51,10 +53,10 @@ const repository = new PostgresPlatformRepository(databaseUrl);
 const identity = new IdentityService(repository, sessionTtlSeconds * 1000);
 const projects = new ProjectService(repository);
 const jobRepository = new PostgresGenerationJobRepository(databaseUrl);
-const workerToken = strongToken("WORKER_TOKEN");
-const maintenanceToken = strongToken("MAINTENANCE_TOKEN");
-if (workerToken === maintenanceToken)
-  throw new Error("WORKER_TOKEN and MAINTENANCE_TOKEN must be distinct");
+const workerToken = tokenRing("WORKER_TOKEN");
+const maintenanceToken = tokenRing("MAINTENANCE_TOKEN");
+if (workerToken.some((token) => maintenanceToken.includes(token)))
+  throw new Error("Worker and Maintenance token rings must be distinct");
 const modelSecretCipher = new SecretCipher(required("MODEL_SECRET_KEY"));
 const modelGateway = new PostgresModelGatewayRepository(
   databaseUrl,
@@ -184,6 +186,11 @@ const app = createApp({
     new PostgresAdminRepository(databaseUrl),
     modelSecretCipher,
   ),
+  adminMfa: new AdminMfaService(
+    new PostgresAdminMfaRepository(databaseUrl),
+    new SecretCipher(required("MFA_SECRET_KEY"), "MFA_SECRET_KEY"),
+    required("MFA_RECOVERY_PEPPER"),
+  ),
   maintenanceToken,
   collaboration,
   secureCookies: process.env.NODE_ENV === "production",
@@ -205,6 +212,22 @@ function strongToken(name: string) {
   if (token.length < 32)
     throw new Error(`${name} must contain at least 32 characters`);
   return token;
+}
+function tokenRing(name: "WORKER_TOKEN" | "MAINTENANCE_TOKEN") {
+  const current = strongToken(name),
+    previous = process.env[`${name}_PREVIOUS`]?.trim();
+  if (!previous) return [current] as const;
+  if (previous.length < 32)
+    throw new Error(`${name}_PREVIOUS must contain at least 32 characters`);
+  if (previous === current)
+    throw new Error(`${name}_PREVIOUS must differ from ${name}`);
+  const raw = required(`${name}_PREVIOUS_EXPIRES_AT`),
+    expires = Date.parse(raw);
+  if (!Number.isFinite(expires) || expires <= Date.now())
+    throw new Error(
+      `${name}_PREVIOUS_EXPIRES_AT must be a future ISO-8601 timestamp`,
+    );
+  return [current, previous] as const;
 }
 
 function positiveInteger(name: string) {
