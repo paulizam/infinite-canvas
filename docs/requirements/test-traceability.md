@@ -91,7 +91,7 @@
 | PLG-002 | P0 | `web/src/lib/canvas/builtin-plugin-catalog.test.ts` |
 | PLG-003 | P0 | `web/src/lib/canvas/plugin-integrity.test.ts`<br>`web/src/lib/canvas/plugin-manifest.test.ts` |
 | PLG-004 | P0 | `web/src/lib/canvas/plugin-lifecycle.test.ts` |
-| PLG-005 | P1 | `web/src/lib/canvas/plugin-compatibility.test.ts`<br>`web/src/lib/canvas/plugin-lifecycle.test.ts` |
+| PLG-005 | P1 | `web/src/lib/canvas/plugin-browser-runtime.integration.test.ts`<br>`web/src/lib/canvas/plugin-compatibility.test.ts`<br>`web/src/lib/canvas/plugin-lifecycle.test.ts` |
 | PLG-006 | P1 | `web/src/lib/canvas/plugin-manifest.test.ts` |
 | PLG-007 | P2 | `web/src/lib/canvas/plugin-compatibility.test.ts`<br>`web/src/lib/canvas/plugin-lifecycle.test.ts` |
 | COL-001 | P1 | `apps/api/src/collaboration.test.ts` |

@@ -76,3 +76,24 @@ pnpm --dir web test -- src/services/webdav-runtime.integration.test.ts
 ```
 
 未设置 `WEBDAV_TEST_ENDPOINT` 时该 integration test 显式 skip，不能作为 Runtime PASS。
+
+## PLG-005 registry and browser sandbox lifecycle
+
+- 验证日期：2026-08-28
+- 浏览器：本机 Microsoft Edge（Chromium，headless）
+- Test：`web/src/lib/canvas/plugin-browser-runtime.integration.test.ts`
+- 隔离拓扑：Vite 应用 origin 与动态端口 Registry/plugin origin 分离；Registry 返回 manifest v2 与 CORS headers
+- 安全链：远程源码 SHA-256 integrity 校验 → module Worker sandbox → 未声明 network origin 的 `fetch` 被拒绝 → 仅返回可序列化节点描述
+- 生命周期：Registry 安装 v1 → 禁用/启用 → 发现并升级 v2 → Registry 发布 v3 时保持 v2 固定 → 撤销后自动停用并记录原因 → 卸载清理
+- 断言：sandbox 标记、权限拒绝、节点 owner/注册状态、缓存源码与 integrity、版本、诊断和 Store 记录全部符合预期
+- 结果：1 test PASS；临时 Vite、Registry 与浏览器进程全部结束，监听端口释放
+
+本机复验：
+
+```powershell
+$env:PLUGIN_BROWSER_TEST = "1"
+$env:PLUGIN_BROWSER_EXECUTABLE = "C:\Program Files (x86)\Microsoft\Edge\Application\msedge.exe"
+pnpm --dir web test -- src/lib/canvas/plugin-browser-runtime.integration.test.ts
+```
+
+未设置 `PLUGIN_BROWSER_TEST=1` 时该 integration test 显式 skip，不能作为 Runtime PASS。`PLUGIN_BROWSER_EXECUTABLE` 可指向任意 Playwright 支持的本机 Chromium executable；测试不下载浏览器。

@@ -5,9 +5,9 @@
 ## 汇总
 
 - 总需求：133
-- 已定位源码/测试入口：124
-- 实机/外部环境待验：9
-- 待验 ID：GEN-008、GEN-017、GEN-018、AST-002、PLG-005、DRM-008、BIL-005、BIL-006、BIL-007
+- 已定位源码/测试入口：125
+- 实机/外部环境待验：8
+- 待验 ID：GEN-008、GEN-017、GEN-018、AST-002、DRM-008、BIL-005、BIL-006、BIL-007
 
 ## 逐项证据
 
@@ -88,13 +88,13 @@
 | AST-008 | P1 | SOURCE-EVIDENCE | 七个内置 Prompt sources，自定义 JSON source、刷新、缓存、标签检索。 | `apps/api/src/asset-references.test.ts`<br>`web/src/services/webdav-sync.ts` |
 | AST-009 | P1 | SOURCE-EVIDENCE | 运营提示词库、分类、上下架；一键送入 Agent/Canvas/短剧。 | `apps/api/src/asset-references.test.ts`<br>`web/src/services/webdav-sync.ts` |
 | AST-010 | P2 | SOURCE-EVIDENCE | content hash 去重、媒体版本与来源血缘。 | `apps/api/src/asset-references.test.ts`<br>`web/src/services/webdav-sync.ts` |
-| PLG-001 | P0 | SOURCE-EVIDENCE | Plugin SDK 支持节点 render、inspector、serialization、migration、toolbar。 | `web/src/lib/canvas/plugin-manifest.test.ts`<br>`web/src/lib/canvas/plugin-sandbox.test.ts` |
-| PLG-002 | P0 | SOURCE-EVIDENCE | 内置 HTML、Markdown、SVG、Panorama、Sticky Note 节点。 | `web/src/lib/canvas/plugin-manifest.test.ts`<br>`web/src/lib/canvas/plugin-sandbox.test.ts` |
-| PLG-003 | P0 | SOURCE-EVIDENCE | manifest 声明 app version、permissions、network allowlist、integrity/signature。 | `web/src/lib/canvas/plugin-manifest.test.ts`<br>`web/src/lib/canvas/plugin-sandbox.test.ts` |
-| PLG-004 | P0 | SOURCE-EVIDENCE | 远程插件 sandboxed iframe/Worker；不能直接读取主应用 storage/secrets。 | `web/src/lib/canvas/plugin-manifest.test.ts`<br>`web/src/lib/canvas/plugin-sandbox.test.ts` |
-| PLG-005 | P1 | RUNTIME-PENDING | Registry 安装、启停、更新、卸载、版本固定与撤销。 | `web/src/lib/canvas/plugin-loader.ts`<br>`web/src/stores/canvas/use-plugin-store.ts`<br>`web/src/lib/canvas/plugin-registry.ts`<br>`web/src/lib/canvas/plugin-lifecycle.test.ts`<br>`web/src/lib/canvas/plugin-registry.test.ts`<br>`web/src/lib/canvas/plugin-manifest.test.ts`<br>Command: `pnpm --dir web test`<br>Needs: Published registry and browser sandbox |
-| PLG-006 | P1 | SOURCE-EVIDENCE | 安装/升级前权限 diff；用户明确确认新增权限。 | `web/src/lib/canvas/plugin-manifest.test.ts`<br>`web/src/lib/canvas/plugin-sandbox.test.ts` |
-| PLG-007 | P2 | SOURCE-EVIDENCE | 插件运行错误隔离、资源限额、诊断与兼容报告。 | `web/src/lib/canvas/plugin-manifest.test.ts`<br>`web/src/lib/canvas/plugin-sandbox.test.ts` |
+| PLG-001 | P0 | SOURCE-EVIDENCE | Plugin SDK 支持节点 render、inspector、serialization、migration、toolbar。 | `web/src/lib/canvas/plugin-manifest.test.ts`<br>`web/src/lib/canvas/plugin-sandbox.test.ts`<br>`web/src/lib/canvas/plugin-browser-runtime.integration.test.ts` |
+| PLG-002 | P0 | SOURCE-EVIDENCE | 内置 HTML、Markdown、SVG、Panorama、Sticky Note 节点。 | `web/src/lib/canvas/plugin-manifest.test.ts`<br>`web/src/lib/canvas/plugin-sandbox.test.ts`<br>`web/src/lib/canvas/plugin-browser-runtime.integration.test.ts` |
+| PLG-003 | P0 | SOURCE-EVIDENCE | manifest 声明 app version、permissions、network allowlist、integrity/signature。 | `web/src/lib/canvas/plugin-manifest.test.ts`<br>`web/src/lib/canvas/plugin-sandbox.test.ts`<br>`web/src/lib/canvas/plugin-browser-runtime.integration.test.ts` |
+| PLG-004 | P0 | SOURCE-EVIDENCE | 远程插件 sandboxed iframe/Worker；不能直接读取主应用 storage/secrets。 | `web/src/lib/canvas/plugin-manifest.test.ts`<br>`web/src/lib/canvas/plugin-sandbox.test.ts`<br>`web/src/lib/canvas/plugin-browser-runtime.integration.test.ts` |
+| PLG-005 | P1 | SOURCE-EVIDENCE | Registry 安装、启停、更新、卸载、版本固定与撤销。 | `web/src/lib/canvas/plugin-manifest.test.ts`<br>`web/src/lib/canvas/plugin-sandbox.test.ts`<br>`web/src/lib/canvas/plugin-browser-runtime.integration.test.ts` |
+| PLG-006 | P1 | SOURCE-EVIDENCE | 安装/升级前权限 diff；用户明确确认新增权限。 | `web/src/lib/canvas/plugin-manifest.test.ts`<br>`web/src/lib/canvas/plugin-sandbox.test.ts`<br>`web/src/lib/canvas/plugin-browser-runtime.integration.test.ts` |
+| PLG-007 | P2 | SOURCE-EVIDENCE | 插件运行错误隔离、资源限额、诊断与兼容报告。 | `web/src/lib/canvas/plugin-manifest.test.ts`<br>`web/src/lib/canvas/plugin-sandbox.test.ts`<br>`web/src/lib/canvas/plugin-browser-runtime.integration.test.ts` |
 | COL-001 | P1 | SOURCE-EVIDENCE | WebSocket 多端实时同步 node/edge/viewport patches。 | `apps/api/src/collaboration.test.ts`<br>`web/src/services/cloud-collaboration.test.ts` |
 | COL-002 | P1 | SOURCE-EVIDENCE | revision + mutationId；重复 patch 幂等，过期 baseRevision 返回 conflict。 | `apps/api/src/collaboration.test.ts`<br>`web/src/services/cloud-collaboration.test.ts` |
 | COL-003 | P1 | SOURCE-EVIDENCE | 500ms debounce persistence，最后客户端离开前 flush。 | `apps/api/src/collaboration.test.ts`<br>`web/src/services/cloud-collaboration.test.ts` |
@@ -149,7 +149,7 @@
 
 ## 最终运行证据门槛
 
-1. GitHub Actions `Quality and Security` 全部 jobs 在当前 commit 通过，包含 PostgreSQL 001–028 双迁移、业务包 round-trip、Gitleaks、Syft、Trivy、Compose 与三镜像构建。
+1. 当前 commit 在本机通过 `pnpm release:check`；GitHub Actions 已按仓库所有者要求保持禁用，不以远端 workflow 代替本机验收。
 2. 隔离 Compose 环境完成注册登录、Workspace/Canvas、Asset 上传下载、Generation Worker、Workflow Worker、Drama FFmpeg 与备份恢复 smoke。
 3. 使用所有者提供的测试账户完成 Seedance、Stable Diffusion/A1111/Forge、MediaKit、Volcengine AK/SK、WebDAV、支付 sandbox 的无真实消费或受控小额验收。
 4. 每个 `RUNTIME-PENDING` 必须附日期、环境、命令/步骤、脱敏结果与 artifact URL，之后方可改为 `PASS`。

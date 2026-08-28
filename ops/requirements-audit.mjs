@@ -11,7 +11,7 @@ const evidence = {
   AGT: ["apps/api/src/agent-run-api.test.ts", "apps/worker/src/agent-runtime.test.ts"],
   WFL: ["packages/workflow-runtime/src/compiler.test.ts", "apps/api/src/workflow-api.test.ts"],
   AST: ["apps/api/src/asset-references.test.ts", "web/src/services/webdav-sync.ts"],
-  PLG: ["web/src/lib/canvas/plugin-manifest.test.ts", "web/src/lib/canvas/plugin-sandbox.test.ts"],
+  PLG: ["web/src/lib/canvas/plugin-manifest.test.ts", "web/src/lib/canvas/plugin-sandbox.test.ts", "web/src/lib/canvas/plugin-browser-runtime.integration.test.ts"],
   COL: ["apps/api/src/collaboration.test.ts", "web/src/services/cloud-collaboration.test.ts"],
   DRM: ["apps/api/src/drama-api.test.ts", "apps/worker/src/drama-render-runtime.test.ts"],
   COM: ["apps/api/src/community-api.test.ts", "apps/api/src/community-service.ts"],
@@ -21,7 +21,7 @@ const evidence = {
 };
 const runtimePending = new Set([
   "GEN-008", "GEN-017", "GEN-018", "AST-002",
-  "PLG-005", "DRM-008", "BIL-005", "BIL-006", "BIL-007",
+  "DRM-008", "BIL-005", "BIL-006", "BIL-007",
 ]);
 
 if (Object.keys(detailedEvidence).sort().join() !== [...runtimePending].sort().join())
@@ -67,7 +67,7 @@ ${rows.join("\n")}
 
 ## 最终运行证据门槛
 
-1. GitHub Actions \`Quality and Security\` 全部 jobs 在当前 commit 通过，包含 PostgreSQL 001–028 双迁移、业务包 round-trip、Gitleaks、Syft、Trivy、Compose 与三镜像构建。
+1. 当前 commit 在本机通过 \`pnpm release:check\`；GitHub Actions 已按仓库所有者要求保持禁用，不以远端 workflow 代替本机验收。
 2. 隔离 Compose 环境完成注册登录、Workspace/Canvas、Asset 上传下载、Generation Worker、Workflow Worker、Drama FFmpeg 与备份恢复 smoke。
 3. 使用所有者提供的测试账户完成 Seedance、Stable Diffusion/A1111/Forge、MediaKit、Volcengine AK/SK、WebDAV、支付 sandbox 的无真实消费或受控小额验收。
 4. 每个 \`RUNTIME-PENDING\` 必须附日期、环境、命令/步骤、脱敏结果与 artifact URL，之后方可改为 \`PASS\`。
