@@ -202,7 +202,7 @@ Packages reported as `Unknown` are permitted only when explicitly documented in 
 - `@emotion/unitless@0.7.5,0.10.0`
 - `@emotion/utils@1.4.2`
 - `@emotion/weak-memoize@0.4.0`
-- `@esbuild/<platform>@0.25.12,0.28.2`
+- `@esbuild/<platform>@0.28.2`
 - `@floating-ui/core@1.8.0`
 - `@floating-ui/dom@1.8.0`
 - `@floating-ui/react-dom@2.1.9`
@@ -517,7 +517,7 @@ Packages reported as `Unknown` are permitted only when explicitly documented in 
 - `es-set-tostringtag@2.1.0`
 - `esast-util-from-estree@2.0.0`
 - `esast-util-from-js@2.0.1`
-- `esbuild@0.25.12,0.28.2`
+- `esbuild@0.28.2`
 - `escalade@3.2.0`
 - `escape-html@1.0.3`
 - `escape-string-regexp@4.0.0,5.0.0`
