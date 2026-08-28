@@ -55,6 +55,7 @@ export type AgentSkillInstallPreview = {
     digest: string;
     expiresAt: string;
 };
+export type AgentSkillSearchResult = { name: string; repository: string; description: string; sourceUrl: string };
 
 export async function postState(endpoint: string, token: string, clientId: string, snapshot: CanvasAgentSnapshot | null) {
     try {
@@ -130,6 +131,10 @@ export function createCodexSkillDraft(endpoint: string, token: string, input: Ag
 
 export function previewCodexSkillInstall(endpoint: string, token: string, sourceUrl: string) {
     return fetchAgentJson<{ ok?: boolean; data?: AgentSkillInstallPreview }>(endpoint, token, "/agent/codex/skills/install/preview", jsonPost({ sourceUrl }));
+}
+
+export function searchCodexSkills(endpoint: string, token: string, query: string) {
+    return fetchAgentJson<{ ok?: boolean; data?: AgentSkillSearchResult[] }>(endpoint, token, `/agent/codex/skills/install/search?q=${encodeURIComponent(query)}`);
 }
 
 export function installCodexSkill(endpoint: string, token: string, preview: AgentSkillInstallPreview, confirmedPermissions: string[]) {

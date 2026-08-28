@@ -1,10 +1,10 @@
 import { useState } from "react";
-import { App, Checkbox, Input, Modal } from "antd";
+import { App, Button, Checkbox, Input, Modal } from "antd";
 import { ShieldCheck } from "lucide-react";
 import { useTranslation } from "react-i18next";
 
 import { canvasThemes } from "@/lib/canvas-theme";
-import { installCodexSkill, previewCodexSkillInstall, type AgentSkillInstallPreview } from "@/services/api/canvas-agent";
+import { installCodexSkill, previewCodexSkillInstall, searchCodexSkills, type AgentSkillInstallPreview, type AgentSkillSearchResult } from "@/services/api/canvas-agent";
 import { useThemeStore } from "@/stores/use-theme-store";
 
 type Props = { open: boolean; endpoint: string; token: string; onClose: () => void; onInstalled: () => Promise<unknown> | unknown };
@@ -14,13 +14,25 @@ export function SkillInstallModal({ open, endpoint, token, onClose, onInstalled 
     const { message } = App.useApp();
     const theme = canvasThemes[useThemeStore((state) => state.theme)];
     const [source, setSource] = useState("");
+    const [query, setQuery] = useState("");
+    const [results, setResults] = useState<AgentSkillSearchResult[]>([]);
     const [preview, setPreview] = useState<AgentSkillInstallPreview | null>(null);
     const [confirmed, setConfirmed] = useState<string[]>([]);
     const [busy, setBusy] = useState(false);
     const permissions = preview ? [...new Set([...preview.permissions.declared, ...preview.permissions.inferred])] : [];
     const close = () => {
         if (busy) return;
-        setSource(""); setPreview(null); setConfirmed([]); onClose();
+        setSource(""); setQuery(""); setResults([]); setPreview(null); setConfirmed([]); onClose();
+    };
+    const search = async () => {
+        if (query.trim().length < 2) return message.warning(t("agent.skillManager.searchRequired"));
+        setBusy(true);
+        try {
+            const response = await searchCodexSkills(endpoint, token, query.trim());
+            setResults(response.data || []);
+        } catch (error) {
+            message.error(error instanceof Error ? error.message : t("agent.skillManager.searchFailed"));
+        } finally { setBusy(false); }
     };
     const submit = async () => {
         if (!preview && !source.trim()) return message.warning(t("agent.skillManager.installSourceRequired"));
@@ -43,6 +55,7 @@ export function SkillInstallModal({ open, endpoint, token, onClose, onInstalled 
     return (
         <Modal title={t("agent.skillManager.installGithub")} open={open} width={720} centered destroyOnHidden confirmLoading={busy} okText={t(preview ? "agent.skillManager.installNow" : "agent.skillManager.previewInstall")} cancelText={t("common.cancel")} okButtonProps={{ disabled: Boolean(preview && permissions.some((item) => !confirmed.includes(item))) }} onCancel={close} onOk={() => void submit()}>
             <div className="space-y-4 pt-2">
+                {!preview ? <div><div className="mb-1.5 text-xs font-medium">{t("agent.skillManager.searchGithub")}</div><Input.Search value={query} loading={busy} onChange={(event) => setQuery(event.target.value)} onSearch={() => void search()} placeholder={t("agent.skillManager.searchPlaceholder")} enterButton={t("agent.skillManager.searchAction")} />{results.length ? <div className="thin-scrollbar mt-2 max-h-40 overflow-y-auto rounded-md border p-1" style={{ borderColor: theme.node.stroke }}>{results.map((result) => <Button key={result.sourceUrl} type="text" className="!flex !h-auto w-full !justify-start !px-2 !py-2 text-left" onClick={() => setSource(result.sourceUrl)}><span className="min-w-0"><span className="block truncate text-xs font-medium">{result.name} · {result.repository}</span><span className="block truncate text-[11px] opacity-55">{result.description || result.sourceUrl}</span></span></Button>)}</div> : null}</div> : null}
                 <div><div className="mb-1.5 text-xs font-medium">{t("agent.skillManager.installSource")}</div><Input value={source} disabled={busy || Boolean(preview)} onChange={(event) => setSource(event.target.value)} placeholder="https://github.com/owner/repo/tree/main/path/to/skill" /></div>
                 {preview ? <>
                     <div className="rounded-md border p-3 text-xs leading-5" style={{ borderColor: theme.node.stroke }}><div className="font-medium">{preview.skill.name}</div><div style={{ color: theme.node.muted }}>{preview.skill.description}</div><div className="mt-2 break-all font-mono" style={{ color: theme.node.faint }}>{preview.source.owner}/{preview.source.repo} · {preview.source.ref} → {preview.source.commitSha}</div></div>

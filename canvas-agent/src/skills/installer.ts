@@ -45,6 +45,8 @@ export type SkillInstallPreview = {
   expiresAt: string;
 };
 
+export type SkillSearchResult = { name: string; repository: string; description: string; sourceUrl: string };
+
 type CachedPreview = {
   preview: SkillInstallPreview;
   files: InstallManagedSkillFile[];
@@ -70,6 +72,31 @@ export class SkillInstaller {
     private readonly fetcher: Fetcher = fetch,
     private readonly now: () => number = Date.now,
   ) {}
+
+  /** 在 GitHub 仓库索引中检索实际包含 SKILL.md 的目录，结果仍需走 preview 安全门。 */
+  async search(queryValue: unknown): Promise<SkillSearchResult[]> {
+    const query = typeof queryValue === "string" ? queryValue.trim() : "";
+    if (query.length < 2 || query.length > 100 || /[\u0000-\u001f\u007f]/.test(query))
+      throw new SkillStoreError("Skill 搜索词长度必须为 2–100 个字符", 400);
+    const result = await this.githubJson<{ items?: Array<{ full_name?: string; description?: string | null; default_branch?: string }> }>(
+      `/search/repositories?q=${encodeURIComponent(`${query} skill in:name,description,readme`)}&sort=stars&order=desc&per_page=5`,
+    );
+    const found: SkillSearchResult[] = [];
+    for (const repository of result.items || []) {
+      const [owner, repo] = String(repository.full_name || "").split("/");
+      const branch = String(repository.default_branch || "");
+      if (!owner || !repo || !branch || !/^[A-Za-z0-9_.-]+$/.test(owner) || !/^[A-Za-z0-9_.-]+$/.test(repo)) continue;
+      const tree = await this.githubJson<{ tree?: GitTreeEntry[]; truncated?: boolean }>(`/repos/${owner}/${repo}/git/trees/${encodeURIComponent(branch)}?recursive=1`);
+      if (tree.truncated) continue;
+      for (const entry of tree.tree || []) {
+        if (entry.type !== "blob" || !(entry.path === "SKILL.md" || entry.path?.endsWith("/SKILL.md"))) continue;
+        const directory = entry.path === "SKILL.md" ? "" : entry.path!.slice(0, -"/SKILL.md".length);
+        found.push({ name: directory.split("/").pop() || repo, repository: `${owner}/${repo}`, description: String(repository.description || ""), sourceUrl: directory ? `https://github.com/${owner}/${repo}/tree/${encodeURIComponent(branch)}/${directory}` : `https://github.com/${owner}/${repo}/blob/${encodeURIComponent(branch)}/SKILL.md` });
+        if (found.length >= 12) return found;
+      }
+    }
+    return found;
+  }
 
   /** 获取固定到 commit SHA 的文件与权限清单；此阶段不写磁盘，也不执行远程内容。 */
   async preview(sourceUrlValue: unknown): Promise<SkillInstallPreview> {

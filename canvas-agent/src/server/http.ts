@@ -218,6 +218,9 @@ export function startHttpServer() {
     app.post("/agent/codex/skills/install/preview", codexMutation(async (req, res) => {
         res.json({ ok: true, data: await skillInstaller.preview(req.body?.sourceUrl) });
     }));
+    app.get("/agent/codex/skills/install/search", route(async (req, res) => {
+        res.json({ ok: true, data: await skillInstaller.search(req.query.q) });
+    }));
     app.post("/agent/codex/skills/install", codexMutation(async (req, res) => {
         const data = await skillInstaller.install(req.body);
         session.emitAll("skills_changed", { forceReload: true });

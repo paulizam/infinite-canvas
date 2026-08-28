@@ -11,6 +11,21 @@ const COMMIT = "a".repeat(40);
 const TREE = "b".repeat(40);
 const SOURCE = "https://github.com/acme/skills/tree/main/skills/demo";
 
+test("从 GitHub 检索结果发现可安装 Skill 目录 [AGT-009]", async (context) => {
+  const workspace = await temporaryWorkspace(context);
+  const installer = new SkillInstaller(new SkillStore(workspace), async (input) => {
+    const url = new URL(String(input));
+    if (url.pathname === "/search/repositories")
+      return Response.json({ items: [{ full_name: "acme/skills", description: "Useful skills", default_branch: "main" }] });
+    if (url.pathname === "/repos/acme/skills/git/trees/main")
+      return Response.json({ tree: [{ path: "skills/demo/SKILL.md", type: "blob", sha: "c".repeat(40), size: 64 }, { path: "README.md", type: "blob", sha: "d".repeat(40), size: 12 }] });
+    return new Response(null, { status: 404 });
+  });
+  const results = await installer.search("canvas");
+  assert.deepEqual(results, [{ name: "demo", repository: "acme/skills", description: "Useful skills", sourceUrl: SOURCE }]);
+  await assert.rejects(installer.search("x"), /2–100/);
+});
+
 test("预览固定 commit、展示文件与权限，并原子安装 provenance [AGT-009]", async (context) => {
   const workspace = await temporaryWorkspace(context);
   const content = skill(
