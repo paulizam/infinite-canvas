@@ -41,7 +41,8 @@ Packages reported as `Unknown` are permitted only when explicitly documented in 
 - `@aws-sdk/types@3.974.5`
 - `@aws-sdk/xml-builder@3.972.40`
 - `@aws/lambda-invoke-store@0.3.0`
-- `@openai/codex@0.146.0-win32-x64,0.146.0`
+- `@img/sharp-<platform>@0.35.4`
+- `@openai/codex@0.146.0,0.146.0`
 - `@orama/orama@3.1.18`
 - `@smithy/core@3.33.3`
 - `@smithy/credential-provider-imds@4.5.2`
@@ -63,7 +64,6 @@ Packages reported as `Unknown` are permitted only when explicitly documented in 
 
 ## Apache-2.0 AND LGPL-3.0-or-later
 
-- `@img/sharp-win32-x64@0.35.4`
 
 ## BlueOak-1.0.0
 
@@ -128,6 +128,10 @@ Packages reported as `Unknown` are permitted only when explicitly documented in 
 - `yallist@3.1.1`
 - `yaml@1.10.3,2.9.0`
 - `zod-to-json-schema@3.25.2`
+
+## LGPL-3.0-or-later
+
+- `@img/sharp-libvips-<platform>@1.3.3`
 
 ## MIT
 
@@ -201,7 +205,7 @@ Packages reported as `Unknown` are permitted only when explicitly documented in 
 - `@emotion/unitless@0.7.5,0.10.0`
 - `@emotion/utils@1.4.2`
 - `@emotion/weak-memoize@0.4.0`
-- `@esbuild/win32-x64@0.25.12,0.28.2`
+- `@esbuild/<platform>@0.25.12,0.28.2`
 - `@floating-ui/core@1.8.0`
 - `@floating-ui/dom@1.8.0`
 - `@floating-ui/react-dom@2.1.9`
@@ -223,9 +227,10 @@ Packages reported as `Unknown` are permitted only when explicitly documented in 
 - `@marijn/find-cluster-break@1.0.4`
 - `@mdx-js/mdx@3.1.1`
 - `@modelcontextprotocol/sdk@1.30.0`
+- `@napi-rs/lzma-<platform>@1.5.1`
 - `@next/env@16.2.11`
-- `@next/swc-win32-x64-msvc@16.2.11`
-- `@node-rs/argon2-win32-x64-msvc@2.1.0`
+- `@next/swc-<platform>@16.2.11`
+- `@node-rs/argon2-<platform>@2.1.0`
 - `@node-rs/argon2@2.1.0`
 - `@nodelib/fs.scandir@2.1.5`
 - `@nodelib/fs.stat@2.0.5`
@@ -334,8 +339,7 @@ Packages reported as `Unknown` are permitted only when explicitly documented in 
 - `@rc-component/util@1.12.0`
 - `@rc-component/virtual-list@1.5.1`
 - `@rolldown/pluginutils@1.0.0-rc.3`
-- `@rollup/rollup-win32-x64-gnu@4.63.0`
-- `@rollup/rollup-win32-x64-msvc@4.63.0`
+- `@rollup/rollup-<platform>@4.63.0`
 - `@sec-ant/readable-stream@0.4.1`
 - `@shikijs/core@4.4.3`
 - `@shikijs/engine-javascript@4.4.3`
@@ -350,7 +354,7 @@ Packages reported as `Unknown` are permitted only when explicitly documented in 
 - `@stablelib/base64@1.0.1`
 - `@standard-schema/spec@1.1.0`
 - `@tailwindcss/node@4.3.3`
-- `@tailwindcss/oxide-win32-x64-msvc@4.3.3`
+- `@tailwindcss/oxide-<platform>@4.3.3`
 - `@tailwindcss/oxide@4.3.3`
 - `@tailwindcss/postcss@4.3.3`
 - `@tanstack/query-core@5.102.7`
@@ -955,7 +959,7 @@ Packages reported as `Unknown` are permitted only when explicitly documented in 
 
 ## MPL-2.0
 
-- `lightningcss-win32-x64-msvc@1.32.0`
+- `lightningcss-<platform>@1.32.0`
 - `lightningcss@1.32.0`
 
 ## Python-2.0
