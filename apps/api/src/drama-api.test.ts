@@ -488,7 +488,9 @@ describe("Drama API", () => {
         leaseMs: 90_000,
       }),
     });
-    expect(((await r.json()) as any).data[0].id).toBe(renderId);
+    const claimedRender = ((await r.json()) as any).data[0];
+    expect(claimedRender.id).toBe(renderId);
+    expect(claimedRender.input.materials).toEqual([]);
     r = await app.request(
       `/internal/v1/drama-render/jobs/${renderId}/transition`,
       {

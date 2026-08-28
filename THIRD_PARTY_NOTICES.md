@@ -631,6 +631,7 @@ Packages reported as `Unknown` are permitted only when explicitly documented in 
 - `js-tokens@4.0.0`
 - `js-yaml@3.15.2,4.3.2`
 - `jsesc@3.1.0`
+- `jsjianyingdraft@1.0.0`
 - `json-parse-even-better-errors@2.3.1`
 - `json-schema-to-ts@3.1.1`
 - `json-schema-traverse@1.0.0`

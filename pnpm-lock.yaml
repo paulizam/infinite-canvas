@@ -92,6 +92,9 @@ importers:
       '@infinite-canvas/workflow-runtime':
         specifier: workspace:*
         version: link:../../packages/workflow-runtime
+      jsjianyingdraft:
+        specifier: 1.0.0
+        version: 1.0.0
     devDependencies:
       '@types/node':
         specifier: ^22.19.19
@@ -4263,6 +4266,10 @@ packages:
     resolution: {integrity: sha512-/sM3dO2FOzXjKQhJuo0Q173wf2KOo8t4I8vHy6lF9poUp7bKT0/NHE8fPX23PwfhnykfqnC2xRxOnVw5XuGIaA==}
     engines: {node: '>=6'}
     hasBin: true
+
+  jsjianyingdraft@1.0.0:
+    resolution: {integrity: sha512-te+WoRxpnlVi3KfrE/PJ7If2zWef+7Vrh5lEOGiWb2xpmsjUxc/ZUus+GxZQvYHcgnqFU14i5MvfG4TgjykGwQ==}
+    engines: {node: '>=18'}
 
   json-parse-even-better-errors@2.3.1:
     resolution: {integrity: sha512-xyFwyhro/JEof6Ghe2iz2NcXoj2sloNsWr/XsERDK/oiPCfaNhl5ONfp+jQdAZRQQ0IJWNzH9zIZF7li91kh2w==}
@@ -10548,6 +10555,8 @@ snapshots:
       argparse: 2.0.1
 
   jsesc@3.1.0: {}
+
+  jsjianyingdraft@1.0.0: {}
 
   json-parse-even-better-errors@2.3.1: {}
 

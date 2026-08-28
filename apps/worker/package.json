@@ -13,7 +13,8 @@
   "dependencies": {
     "@infinite-canvas/contracts": "workspace:*",
     "@infinite-canvas/model-gateway": "workspace:*",
-    "@infinite-canvas/workflow-runtime": "workspace:*"
+    "@infinite-canvas/workflow-runtime": "workspace:*",
+    "jsjianyingdraft": "1.0.0"
   },
   "devDependencies": {
     "@types/node": "^22.19.19",

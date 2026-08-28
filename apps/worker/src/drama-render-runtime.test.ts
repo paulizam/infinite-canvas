@@ -50,14 +50,18 @@ describe("Drama render runtime", () => {
     expect(Buffer.from(a).readUInt32LE(0)).toBe(0x04034b50);
     expect(Buffer.from(a).includes(Buffer.from("a.txt"))).toBe(true);
   });
-  it("creates a Jianying v6 draft containing metadata, tracks, and bundled media", () => {
+  it("creates a Jianying v6 draft containing metadata, tracks, and bundled media", async () => {
     const job = {
       id: "render-1",
       projectId: "drama-1",
       kind: "jianying",
       attempt: 1,
       input: {
-        assetIds: ["asset-1"],
+        assetIds: ["asset-1", "audio-1"],
+        materials: [
+          { assetId: "asset-1", kind: "video", shotId: "shot-1", startMs: 0, durationMs: 1000, sortOrder: 0 },
+          { assetId: "audio-1", kind: "audio", shotId: "shot-1", startMs: 0, durationMs: 1000, sortOrder: 0 },
+        ],
         timeline: [
           { kind: "subtitle", textContent: "你好", startMs: 0, endMs: 1000 },
         ],
@@ -66,27 +70,30 @@ describe("Drama render runtime", () => {
       leaseUntil: "2026-01-01T00:00:00.000Z",
       updatedAt: "2026-01-01T00:00:00.000Z",
     } as DramaRenderJob;
-    const zip = buildJianyingPackage(job, [
-      { name: "media-0.mp4", bytes: Buffer.from("video") },
+    const zip = await buildJianyingPackage(job, [
+      { assetId: "asset-1", name: "media-0.mp4", mimeType: "video/mp4", bytes: Buffer.from("video") },
+      { assetId: "audio-1", name: "voice.mp3", mimeType: "audio/mpeg", bytes: Buffer.from("audio") },
     ]);
     expect(Buffer.from(zip).includes(Buffer.from("draft_info.json"))).toBe(
       true,
     );
     expect(
-      Buffer.from(zip).includes(Buffer.from("materials/media-0.mp4")),
+      Buffer.from(zip).includes(Buffer.from("assets/media-0.mp4")),
     ).toBe(true);
-    expect(Buffer.from(zip).includes(Buffer.from("format_version"))).toBe(true);
+    expect(Buffer.from(zip).includes(Buffer.from('"tracks"'))).toBe(true);
+    expect(Buffer.from(zip).includes(Buffer.from("voice.mp3"))).toBe(true);
+    expect(Buffer.from(zip).includes(Buffer.from("ic-jianying-"))).toBe(false);
   });
-  it("[DRM-008] emits Jianying 5 naming and rejects unsafe version values", () => {
+  it("[DRM-008] emits Jianying 5 naming and rejects unsafe version values", async () => {
     const job = renderJob("jianying");
     job.input.settings = { jianyingVersion: "5" };
-    const zip = buildJianyingPackage(job, [
-      { name: "../segment.mp4", bytes: Buffer.from("video") },
+    const zip = await buildJianyingPackage(job, [
+      { assetId: "asset-1", name: "../segment.mp4", mimeType: "video/mp4", bytes: Buffer.from("video") },
     ]);
     expect(Buffer.from(zip).includes(Buffer.from("draft_content.json"))).toBe(true);
-    expect(Buffer.from(zip).includes(Buffer.from("materials/segment.mp4"))).toBe(true);
+    expect(Buffer.from(zip).includes(Buffer.from("assets/segment.mp4"))).toBe(true);
     job.input.settings = { jianyingVersion: "7" };
-    expect(() => buildJianyingPackage(job, [])).toThrow(/must be 5 or 6/);
+    await expect(buildJianyingPackage(job, [])).rejects.toThrow(/must be 5 or 6/);
   });
   it("uses an argv-only FFmpeg plan and rejects audio-only renders", () => {
     const args = buildFfmpegArgs(

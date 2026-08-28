@@ -99,7 +99,7 @@ pnpm --filter @infinite-canvas/api build
 
 ### Render worker execution
 
-Workers claim Drama render leases independently from model-generation jobs. Input assets and output uploads are lease-bound API calls. FFmpeg is invoked with `spawn(executable, argv, { shell: false })`, controlled temporary filenames, `-nostdin`, and abort-driven termination. `FFMPEG_PATH` selects the deployment binary and defaults to `ffmpeg`. Jianying exports are deterministic ZIP packages containing v6 draft metadata/content and bundled media. Generic ZIP outputs use the restricted `file` asset kind; arbitrary executables/documents remain rejected.
+Workers claim Drama render leases independently from model-generation jobs. Input assets and output uploads are lease-bound API calls. FFmpeg is invoked with `spawn(executable, argv, { shell: false })`, controlled temporary filenames, `-nostdin`, and abort-driven termination. `FFMPEG_PATH` selects the deployment binary and defaults to `ffmpeg`. Jianying exports use the MIT `jsjianyingdraft` generator and an immutable material manifest to create v5/v6 video, audio, and subtitle tracks with bundled media. Generic ZIP outputs use the restricted `file` asset kind; arbitrary executables/documents remain rejected.
 
 ### Drama / Canvas interoperability
 

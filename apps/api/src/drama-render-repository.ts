@@ -14,6 +14,14 @@ export type DramaRenderJob = {
   retryOf: string | null;
   input: {
     assetIds: string[];
+    materials?: Array<{
+      assetId: string;
+      kind: "image" | "video" | "audio";
+      shotId: string | null;
+      startMs: number;
+      durationMs: number;
+      sortOrder: number;
+    }>;
     timeline: unknown[];
     settings: Record<string, unknown>;
   };

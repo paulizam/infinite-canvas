@@ -9,6 +9,14 @@ export type DramaRenderJob = {
   attempt: number;
   input: {
     assetIds: string[];
+    materials?: Array<{
+      assetId: string;
+      kind: "image" | "video" | "audio";
+      shotId: string | null;
+      startMs: number;
+      durationMs: number;
+      sortOrder: number;
+    }>;
     timeline: unknown[];
     settings: Record<string, unknown>;
   };

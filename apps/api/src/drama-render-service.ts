@@ -49,6 +49,38 @@ export class DramaRenderService {
         ...p.timeline.filter((x) => x.assetId).map((x) => x.assetId!),
       ]),
     ];
+    const shotById = new Map(d.shots.map((shot) => [shot.id, shot]));
+    const materials = [
+      ...p.generations.flatMap((generation) => {
+        const shot = shotById.get(generation.shotId);
+        return generation.selected && generation.selectedAssetId && shot
+          ? [
+              {
+                assetId: generation.selectedAssetId,
+                kind: generation.capability,
+                shotId: generation.shotId,
+                startMs: 0,
+                durationMs: shot.durationMs,
+                sortOrder: shot.sortOrder,
+              } as const,
+            ]
+          : [];
+      }),
+      ...p.timeline.flatMap((item) =>
+        item.assetId
+          ? [
+              {
+                assetId: item.assetId,
+                kind: "audio" as const,
+                shotId: item.shotId,
+                startMs: item.startMs,
+                durationMs: item.endMs - item.startMs,
+                sortOrder: item.sortOrder,
+              },
+            ]
+          : [],
+      ),
+    ];
     if (input.kind === "ffmpeg" && !assetIds.length)
       throw new DomainError(
         "DRAMA_RENDER_INPUT_EMPTY",
@@ -66,7 +98,7 @@ export class DramaRenderService {
       progress: 0,
       attempt: 1,
       retryOf: null,
-      input: { assetIds, timeline: p.timeline, settings: input.settings },
+      input: { assetIds, materials, timeline: p.timeline, settings: input.settings },
       outputAssetId: null,
       errorCode: null,
       errorMessage: null,

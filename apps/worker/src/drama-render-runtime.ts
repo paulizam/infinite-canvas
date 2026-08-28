@@ -4,7 +4,8 @@ import { join } from "node:path";
 import { spawn } from "node:child_process";
 import type { WorkerApiClient } from "./client.js";
 import type { DramaRenderJob } from "./drama-render-types.js";
-import { deterministicZip } from "./deterministic-zip.js";
+import { buildJianyingDraft } from "./jianying-draft.js";
+export { buildJianyingDraft as buildJianyingPackage } from "./jianying-draft.js";
 export async function runDramaRenderCycle(input: {
   client: WorkerApiClient;
   workerId: string;
@@ -61,6 +62,7 @@ async function executeDramaRender(
       mimeType: string;
       bytes: Uint8Array;
       name: string;
+      assetId: string;
     }>;
     for (let i = 0; i < job.input.assetIds.length; i++) {
       const a = await input.client.readDramaRenderAsset(
@@ -72,7 +74,7 @@ async function executeDramaRender(
         name = `media-${i}.${extension(a.mimeType)}`,
         path = join(dir, name);
       await writeFile(path, a.bytes);
-      assets.push({ path, mimeType: a.mimeType, bytes: a.bytes, name });
+      assets.push({ path, mimeType: a.mimeType, bytes: a.bytes, name, assetId: job.input.assetIds[i]! });
     }
     await input.client.transitionDramaRender(
       input.workerId,
@@ -83,7 +85,7 @@ async function executeDramaRender(
     );
     let bytes: Uint8Array, name: string;
     if (job.kind === "jianying") {
-      bytes = buildJianyingPackage(job, assets);
+      bytes = await buildJianyingDraft(job, assets);
       name = `${job.projectId}-jianying.zip`;
     } else {
       const output = join(dir, "output.mp4"),
@@ -144,64 +146,6 @@ async function executeDramaRender(
   } finally {
     await rm(dir, { recursive: true, force: true });
   }
-}
-export function buildJianyingPackage(
-  job: DramaRenderJob,
-  assets: Array<{ name: string; bytes: Uint8Array }>,
-) {
-  const version = jianyingVersion(job.input.settings);
-  const totalBytes = assets.reduce((sum, asset) => sum + asset.bytes.byteLength, 0);
-  if (totalBytes > 200 * 1024 * 1024)
-    throw new Error("Jianying package media exceeds 200 MiB");
-  const materials = assets.map((x, i) => ({
-    id: job.input.assetIds[i],
-    path: `materials/${safePackageName(x.name, i)}`,
-  }));
-  const content = Buffer.from(
-    JSON.stringify(
-      {
-        format_version: version,
-        duration: timelineDuration(job.input.timeline),
-        materials,
-        tracks: job.input.timeline,
-      },
-      null,
-      2,
-    ),
-  );
-  const meta = Buffer.from(
-    JSON.stringify(
-      {
-        draft_id: job.id,
-        project_id: job.projectId,
-        created_at: job.updatedAt || job.leaseUntil,
-      },
-      null,
-      2,
-    ),
-  );
-  return deterministicZip([
-    {
-      name: version === "6" ? "draft_info.json" : "draft_content.json",
-      bytes: content,
-    },
-    { name: "draft_meta_info.json", bytes: meta },
-    ...assets.map((x, i) => ({
-      name: `materials/${safePackageName(x.name, i)}`,
-      bytes: x.bytes,
-    })),
-  ]);
-}
-function jianyingVersion(settings: Record<string, unknown>) {
-  const value = settings.jianyingVersion ?? settings.version ?? "6";
-  if (value !== "5" && value !== "6")
-    throw new Error("Jianying version must be 5 or 6");
-  return value;
-}
-function safePackageName(value: string, index: number) {
-  const name = value.replaceAll("\\", "/").split("/").at(-1)?.trim() || "";
-  const safe = name.replace(/[\u0000-\u001f<>:"|?*]/g, "_").replace(/^\.+$/, "");
-  return safe || `media-${index}`;
 }
 export function buildFfmpegArgs(
   manifest: string,
@@ -271,18 +215,6 @@ function extension(mime: string) {
         "audio/ogg": "ogg",
       } as Record<string, string>
     )[mime] || "bin"
-  );
-}
-function timelineDuration(items: unknown[]) {
-  return items.reduce<number>(
-    (n, x) =>
-      Math.max(
-        n,
-        typeof x === "object" && x !== null && "endMs" in x
-          ? Number((x as any).endMs) || 0
-          : 0,
-      ),
-    0,
   );
 }
 function safeMessage(error: unknown) {
