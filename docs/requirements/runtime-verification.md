@@ -190,6 +190,7 @@ pnpm --filter @infinite-canvas/worker test -- src/provider-sandbox-runtime.integ
 ## DRM-008 Jianying desktop import (pending desktop runtime)
 
 - Worker exporter 已迁移已授权 VOZEB-PRO 使用的 MIT `jsjianyingdraft`：Render Job 快照镜头/音频 material manifest，生成真实 video/audio/subtitle track 与 segment；剪映 5 输出 `draft_content.json`、剪映 6 输出 `draft_info.json`，两者均附 `draft_meta_info.json` 和本地素材。
+- `/drama/:id` 交付页提供结构化目标版本、画布宽高、FPS 与可选绝对草稿目录；高级 JSON 只能补充参数，不能覆盖这些安全边界。API 在 durable job 入队前再次拒绝非法版本、尺寸、FPS 和相对路径。
 - 素材总量限制 200 MiB；版本只接受 `5`/`6`；素材文件名去除路径与危险字符，防止 ZIP entry traversal。
 - 本地单测只证明包结构与 Worker 生命周期，不等价于目标剪映桌面版成功导入；完成该项仍需在目标 Windows 剪映 5.x/6+ 执行真实导入。
 

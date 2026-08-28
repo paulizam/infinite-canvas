@@ -3469,7 +3469,52 @@ const dramaRenderCreateSchema = z
     kind: z.enum(["ffmpeg", "jianying"]),
     settings: z.record(z.string(), z.unknown()),
   })
-  .strict();
+  .strict()
+  .superRefine((value, context) => {
+    const settings = value.settings;
+    for (const [name, minimum, maximum] of [
+      ["fps", 1, 120],
+      ["width", 1, 8192],
+      ["height", 1, 8192],
+    ] as const) {
+      const candidate = settings[name];
+      if (
+        candidate !== undefined &&
+        (!Number.isInteger(candidate) ||
+          (candidate as number) < minimum ||
+          (candidate as number) > maximum)
+      )
+        context.addIssue({
+          code: "custom",
+          path: ["settings", name],
+          message: `${name} 必须是 ${minimum}-${maximum} 的整数`,
+        });
+    }
+    if (value.kind !== "jianying") return;
+    if (
+      settings.jianyingVersion !== undefined &&
+      settings.jianyingVersion !== "5" &&
+      settings.jianyingVersion !== "6"
+    )
+      context.addIssue({
+        code: "custom",
+        path: ["settings", "jianyingVersion"],
+        message: "剪映版本必须是 5 或 6",
+      });
+    const path = settings.draftPath;
+    if (
+      path !== undefined &&
+      (typeof path !== "string" ||
+        path.length > 1024 ||
+        /[\u0000-\u001f]/.test(path) ||
+        (!/^[A-Za-z]:[\\/]/.test(path) && !path.startsWith("/")))
+    )
+      context.addIssue({
+        code: "custom",
+        path: ["settings", "draftPath"],
+        message: "剪映草稿目录必须是有效绝对路径",
+      });
+  });
 const dramaRenderHeartbeatSchema = z
   .object({
     workerId: z.string().trim().min(1).max(160),

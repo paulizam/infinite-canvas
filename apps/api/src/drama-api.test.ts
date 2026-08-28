@@ -469,6 +469,17 @@ describe("Drama API", () => {
       headers: headers(s.cookie),
       body: JSON.stringify({
         expectedRevision: 6,
+        mutationId: "render-invalid-00001",
+        kind: "jianying",
+        settings: { jianyingVersion: "7", draftPath: "relative/path" },
+      }),
+    });
+    expect(r.status).toBe(400);
+    r = await app.request(`/api/v1/drama-projects/${id}/renders`, {
+      method: "POST",
+      headers: headers(s.cookie),
+      body: JSON.stringify({
+        expectedRevision: 6,
         mutationId: "render-mutation-00001",
         kind: "jianying",
         settings: { version: "6" },
