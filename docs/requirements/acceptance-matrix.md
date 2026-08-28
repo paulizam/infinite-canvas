@@ -46,7 +46,7 @@
 | GEN-005 | P0 | SOURCE-EVIDENCE | 多渠道 OpenAI-compatible Base URL、模型列表和自定义调用脚本。 | `apps/api/src/generation-job-api.test.ts`<br>`apps/worker/src/gateway-handler.test.ts` |
 | GEN-006 | P0 | SOURCE-EVIDENCE | Protocol/Channel/Upstream Model/Logical Model/Capability 分层配置。 | `apps/api/src/generation-job-api.test.ts`<br>`apps/worker/src/gateway-handler.test.ts` |
 | GEN-007 | P0 | SOURCE-EVIDENCE | 逻辑模型候选优先级、默认模型和兼容能力校验。 | `apps/api/src/generation-job-api.test.ts`<br>`apps/worker/src/gateway-handler.test.ts` |
-| GEN-008 | P1 | RUNTIME-PENDING | OpenAI、Gemini、Seedance、Stable Diffusion、A1111/Forge adapter。 | `apps/api/src/generation-job-api.test.ts`<br>`apps/worker/src/gateway-handler.test.ts` |
+| GEN-008 | P1 | RUNTIME-PENDING | OpenAI、Gemini、Seedance、Stable Diffusion、A1111/Forge adapter。 | `packages/model-gateway/src/provider-specific.ts`<br>`apps/worker/src/provider-runtime.ts`<br>`packages/model-gateway/src/provider-specific.test.ts`<br>`apps/worker/src/provider-runtime.test.ts`<br>Command: `pnpm --filter @infinite-canvas/model-gateway test && pnpm --filter @infinite-canvas/worker test`<br>Needs: Provider sandbox credentials and endpoints |
 | GEN-009 | P1 | SOURCE-EVIDENCE | 声明式自定义协议；测试连接、获取模型、映射字段、预览请求。 | `apps/api/src/generation-job-api.test.ts`<br>`apps/worker/src/gateway-handler.test.ts` |
 | GEN-010 | P0 | SOURCE-EVIDENCE | `clientRequestId` 幂等；同一 attempt 只创建一次上游任务。 | `apps/api/src/generation-job-api.test.ts`<br>`apps/worker/src/gateway-handler.test.ts` |
 | GEN-011 | P0 | SOURCE-EVIDENCE | 持久 Job 支持 lease、heartbeat、poll/webhook、页面关闭后恢复。 | `apps/api/src/generation-job-api.test.ts`<br>`apps/worker/src/gateway-handler.test.ts` |
@@ -55,8 +55,8 @@
 | GEN-014 | P1 | SOURCE-EVIDENCE | 生成运维：卡死、失联 Worker、异常持久化、needs_review 人工处理。 | `apps/api/src/generation-job-api.test.ts`<br>`apps/worker/src/gateway-handler.test.ts` |
 | GEN-015 | P1 | SOURCE-EVIDENCE | 历史恢复、批次结果、失败原因、原件下载、WebP 预览。 | `apps/api/src/generation-job-api.test.ts`<br>`apps/worker/src/gateway-handler.test.ts` |
 | GEN-016 | P1 | SOURCE-EVIDENCE | 参数倍率与预估积分；提交前显示预计消耗。 | `apps/api/src/generation-job-api.test.ts`<br>`apps/worker/src/gateway-handler.test.ts` |
-| GEN-017 | P2 | RUNTIME-PENDING | 火山引擎 AK/SK 接入、模型/资源包导入与消耗查询。 | `apps/api/src/generation-job-api.test.ts`<br>`apps/worker/src/gateway-handler.test.ts` |
-| GEN-018 | P2 | RUNTIME-PENDING | AI MediaKit/画质增强等 provider-specific capability 插件化。 | `apps/api/src/generation-job-api.test.ts`<br>`apps/worker/src/gateway-handler.test.ts` |
+| GEN-017 | P2 | RUNTIME-PENDING | 火山引擎 AK/SK 接入、模型/资源包导入与消耗查询。 | `packages/model-gateway/src/volcengine.ts`<br>`apps/api/src/model-discovery.ts`<br>`packages/model-gateway/src/volcengine.test.ts`<br>`apps/api/src/model-discovery.test.ts`<br>Command: `pnpm --filter @infinite-canvas/model-gateway test && pnpm --filter @infinite-canvas/api test`<br>Needs: Volcengine sandbox AK/SK |
+| GEN-018 | P2 | RUNTIME-PENDING | AI MediaKit/画质增强等 provider-specific capability 插件化。 | `packages/model-gateway/src/provider-specific.ts`<br>`apps/worker/src/provider-runtime.ts`<br>`packages/model-gateway/src/provider-specific.test.ts`<br>`apps/worker/src/provider-runtime.test.ts`<br>Command: `pnpm --filter @infinite-canvas/model-gateway test && pnpm --filter @infinite-canvas/worker test`<br>Needs: MediaKit sandbox endpoint |
 | AGT-001 | P0 | SOURCE-EVIDENCE | 本地 Canvas Agent 连接 Codex，MCP 读取 snapshot/selection 并应用 operations。 | `apps/api/src/agent-run-api.test.ts`<br>`apps/worker/src/agent-runtime.test.ts` |
 | AGT-002 | P0 | SOURCE-EVIDENCE | 多 tab session 隔离、streaming、历史、诊断、approval 与权限展示。 | `apps/api/src/agent-run-api.test.ts`<br>`apps/worker/src/agent-runtime.test.ts` |
 | AGT-003 | P1 | SOURCE-EVIDENCE | Claude Code adapter 升级为可维护 Agent SDK adapter。 | `apps/api/src/agent-run-api.test.ts`<br>`apps/worker/src/agent-runtime.test.ts` |
@@ -79,12 +79,12 @@
 | WFL-009 | P2 | SOURCE-EVIDENCE | Workflow 模板、文件夹、封面、导入导出和版本。 | `packages/workflow-runtime/src/compiler.test.ts`<br>`apps/api/src/workflow-api.test.ts` |
 | WFL-010 | P2 | SOURCE-EVIDENCE | API snippet/公开调用 endpoint，具备 token scope 与限流。 | `packages/workflow-runtime/src/compiler.test.ts`<br>`apps/api/src/workflow-api.test.ts` |
 | AST-001 | P0 | SOURCE-EVIDENCE | 图片、视频、音频、文件、Prompt 素材入库、搜索、筛选、删除。 | `apps/api/src/asset-references.test.ts`<br>`web/src/services/webdav-sync.ts` |
-| AST-002 | P0 | RUNTIME-PENDING | local/S3 provider；历史资产按自身 provider 读取。 | `apps/api/src/asset-references.test.ts`<br>`web/src/services/webdav-sync.ts` |
+| AST-002 | P0 | RUNTIME-PENDING | local/S3 provider；历史资产按自身 provider 读取。 | `apps/api/src/blob-store.ts`<br>`apps/api/src/index.ts`<br>`apps/api/src/asset-references.test.ts`<br>Command: `pnpm --filter @infinite-canvas/api test`<br>Needs: PostgreSQL plus S3-compatible object store |
 | AST-003 | P0 | SOURCE-EVIDENCE | stable storageKey/AssetRef，原件与 preview variant 分离。 | `apps/api/src/asset-references.test.ts`<br>`web/src/services/webdav-sync.ts` |
 | AST-004 | P0 | SOURCE-EVIDENCE | 上传格式、大小、归属校验；服务端 UUID 重命名。 | `apps/api/src/asset-references.test.ts`<br>`web/src/services/webdav-sync.ts` |
-| AST-005 | P0 | RUNTIME-PENDING | 鉴权媒体读取和短期 signed URL，不暴露 bucket secret。 | `apps/api/src/asset-references.test.ts`<br>`web/src/services/webdav-sync.ts` |
+| AST-005 | P0 | RUNTIME-PENDING | 鉴权媒体读取和短期 signed URL，不暴露 bucket secret。 | `apps/api/src/blob-store.ts`<br>`apps/api/src/asset-service.ts`<br>`apps/api/src/asset-references.test.ts`<br>Command: `pnpm --filter @infinite-canvas/api test`<br>Needs: Running API and S3-compatible object store |
 | AST-006 | P1 | SOURCE-EVIDENCE | 引用保护、对象迁移、孤儿扫描、retention GC。 | `apps/api/src/asset-references.test.ts`<br>`web/src/services/webdav-sync.ts` |
-| AST-007 | P1 | RUNTIME-PENDING | WebDAV 分域同步 Canvas/Assets/生成记录与媒体。 | `apps/api/src/asset-references.test.ts`<br>`web/src/services/webdav-sync.ts` |
+| AST-007 | P1 | RUNTIME-PENDING | WebDAV 分域同步 Canvas/Assets/生成记录与媒体。 | `web/src/services/webdav-sync.ts`<br>Command: `pnpm --dir web typecheck`<br>Needs: CORS-enabled WebDAV test account |
 | AST-008 | P1 | SOURCE-EVIDENCE | 七个内置 Prompt sources，自定义 JSON source、刷新、缓存、标签检索。 | `apps/api/src/asset-references.test.ts`<br>`web/src/services/webdav-sync.ts` |
 | AST-009 | P1 | SOURCE-EVIDENCE | 运营提示词库、分类、上下架；一键送入 Agent/Canvas/短剧。 | `apps/api/src/asset-references.test.ts`<br>`web/src/services/webdav-sync.ts` |
 | AST-010 | P2 | SOURCE-EVIDENCE | content hash 去重、媒体版本与来源血缘。 | `apps/api/src/asset-references.test.ts`<br>`web/src/services/webdav-sync.ts` |
@@ -92,7 +92,7 @@
 | PLG-002 | P0 | SOURCE-EVIDENCE | 内置 HTML、Markdown、SVG、Panorama、Sticky Note 节点。 | `web/src/lib/canvas/plugin-manifest.test.ts`<br>`web/src/lib/canvas/plugin-sandbox.test.ts` |
 | PLG-003 | P0 | SOURCE-EVIDENCE | manifest 声明 app version、permissions、network allowlist、integrity/signature。 | `web/src/lib/canvas/plugin-manifest.test.ts`<br>`web/src/lib/canvas/plugin-sandbox.test.ts` |
 | PLG-004 | P0 | SOURCE-EVIDENCE | 远程插件 sandboxed iframe/Worker；不能直接读取主应用 storage/secrets。 | `web/src/lib/canvas/plugin-manifest.test.ts`<br>`web/src/lib/canvas/plugin-sandbox.test.ts` |
-| PLG-005 | P1 | RUNTIME-PENDING | Registry 安装、启停、更新、卸载、版本固定与撤销。 | `web/src/lib/canvas/plugin-manifest.test.ts`<br>`web/src/lib/canvas/plugin-sandbox.test.ts` |
+| PLG-005 | P1 | RUNTIME-PENDING | Registry 安装、启停、更新、卸载、版本固定与撤销。 | `web/src/stores/canvas/use-plugin-store.ts`<br>`web/src/lib/canvas/plugin-registry.ts`<br>`web/src/lib/canvas/plugin-registry.test.ts`<br>`web/src/lib/canvas/plugin-manifest.test.ts`<br>Command: `pnpm --dir web test`<br>Needs: Published registry and browser sandbox |
 | PLG-006 | P1 | SOURCE-EVIDENCE | 安装/升级前权限 diff；用户明确确认新增权限。 | `web/src/lib/canvas/plugin-manifest.test.ts`<br>`web/src/lib/canvas/plugin-sandbox.test.ts` |
 | PLG-007 | P2 | SOURCE-EVIDENCE | 插件运行错误隔离、资源限额、诊断与兼容报告。 | `web/src/lib/canvas/plugin-manifest.test.ts`<br>`web/src/lib/canvas/plugin-sandbox.test.ts` |
 | COL-001 | P1 | SOURCE-EVIDENCE | WebSocket 多端实时同步 node/edge/viewport patches。 | `apps/api/src/collaboration.test.ts`<br>`web/src/services/cloud-collaboration.test.ts` |
@@ -108,8 +108,8 @@
 | DRM-004 | P2 | SOURCE-EVIDENCE | 分镜/镜头列表、Prompt、景别、运镜、时长和顺序。 | `apps/api/src/drama-api.test.ts`<br>`apps/worker/src/drama-render-runtime.test.ts` |
 | DRM-005 | P2 | SOURCE-EVIDENCE | 镜头图片/视频生成、版本选择、失败重试与成本汇总。 | `apps/api/src/drama-api.test.ts`<br>`apps/worker/src/drama-render-runtime.test.ts` |
 | DRM-006 | P2 | SOURCE-EVIDENCE | 配音、音色、对白、背景音、字幕与时间轴。 | `apps/api/src/drama-api.test.ts`<br>`apps/worker/src/drama-render-runtime.test.ts` |
-| DRM-007 | P2 | RUNTIME-PENDING | FFmpeg 合成、进度、失败恢复、成片版本和原件下载。 | `apps/api/src/drama-api.test.ts`<br>`apps/worker/src/drama-render-runtime.test.ts` |
-| DRM-008 | P2 | RUNTIME-PENDING | 剪映草稿导出；输出可被目标版本正常导入。 | `apps/api/src/drama-api.test.ts`<br>`apps/worker/src/drama-render-runtime.test.ts` |
+| DRM-007 | P2 | RUNTIME-PENDING | FFmpeg 合成、进度、失败恢复、成片版本和原件下载。 | `apps/worker/src/drama-render-runtime.ts`<br>`apps/api/src/drama-render-service.ts`<br>`apps/worker/src/drama-render-runtime.test.ts`<br>Command: `pnpm --filter @infinite-canvas/worker test`<br>Needs: FFmpeg binary and sample media |
+| DRM-008 | P2 | RUNTIME-PENDING | 剪映草稿导出；输出可被目标版本正常导入。 | `apps/worker/src/drama-render-runtime.ts`<br>`apps/worker/src/drama-render-runtime.test.ts`<br>Command: `pnpm --filter @infinite-canvas/worker test`<br>Needs: Target Jianying desktop version |
 | DRM-009 | P2 | SOURCE-EVIDENCE | 短剧资产与通用素材库/Canvas 双向发送。 | `apps/api/src/drama-api.test.ts`<br>`apps/worker/src/drama-render-runtime.test.ts` |
 | DRM-010 | P3 | SOURCE-EVIDENCE | 团队批注、镜头审批和生产状态看板。 | `apps/api/src/drama-api.test.ts`<br>`apps/worker/src/drama-render-runtime.test.ts` |
 | COM-001 | P2 | SOURCE-EVIDENCE | 作品草稿、封面、描述、标签、可见性和发布版本快照。 | `apps/api/src/community-api.test.ts`<br>`apps/api/src/community-service.ts` |
@@ -122,9 +122,9 @@
 | BIL-002 | P1 | SOURCE-EVIDENCE | 模型基础价、参数倍率、预估价、原子扣费与幂等退款。 | `apps/api/src/commerce-api.test.ts`<br>`apps/api/src/payment-service.test.ts` |
 | BIL-003 | P2 | SOURCE-EVIDENCE | 商品/套餐、免费额度、促销、优惠券、CDK。 | `apps/api/src/commerce-api.test.ts`<br>`apps/api/src/payment-service.test.ts` |
 | BIL-004 | P2 | SOURCE-EVIDENCE | 邀请码、邀请关系、奖励规则和防重复领取。 | `apps/api/src/commerce-api.test.ts`<br>`apps/api/src/payment-service.test.ts` |
-| BIL-005 | P2 | RUNTIME-PENDING | 订单创建、支付跳转/二维码、状态查询与过期关闭。 | `apps/api/src/commerce-api.test.ts`<br>`apps/api/src/payment-service.test.ts` |
-| BIL-006 | P2 | RUNTIME-PENDING | 支付 webhook 签名、重放防护、event id 去重。 | `apps/api/src/commerce-api.test.ts`<br>`apps/api/src/payment-service.test.ts` |
-| BIL-007 | P2 | RUNTIME-PENDING | 退款申请、渠道退款、积分回滚、失败补偿。 | `apps/api/src/commerce-api.test.ts`<br>`apps/api/src/payment-service.test.ts` |
+| BIL-005 | P2 | RUNTIME-PENDING | 订单创建、支付跳转/二维码、状态查询与过期关闭。 | `apps/api/src/payment-service.ts`<br>`apps/api/src/app.ts`<br>`apps/api/src/payment-service.test.ts`<br>`apps/api/src/commerce-api.test.ts`<br>Command: `pnpm --filter @infinite-canvas/api test`<br>Needs: Payment provider sandbox |
+| BIL-006 | P2 | RUNTIME-PENDING | 支付 webhook 签名、重放防护、event id 去重。 | `apps/api/src/payment-service.ts`<br>`apps/api/src/app.ts`<br>`apps/api/src/payment-service.test.ts`<br>Command: `pnpm --filter @infinite-canvas/api test`<br>Needs: Payment provider signed webhook sandbox |
+| BIL-007 | P2 | RUNTIME-PENDING | 退款申请、渠道退款、积分回滚、失败补偿。 | `apps/api/src/payment-service.ts`<br>`apps/api/src/postgres-payment-repository.ts`<br>`apps/api/src/payment-service.test.ts`<br>`apps/api/src/commerce-api.test.ts`<br>Command: `pnpm --filter @infinite-canvas/api test`<br>Needs: Payment provider refund sandbox |
 | BIL-008 | P2 | SOURCE-EVIDENCE | 对账、财务流水、收入/退款/模型成本统计。 | `apps/api/src/commerce-api.test.ts`<br>`apps/api/src/payment-service.test.ts` |
 | ADM-001 | P1 | SOURCE-EVIDENCE | Dashboard：用户、任务、调用、媒体、积分与系统健康。 | `apps/api/src/admin-domain-api.test.ts`<br>`web/src/pages/admin/model-commerce.tsx` |
 | ADM-002 | P1 | SOURCE-EVIDENCE | 用户检索、状态、角色、积分、Session 撤销和操作审计。 | `apps/api/src/admin-domain-api.test.ts`<br>`web/src/pages/admin/model-commerce.tsx` |
@@ -136,13 +136,13 @@
 | ADM-008 | P1 | SOURCE-EVIDENCE | 审计日志按 actor/action/resource/requestId 查询和导出。 | `apps/api/src/admin-domain-api.test.ts`<br>`web/src/pages/admin/model-commerce.tsx` |
 | ADM-009 | P1 | SOURCE-EVIDENCE | 站点品牌、注册策略、邮件、代理、生成并发和功能开关。 | `apps/api/src/admin-domain-api.test.ts`<br>`web/src/pages/admin/model-commerce.tsx` |
 | ADM-010 | P1 | SOURCE-EVIDENCE | 配置保存前校验，secret 字段只显示配置状态，不回显明文。 | `apps/api/src/admin-domain-api.test.ts`<br>`web/src/pages/admin/model-commerce.tsx` |
-| OPS-001 | P0 | RUNTIME-PENDING | Docker Compose 一键启动 web/api/worker/Postgres，healthcheck 可判活。 | `.github/workflows/quality-security.yml`<br>`ops/README.md` |
+| OPS-001 | P0 | RUNTIME-PENDING | Docker Compose 一键启动 web/api/worker/Postgres，healthcheck 可判活。 | `docker-compose.yml`<br>`.github/workflows/quality-security.yml`<br>`ops/release-check.mjs`<br>Command: `docker compose config --quiet && docker compose up -d --wait`<br>Needs: Docker Engine with Compose v2 |
 | OPS-002 | P0 | SOURCE-EVIDENCE | `.env.example` 覆盖必需配置，安装前强度校验，不含真实密钥。 | `.github/workflows/quality-security.yml`<br>`ops/README.md` |
-| OPS-003 | P1 | RUNTIME-PENDING | 定时备份、恢复演练、脱敏业务导出导入。 | `.github/workflows/quality-security.yml`<br>`ops/README.md` |
+| OPS-003 | P1 | RUNTIME-PENDING | 定时备份、恢复演练、脱敏业务导出导入。 | `apps/api/scripts/business-transfer.mjs`<br>`ops/backup.sh`<br>`ops/restore.sh`<br>`apps/api/scripts/business-transfer.test.ts`<br>`.github/workflows/quality-security.yml`<br>Command: `pnpm --filter @infinite-canvas/api test`<br>Needs: PostgreSQL client/server and isolated restore database |
 | OPS-004 | P1 | SOURCE-EVIDENCE | Worker heartbeat、queue age、卡死任务告警。 | `.github/workflows/quality-security.yml`<br>`ops/README.md` |
 | OPS-005 | P1 | SOURCE-EVIDENCE | requestId/jobId 全链路日志、metrics 和 traces，secret 自动脱敏。 | `.github/workflows/quality-security.yml`<br>`ops/README.md` |
 | OPS-006 | P0 | SOURCE-EVIDENCE | CSP、CSRF/Origin、防 IDOR、参数化 SQL、上传校验、SSRF 防护。 | `.github/workflows/quality-security.yml`<br>`ops/README.md` |
-| OPS-007 | P0 | RUNTIME-PENDING | secret scan、依赖/license inventory、SBOM、镜像漏洞扫描。 | `.github/workflows/quality-security.yml`<br>`ops/README.md` |
+| OPS-007 | P0 | RUNTIME-PENDING | secret scan、依赖/license inventory、SBOM、镜像漏洞扫描。 | `ops/secret-scan.mjs`<br>`ops/license-inventory.mjs`<br>`.github/workflows/quality-security.yml`<br>`ops/requirements-audit.mjs`<br>Command: `pnpm release:check`<br>Needs: GitHub Actions runner with Syft and Trivy |
 | OPS-008 | P1 | SOURCE-EVIDENCE | 管理员 MFA、维护/Worker token 分权与轮换。 | `.github/workflows/quality-security.yml`<br>`ops/README.md` |
 | OPS-009 | P1 | SOURCE-EVIDENCE | 数据 retention、账户注销、媒体 GC 和审计保留策略。 | `.github/workflows/quality-security.yml`<br>`ops/README.md` |
 | OPS-010 | P1 | SOURCE-EVIDENCE | release check：版本、品牌、文档、敏感文件、migration 与 notices。 | `.github/workflows/quality-security.yml`<br>`ops/README.md` |

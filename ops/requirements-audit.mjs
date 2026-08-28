@@ -2,6 +2,8 @@ import { existsSync, readFileSync, writeFileSync } from "node:fs";
 
 const specPath = "docs/requirements/functional-spec.md";
 const outputPath = "docs/requirements/acceptance-matrix.md";
+const detailedEvidencePath = "ops/requirements-evidence.json";
+const detailedEvidence = JSON.parse(readFileSync(detailedEvidencePath, "utf8"));
 const evidence = {
   BAS: ["apps/api/src/app.test.ts", "web/src/services/cloud-platform.test.ts"],
   CAN: ["packages/canvas-core/src/core.test.ts", "web/src/lib/canvas/canvas-import.test.ts"],
@@ -23,6 +25,14 @@ const runtimePending = new Set([
   "OPS-001", "OPS-003", "OPS-007",
 ]);
 
+if (Object.keys(detailedEvidence).sort().join() !== [...runtimePending].sort().join())
+  throw new Error("Detailed evidence IDs must exactly match runtime-pending IDs");
+for (const [id, item] of Object.entries(detailedEvidence)) {
+  for (const path of [...item.sources, ...item.tests])
+    if (!existsSync(path)) throw new Error(`Detailed evidence path does not exist for ${id}: ${path}`);
+  if (!item.command?.trim() || !item.runtime?.trim()) throw new Error(`Incomplete detailed evidence for ${id}`);
+}
+
 const requirements = [...readFileSync(specPath, "utf8").matchAll(/^\| ([A-Z]{3}-\d{3}) \| ([^|]+) \| ([^|]+) \| (.+) \|$/gm)].map((match) => ({ id: match[1], priority: match[2].trim(), source: match[3].trim(), text: match[4].trim() }));
 if (requirements.length !== 133) throw new Error(`Expected 133 requirements, found ${requirements.length}`);
 for (const paths of Object.values(evidence)) for (const path of paths) if (!existsSync(path)) throw new Error(`Evidence path does not exist: ${path}`);
@@ -32,7 +42,11 @@ const rows = requirements.map((requirement) => {
   const paths = evidence[prefix];
   if (!paths) throw new Error(`No evidence mapping for ${requirement.id}`);
   const status = runtimePending.has(requirement.id) ? "RUNTIME-PENDING" : "SOURCE-EVIDENCE";
-  return `| ${requirement.id} | ${requirement.priority} | ${status} | ${escapeCell(requirement.text)} | ${paths.map((path) => `\`${path}\``).join("<br>")} |`;
+  const detail = detailedEvidence[requirement.id];
+  const cells = detail
+    ? [...detail.sources, ...detail.tests].map((path) => `\`${path}\``).concat(`Command: \`${detail.command}\``, `Needs: ${detail.runtime}`)
+    : paths.map((path) => `\`${path}\``);
+  return `| ${requirement.id} | ${requirement.priority} | ${status} | ${escapeCell(requirement.text)} | ${cells.join("<br>")} |`;
 });
 const pending = requirements.filter((item) => runtimePending.has(item.id));
 const content = `# 133 项功能验收矩阵

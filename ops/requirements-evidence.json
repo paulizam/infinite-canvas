@@ -1,0 +1,173 @@
+{
+  "GEN-008": {
+    "sources": [
+      "packages/model-gateway/src/provider-specific.ts",
+      "apps/worker/src/provider-runtime.ts"
+    ],
+    "tests": [
+      "packages/model-gateway/src/provider-specific.test.ts",
+      "apps/worker/src/provider-runtime.test.ts"
+    ],
+    "command": "pnpm --filter @infinite-canvas/model-gateway test && pnpm --filter @infinite-canvas/worker test",
+    "runtime": "Provider sandbox credentials and endpoints"
+  },
+  "GEN-017": {
+    "sources": [
+      "packages/model-gateway/src/volcengine.ts",
+      "apps/api/src/model-discovery.ts"
+    ],
+    "tests": [
+      "packages/model-gateway/src/volcengine.test.ts",
+      "apps/api/src/model-discovery.test.ts"
+    ],
+    "command": "pnpm --filter @infinite-canvas/model-gateway test && pnpm --filter @infinite-canvas/api test",
+    "runtime": "Volcengine sandbox AK/SK"
+  },
+  "GEN-018": {
+    "sources": [
+      "packages/model-gateway/src/provider-specific.ts",
+      "apps/worker/src/provider-runtime.ts"
+    ],
+    "tests": [
+      "packages/model-gateway/src/provider-specific.test.ts",
+      "apps/worker/src/provider-runtime.test.ts"
+    ],
+    "command": "pnpm --filter @infinite-canvas/model-gateway test && pnpm --filter @infinite-canvas/worker test",
+    "runtime": "MediaKit sandbox endpoint"
+  },
+  "AST-002": {
+    "sources": [
+      "apps/api/src/blob-store.ts",
+      "apps/api/src/index.ts"
+    ],
+    "tests": [
+      "apps/api/src/asset-references.test.ts"
+    ],
+    "command": "pnpm --filter @infinite-canvas/api test",
+    "runtime": "PostgreSQL plus S3-compatible object store"
+  },
+  "AST-005": {
+    "sources": [
+      "apps/api/src/blob-store.ts",
+      "apps/api/src/asset-service.ts"
+    ],
+    "tests": [
+      "apps/api/src/asset-references.test.ts"
+    ],
+    "command": "pnpm --filter @infinite-canvas/api test",
+    "runtime": "Running API and S3-compatible object store"
+  },
+  "AST-007": {
+    "sources": [
+      "web/src/services/webdav-sync.ts"
+    ],
+    "tests": [],
+    "command": "pnpm --dir web typecheck",
+    "runtime": "CORS-enabled WebDAV test account"
+  },
+  "PLG-005": {
+    "sources": [
+      "web/src/stores/canvas/use-plugin-store.ts",
+      "web/src/lib/canvas/plugin-registry.ts"
+    ],
+    "tests": [
+      "web/src/lib/canvas/plugin-registry.test.ts",
+      "web/src/lib/canvas/plugin-manifest.test.ts"
+    ],
+    "command": "pnpm --dir web test",
+    "runtime": "Published registry and browser sandbox"
+  },
+  "DRM-007": {
+    "sources": [
+      "apps/worker/src/drama-render-runtime.ts",
+      "apps/api/src/drama-render-service.ts"
+    ],
+    "tests": [
+      "apps/worker/src/drama-render-runtime.test.ts"
+    ],
+    "command": "pnpm --filter @infinite-canvas/worker test",
+    "runtime": "FFmpeg binary and sample media"
+  },
+  "DRM-008": {
+    "sources": [
+      "apps/worker/src/drama-render-runtime.ts"
+    ],
+    "tests": [
+      "apps/worker/src/drama-render-runtime.test.ts"
+    ],
+    "command": "pnpm --filter @infinite-canvas/worker test",
+    "runtime": "Target Jianying desktop version"
+  },
+  "BIL-005": {
+    "sources": [
+      "apps/api/src/payment-service.ts",
+      "apps/api/src/app.ts"
+    ],
+    "tests": [
+      "apps/api/src/payment-service.test.ts",
+      "apps/api/src/commerce-api.test.ts"
+    ],
+    "command": "pnpm --filter @infinite-canvas/api test",
+    "runtime": "Payment provider sandbox"
+  },
+  "BIL-006": {
+    "sources": [
+      "apps/api/src/payment-service.ts",
+      "apps/api/src/app.ts"
+    ],
+    "tests": [
+      "apps/api/src/payment-service.test.ts"
+    ],
+    "command": "pnpm --filter @infinite-canvas/api test",
+    "runtime": "Payment provider signed webhook sandbox"
+  },
+  "BIL-007": {
+    "sources": [
+      "apps/api/src/payment-service.ts",
+      "apps/api/src/postgres-payment-repository.ts"
+    ],
+    "tests": [
+      "apps/api/src/payment-service.test.ts",
+      "apps/api/src/commerce-api.test.ts"
+    ],
+    "command": "pnpm --filter @infinite-canvas/api test",
+    "runtime": "Payment provider refund sandbox"
+  },
+  "OPS-001": {
+    "sources": [
+      "docker-compose.yml",
+      ".github/workflows/quality-security.yml"
+    ],
+    "tests": [
+      "ops/release-check.mjs"
+    ],
+    "command": "docker compose config --quiet && docker compose up -d --wait",
+    "runtime": "Docker Engine with Compose v2"
+  },
+  "OPS-003": {
+    "sources": [
+      "apps/api/scripts/business-transfer.mjs",
+      "ops/backup.sh",
+      "ops/restore.sh"
+    ],
+    "tests": [
+      "apps/api/scripts/business-transfer.test.ts",
+      ".github/workflows/quality-security.yml"
+    ],
+    "command": "pnpm --filter @infinite-canvas/api test",
+    "runtime": "PostgreSQL client/server and isolated restore database"
+  },
+  "OPS-007": {
+    "sources": [
+      "ops/secret-scan.mjs",
+      "ops/license-inventory.mjs",
+      ".github/workflows/quality-security.yml"
+    ],
+    "tests": [
+      "ops/requirements-audit.mjs"
+    ],
+    "command": "pnpm release:check",
+    "runtime": "GitHub Actions runner with Syft and Trivy"
+  }
+}
+
