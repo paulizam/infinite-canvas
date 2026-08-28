@@ -1,0 +1,14 @@
+# Deterministic CI-only encryption keys from the runtime smoke workflow.
+4bd7ab7ea07222946d5bbc9034ad1a5695512ad0:.github/workflows/quality-security.yml:generic-api-key:108
+4bd7ab7ea07222946d5bbc9034ad1a5695512ad0:.github/workflows/quality-security.yml:generic-api-key:114
+0752a532f92053552cfd124affd75bc3bd2b129d:.github/workflows/quality-security.yml:generic-api-key:99
+0752a532f92053552cfd124affd75bc3bd2b129d:.github/workflows/quality-security.yml:generic-api-key:105
+115ac848c207cb135ce5bb1e5521f9a9990dccfc:.github/workflows/docker-image.yml:generic-api-key:108
+115ac848c207cb135ce5bb1e5521f9a9990dccfc:.github/workflows/docker-image.yml:generic-api-key:114
+
+# SHA-256 migration integrity digest, not a credential.
+0752a532f92053552cfd124affd75bc3bd2b129d:ops/migration-manifest.json:generic-api-key:13
+
+# Synthetic values intentionally used by redaction and protocol examples.
+65b9cd5f3b359b2802124b3f9d36443b311f5ff5:canvas-agent/src/utils/agent-runtime.test.ts:generic-api-key:12
+40c47dd7ffd3972e88b4503f8b070f1f2becd788:canvas-agent/codex-server.md:generic-api-key:2140
