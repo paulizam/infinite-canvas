@@ -56,6 +56,23 @@ async function register(email = "creator@example.com", name = "创作者") {
 }
 
 describe("cloud workspace API", () => {
+  it("protects Prometheus metrics with the maintenance token", async () => {
+    await app.request("/health");
+    expect((await app.request("/internal/v1/maintenance/metrics")).status).toBe(
+      401,
+    );
+    const response = await app.request("/internal/v1/maintenance/metrics", {
+      headers: {
+        authorization: "Bearer test-maintenance-token-32-characters",
+      },
+    });
+    expect(response.status).toBe(200);
+    expect(response.headers.get("content-type")).toContain("version=0.0.4");
+    const body = await response.text();
+    expect(body).toContain("http_requests_total");
+    expect(body).toContain("generation_queue_depth");
+    expect(body).toContain("worker_last_heartbeat_age_seconds");
+  });
   it("accepts the bounded previous worker token during rotation", async () => {
     const response = await app.request("/internal/v1/generation/claim", {
       method: "POST",

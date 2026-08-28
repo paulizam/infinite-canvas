@@ -36,6 +36,7 @@ import type { AdminMfaService } from "./admin-mfa-service.js";
 import { createAdminApi } from "./admin-api.js";
 import { ModelDiscoveryService } from "./model-discovery.js";
 import { createModelDiscoveryApi } from "./model-discovery-api.js";
+import { ApiObservability, sanitizedError, writeLog } from "./observability.js";
 import {
   IdentityService,
   ProjectService,
@@ -43,7 +44,12 @@ import {
 } from "./services.js";
 
 type ApiEnv = {
-  Variables: { user: PublicUser; sessionToken: string; requestId: string };
+  Variables: {
+    user: PublicUser;
+    sessionToken: string;
+    requestId: string;
+    traceId: string;
+  };
 };
 export type AppServices = {
   identity: IdentityService;
@@ -91,6 +97,7 @@ export function createApp(services: AppServices) {
     services.eventRepository || new MemoryGenerationEventRepository();
   const modelDiscovery =
     services.modelDiscovery || new ModelDiscoveryService(services.modelGateway);
+  const observability = new ApiObservability();
   app.onError((error, c) => {
     const id = c.get("requestId") || crypto.randomUUID();
     if (error instanceof DomainError)
@@ -110,7 +117,13 @@ export function createApp(services: AppServices) {
         },
         400,
       );
-    console.error(error);
+    writeLog({
+      level: "error",
+      event: "http.error",
+      requestId: id,
+      traceId: c.get("traceId"),
+      error: sanitizedError(error),
+    });
     return c.json(
       {
         error: { code: "INTERNAL_ERROR", message: "服务暂时不可用" },
@@ -119,12 +132,7 @@ export function createApp(services: AppServices) {
       500,
     );
   });
-  app.use("*", async (c, next) => {
-    const id = c.req.header("x-request-id") || crypto.randomUUID();
-    c.set("requestId", id);
-    c.header("x-request-id", id);
-    await next();
-  });
+  app.use("*", observability.middleware());
   app.get("/health", (c) =>
     c.json({ data: { status: "ok" }, requestId: requestId(c) }),
   );
@@ -1582,6 +1590,24 @@ export function createApp(services: AppServices) {
       "Maintenance",
     );
     await next();
+  });
+  app.get("/internal/v1/maintenance/metrics", async (c) => {
+    const now = new Date();
+    const metrics = await services.jobRepository.operationalMetrics(
+      now.toISOString(),
+    );
+    const age = (value: string | null) =>
+      value ? Math.max(0, (now.getTime() - Date.parse(value)) / 1000) : 0;
+    return c.text(
+      observability.render({
+        queueDepth: metrics.queueDepth,
+        queueOldestAgeSeconds: age(metrics.queueOldestAt),
+        stuckJobs: metrics.stuckJobs,
+        workerLastHeartbeatAgeSeconds: age(metrics.latestWorkerHeartbeatAt),
+      }),
+      200,
+      { "content-type": "text/plain; version=0.0.4; charset=utf-8" },
+    );
   });
   app.post("/internal/v1/generation/claim", async (c) => {
     const input = workerClaimSchema.parse(await c.req.json());

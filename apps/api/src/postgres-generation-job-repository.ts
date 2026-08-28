@@ -255,6 +255,25 @@ export class PostgresGenerationJobRepository implements GenerationJobRepository 
         : String(value)
       : null;
   }
+  async operationalMetrics(now: string) {
+    const r = await this.pool.query(
+      `SELECT count(*) FILTER (WHERE phase='queued')::int queue_depth,
+       min(created_at) FILTER (WHERE phase='queued') queue_oldest_at,
+       count(*) FILTER (WHERE phase NOT IN ('succeeded','failed','cancelled','needs_review') AND lease_until IS NOT NULL AND lease_until<=$1)::int stuck_jobs,
+       (SELECT max(last_seen_at) FROM generation_worker_heartbeats) latest_worker_heartbeat_at
+       FROM generation_jobs`,
+      [now],
+    );
+    const x = r.rows[0];
+    return {
+      queueDepth: Number(x.queue_depth),
+      queueOldestAt: x.queue_oldest_at ? toIso(x.queue_oldest_at) : null,
+      stuckJobs: Number(x.stuck_jobs),
+      latestWorkerHeartbeatAt: x.latest_worker_heartbeat_at
+        ? toIso(x.latest_worker_heartbeat_at)
+        : null,
+    };
+  }
   async estimate(
     logicalModelId: string,
     capability: GenerationJob["capability"],

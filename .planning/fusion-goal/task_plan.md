@@ -41,3 +41,5 @@
 | Asset materializer 用字符串 `pending` 占位存在并发污染风险 | 1 | 改为缓存 Promise，重复引用等待同一结果并保持唯一读取 |
 | Facade 单测顶层导入 Local API 触发 i18n/localStorage | 1 | 测试显式 mock Local provider 模块，不伪造浏览器全局 |
 | 误判存在 `model-gateway-service.ts` | 1 | 重新读取 AppServices，确认现阶段直接注入 Repository，Discovery 独立成 service |
+| 按交接摘要假定根目录存在 `FUNCTIONAL_SPEC.md` | 1 | 以仓库实际文件 `docs/requirements/functional-spec.md` 为唯一功能规格读取路径 |
+| 在无扩展名 Dockerfile/Nginx/Env 上直接运行 Prettier | 1 | 仅对支持 parser 的 YAML/Markdown/TS 使用 Prettier，其余改用专用 parser 与构建门禁 |

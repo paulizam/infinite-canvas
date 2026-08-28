@@ -2,6 +2,9 @@
 
 ## Unreleased
 
++ [新增] Server mode 新增 Web/API/Worker/PostgreSQL 一键 Compose、迁移前置、持久卷、健康检查、备份恢复脚本及生产反向代理安全响应头。
++ [新增] API 增加 W3C trace/requestId 结构化日志与 Maintenance-only Prometheus 指标，覆盖 HTTP 延迟、生成队列深度/年龄、卡死租约及 Worker 心跳。
++ [安全] 管理员已强制 TOTP MFA 与一次性恢复码，Maintenance/Worker Token 支持有期限双 Token 轮换并保持分权。
 + [重构] Claude Code Adapter 迁移至官方 Claude Agent SDK，使用 typed streaming、统一终态与脱敏错误通道，并保持 Canvas MCP 最小工具授权。
 + [新增] Project Checkpoint 支持命名不可变快照、viewer 预览、editor 恢复为新 revision，并通过乐观锁与实时 canonical snapshot 阻断静默覆盖。
 + [安全] 文档与前端构建链升级 Next.js，并锁定已修复的 Sharp、PostCSS、PrismJS，官方 npm audit 收敛为零已知漏洞。

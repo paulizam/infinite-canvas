@@ -1,11 +1,99 @@
+name: infinite-canvas
 services:
-  app:
-    image: ghcr.io/basketikun/infinite-canvas:latest
-    container_name: infinite-canvas
-    ports:
-      - "3000:3000"
+  postgres:
+    image: postgres:17-alpine
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-infinite_canvas}
+      POSTGRES_USER: ${POSTGRES_USER:-infinite_canvas}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD}
+    volumes: [postgres-data:/var/lib/postgresql/data]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $$POSTGRES_USER -d $$POSTGRES_DB"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
     restart: unless-stopped
-    # 统计分析（可选，默认关闭）。每家一个独立变量，填了谁就启用谁，可同时启用多家：
-    # environment:
-    #   ANALYTICS_GA4_ID: G-XXXXXXXXXX                    # Google Analytics 4 衡量 ID
-    #   ANALYTICS_BAIDU_ID: xxxxxxxxxxxxxxxxxxxxxxxxxxxx   # 百度统计站点 ID
+  migrate:
+    build: { context: ., dockerfile: infra/docker/Dockerfile.api }
+    command: ["pnpm", "--filter", "@infinite-canvas/api", "db:migrate"]
+    environment:
+      DATABASE_URL: postgresql://${POSTGRES_USER:-infinite_canvas}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-infinite_canvas}
+    depends_on:
+      postgres: { condition: service_healthy }
+    restart: "no"
+  api:
+    build: { context: ., dockerfile: infra/docker/Dockerfile.api }
+    environment:
+      DATABASE_URL: postgresql://${POSTGRES_USER:-infinite_canvas}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-infinite_canvas}
+      NODE_ENV: production
+      PORT: 3001
+      SESSION_TTL_SECONDS: ${SESSION_TTL_SECONDS:-604800}
+      COLLABORATION_ORIGINS: ${PUBLIC_ORIGIN:-http://localhost:3000}
+      MAX_UPLOAD_BYTES: ${MAX_UPLOAD_BYTES:-67108864}
+      BLOB_STORAGE_DRIVER: local
+      ASSET_LOCAL_ROOT: /data/assets
+      WORKER_TOKEN: ${WORKER_TOKEN:?set WORKER_TOKEN}
+      WORKER_TOKEN_PREVIOUS: ${WORKER_TOKEN_PREVIOUS:-}
+      WORKER_TOKEN_PREVIOUS_EXPIRES_AT: ${WORKER_TOKEN_PREVIOUS_EXPIRES_AT:-}
+      WORKER_STALE_MS: ${WORKER_STALE_MS:-120000}
+      MAINTENANCE_TOKEN: ${MAINTENANCE_TOKEN:?set MAINTENANCE_TOKEN}
+      MAINTENANCE_TOKEN_PREVIOUS: ${MAINTENANCE_TOKEN_PREVIOUS:-}
+      MAINTENANCE_TOKEN_PREVIOUS_EXPIRES_AT: ${MAINTENANCE_TOKEN_PREVIOUS_EXPIRES_AT:-}
+      MODEL_SECRET_KEY: ${MODEL_SECRET_KEY:?set MODEL_SECRET_KEY}
+      BILLING_CODE_SECRET: ${BILLING_CODE_SECRET:?set BILLING_CODE_SECRET}
+      INVITE_INVITER_REWARD_UNITS: ${INVITE_INVITER_REWARD_UNITS:-100}
+      INVITE_INVITEE_REWARD_UNITS: ${INVITE_INVITEE_REWARD_UNITS:-100}
+      PAYMENT_PROVIDER: ${PAYMENT_PROVIDER:?set PAYMENT_PROVIDER}
+      PAYMENT_API_BASE_URL: ${PAYMENT_API_BASE_URL:?set PAYMENT_API_BASE_URL}
+      PAYMENT_API_TOKEN: ${PAYMENT_API_TOKEN:?set PAYMENT_API_TOKEN}
+      PAYMENT_WEBHOOK_SECRET: ${PAYMENT_WEBHOOK_SECRET:?set PAYMENT_WEBHOOK_SECRET}
+      PAYMENT_WEBHOOK_TOLERANCE_SECONDS: ${PAYMENT_WEBHOOK_TOLERANCE_SECONDS:-300}
+      MFA_SECRET_KEY: ${MFA_SECRET_KEY:?set MFA_SECRET_KEY}
+      MFA_RECOVERY_PEPPER: ${MFA_RECOVERY_PEPPER:?set MFA_RECOVERY_PEPPER}
+    volumes: [asset-data:/data/assets]
+    depends_on:
+      migrate: { condition: service_completed_successfully }
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "node",
+          "-e",
+          "fetch('http://127.0.0.1:3001/health').then(r=>{if(!r.ok)process.exit(1)}).catch(()=>process.exit(1))",
+        ]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+    restart: unless-stopped
+  worker:
+    build: { context: ., dockerfile: infra/docker/Dockerfile.worker }
+    environment:
+      WORKER_API_ORIGIN: http://api:3001
+      WORKER_TOKEN: ${WORKER_TOKEN:?set WORKER_TOKEN}
+      WORKER_ID: ${WORKER_ID:-}
+      FFMPEG_PATH: /usr/bin/ffmpeg
+      REMOTE_AGENT_URL: ${REMOTE_AGENT_URL:-}
+      REMOTE_AGENT_TOKEN: ${REMOTE_AGENT_TOKEN:-}
+    depends_on:
+      api: { condition: service_healthy }
+    restart: unless-stopped
+  web:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args: { VITE_PLATFORM_MODE: server, VITE_API_BASE: "" }
+    environment:
+      ANALYTICS_GA4_ID: ${ANALYTICS_GA4_ID:-}
+      ANALYTICS_BAIDU_ID: ${ANALYTICS_BAIDU_ID:-}
+    ports: ["${WEB_PORT:-3000}:3000"]
+    depends_on:
+      api: { condition: service_healthy }
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q -O /dev/null http://127.0.0.1:3000/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+    restart: unless-stopped
+volumes:
+  postgres-data:
+  asset-data:

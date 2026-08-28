@@ -57,6 +57,12 @@ export interface GenerationJobRepository {
   ): Promise<number>;
   recordWorkerHeartbeat(workerId: string, now: string): Promise<void>;
   latestWorkerHeartbeat(): Promise<string | null>;
+  operationalMetrics(now: string): Promise<{
+    queueDepth: number;
+    queueOldestAt: string | null;
+    stuckJobs: number;
+    latestWorkerHeartbeatAt: string | null;
+  }>;
   estimate(
     logicalModelId: string,
     capability: GenerationJob["capability"],
@@ -299,6 +305,24 @@ export class MemoryGenerationJobRepository implements GenerationJobRepository {
   }
   async latestWorkerHeartbeat() {
     return [...this.workerHeartbeats.values()].sort().at(-1) || null;
+  }
+  async operationalMetrics(now: string) {
+    const jobs = [...this.jobs.values()];
+    const queued = jobs.filter((job) => job.phase === "queued");
+    return {
+      queueDepth: queued.length,
+      queueOldestAt:
+        queued
+          .map((job) => job.createdAt)
+          .sort()
+          .at(0) || null,
+      stuckJobs: jobs.filter(
+        (job) =>
+          !isTerminalGenerationPhase(job.phase) &&
+          Boolean(job.leaseUntil && job.leaseUntil <= now),
+      ).length,
+      latestWorkerHeartbeatAt: await this.latestWorkerHeartbeat(),
+    };
   }
   async estimate(
     logicalModelId: string,

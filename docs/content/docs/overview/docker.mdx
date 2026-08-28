@@ -5,17 +5,29 @@ description: Deploy Infinite Canvas with Docker Compose
 
 # Docker Deployment
 
-## Use the published image
+## Server mode
 
 ```bash
 git clone git@github.com:basketikun/infinite-canvas.git
 cd infinite-canvas
-docker compose up -d
+cp .env.example .env
+# Replace every <...> placeholder with independent secrets and real sandbox settings.
+docker compose up -d --build
 ```
 
 Open `http://localhost:3000`.
 
-## Build locally
+The stack contains Web, API, Worker, PostgreSQL, and a one-shot migration service. API startup waits for successful migrations. PostgreSQL and Asset blobs use persistent volumes; only Web port 3000 is exposed.
+
+```bash
+docker compose ps
+curl -fsS http://localhost:3000/health
+BACKUP_DIR=/secure/backups ./ops/backup.sh
+```
+
+See `ops/README.md` for the destructive restore guard and isolated recovery drill.
+
+## Browser-only Local mode
 
 ```bash
 docker compose -f docker-compose.local.yml up -d --build
@@ -37,16 +49,16 @@ cd docs
 docker compose -f docker-compose.local.yml up -d --build
 ```
 
-The main application container only runs Next.js. Canvases, My Assets, generation history, and API keys are stored in the browser by default, while prompt repositories are fetched directly by the frontend. No persistent data volume is required for this data.
+Server mode stores accounts, Workspace metadata, and jobs in PostgreSQL and media in the Asset volume; back them up in the same maintenance window. Local mode continues to store canvases, My Assets, generation history, and API keys in the browser.
 
 ## Optional analytics
 
 No analytics are enabled by default. A deployment can enable GA4, Baidu Analytics, or both at runtime:
 
-| Variable | Description |
-| --- | --- |
-| `ANALYTICS_GA4_ID` | Google Analytics 4 measurement ID (`G-XXXX`) |
-| `ANALYTICS_BAIDU_ID` | Baidu site ID, the hash after `hm.js?` |
+| Variable             | Description                                  |
+| -------------------- | -------------------------------------------- |
+| `ANALYTICS_GA4_ID`   | Google Analytics 4 measurement ID (`G-XXXX`) |
+| `ANALYTICS_BAIDU_ID` | Baidu site ID, the hash after `hm.js?`       |
 
 ```yaml
 services:

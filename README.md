@@ -92,12 +92,14 @@ bun run dev
 ```bash
 git clone git@github.com:basketikun/infinite-canvas.git
 cd infinite-canvas
+cp .env.example .env
+# 将所有 <...> 替换为互不复用的强密钥和真实支付沙箱配置
 docker compose up -d
 ```
 
-运行后默认端口3000，可访问 `http://localhost:3000`。
+该命令启动 Web/API/Worker/PostgreSQL Server mode，运行后访问 `http://localhost:3000`。运维、备份与恢复说明见 [`ops/README.md`](ops/README.md)。
 
-首次打开后进入右上角配置，填入自己的 OpenAI 兼容 `Base URL` 和 `API Key`。
+仅需浏览器本地模式时使用 `docker compose -f docker-compose.local.yml up -d --build`；首次打开后在右上角配置自己的 OpenAI 兼容 `Base URL` 和 `API Key`。
 
 如果默认的OpenAI接口调用方式与您的API不同，可自定义生图/视频脚本调用。
 
