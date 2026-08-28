@@ -57,6 +57,7 @@ Packages reported as `Unknown` are permitted only when explicitly documented in 
 - `expect-type@1.4.0`
 - `human-signals@2.1.0,8.0.1`
 - `localforage@1.10.0`
+- `playwright-core@1.62.1`
 - `remend@1.3.1`
 - `sharp@0.35.4`
 - `streamdown@2.6.0`
