@@ -35,7 +35,11 @@ describe("AssetService storage provider routing", () => {
         return asset;
       }),
     } as unknown as PlatformRepository;
-    const service = new AssetService(repository, new MemoryAssetBlobStore(), 1024 * 1024);
+    const service = new AssetService(
+      repository,
+      new MemoryAssetBlobStore(),
+      1024 * 1024,
+    );
     const png = Buffer.from(
       "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=",
       "base64",

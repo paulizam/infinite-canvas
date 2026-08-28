@@ -86,7 +86,11 @@ export class AssetService {
     };
     if (existing)
       return {
-        asset: await this.repository.addAssetOrigin(userId, existing.id, origin),
+        asset: await this.repository.addAssetOrigin(
+          userId,
+          existing.id,
+          origin,
+        ),
         deduplicated: true,
       };
     const parents = await Promise.all(
@@ -113,7 +117,9 @@ export class AssetService {
       createdAt,
       variants: [],
       lineageRootId: parents[0]?.lineageRootId || id,
-      version: parents.length ? Math.max(...parents.map((x) => x.version)) + 1 : 1,
+      version: parents.length
+        ? Math.max(...parents.map((x) => x.version)) + 1
+        : 1,
       parentAssetIds: parents.map((x) => x.id),
       origins: [origin],
     };

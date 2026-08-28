@@ -332,7 +332,11 @@ export class PostgresAdminRepository implements AdminRepository {
     );
     return r.rows.map(mapContent);
   }
-  async listPublishedPrompts(input: { category?: string; tag?: string; now: string }) {
+  async listPublishedPrompts(input: {
+    category?: string;
+    tag?: string;
+    now: string;
+  }) {
     const r = await this.pool.query(
       `SELECT * FROM admin_content_entries WHERE kind='prompt' AND status='published'
        AND (starts_at IS NULL OR starts_at<=$1) AND (ends_at IS NULL OR ends_at>$1)

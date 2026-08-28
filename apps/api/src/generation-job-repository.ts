@@ -18,7 +18,10 @@ export interface GenerationJobRepository {
     job: GenerationJob,
   ): Promise<{ job: GenerationJob; replayed: boolean }>;
   getForUser(userId: string, jobId: string): Promise<GenerationJob | null>;
-  getInWorkspace(workspaceId: string, jobId: string): Promise<GenerationJob | null>;
+  getInWorkspace(
+    workspaceId: string,
+    jobId: string,
+  ): Promise<GenerationJob | null>;
   getByClientRequest(
     userId: string,
     workspaceId: string,
@@ -142,7 +145,9 @@ export class MemoryGenerationJobRepository implements GenerationJobRepository {
       .sort((a, b) => b.createdAt.localeCompare(a.createdAt));
   }
   async listInWorkspace(workspaceId: string) {
-    return [...this.jobs.values()].filter((job) => job.workspaceId === workspaceId).sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+    return [...this.jobs.values()]
+      .filter((job) => job.workspaceId === workspaceId)
+      .sort((a, b) => b.createdAt.localeCompare(a.createdAt));
   }
   async cancel(userId: string, jobId: string, now: string) {
     const job = this.requireUserJob(userId, jobId);

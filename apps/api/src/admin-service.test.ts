@@ -85,18 +85,43 @@ describe("AdminService", () => {
   });
   it("[GEN-014][ADM-004] exposes explicit requeue, cancel, and needs-review actions", async () => {
     const repo = repository();
-    const service = new AdminService(repo, new SecretCipher(Buffer.alloc(32, 6).toString("base64")));
+    const service = new AdminService(
+      repo,
+      new SecretCipher(Buffer.alloc(32, 6).toString("base64")),
+    );
     await service.transitionJob("job-1", "requeue", actor);
     await service.transitionJob("job-2", "cancel", actor);
     await service.transitionJob("job-3", "review", actor);
-    expect(repo.transitionJob).toHaveBeenNthCalledWith(1, "job-1", "requeue", actor);
-    expect(repo.transitionJob).toHaveBeenNthCalledWith(2, "job-2", "cancel", actor);
-    expect(repo.transitionJob).toHaveBeenNthCalledWith(3, "job-3", "review", actor);
+    expect(repo.transitionJob).toHaveBeenNthCalledWith(
+      1,
+      "job-1",
+      "requeue",
+      actor,
+    );
+    expect(repo.transitionJob).toHaveBeenNthCalledWith(
+      2,
+      "job-2",
+      "cancel",
+      actor,
+    );
+    expect(repo.transitionJob).toHaveBeenNthCalledWith(
+      3,
+      "job-3",
+      "review",
+      actor,
+    );
   });
   it("[AST-009][ADM-007] exposes only repository-filtered published prompt catalog entries", async () => {
     const repo = repository();
-    const service = new AdminService(repo, new SecretCipher(Buffer.alloc(32, 9).toString("base64")));
-    await service.publishedPrompts(" portrait ", " featured ", "2026-01-01T00:00:00.000Z");
+    const service = new AdminService(
+      repo,
+      new SecretCipher(Buffer.alloc(32, 9).toString("base64")),
+    );
+    await service.publishedPrompts(
+      " portrait ",
+      " featured ",
+      "2026-01-01T00:00:00.000Z",
+    );
     expect(repo.listPublishedPrompts).toHaveBeenCalledWith({
       category: "portrait",
       tag: "featured",

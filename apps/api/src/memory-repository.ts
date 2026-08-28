@@ -257,11 +257,20 @@ export class MemoryPlatformRepository implements PlatformRepository {
     this.assets.set(asset.id, asset);
     return asset;
   }
-  async addAssetOrigin(userId: string, assetId: string, origin: AssetRecord["origins"][number]) {
+  async addAssetOrigin(
+    userId: string,
+    assetId: string,
+    origin: AssetRecord["origins"][number],
+  ) {
     const asset = await this.getAsset(userId, assetId);
     if (!asset) throw new DomainError("ASSET_NOT_FOUND", 404, "素材不存在");
     await this.requireWorkspaceRole(userId, asset.workspaceId, "editor");
-    if (!asset.origins.some((x) => x.sourceType === origin.sourceType && x.sourceId === origin.sourceId))
+    if (
+      !asset.origins.some(
+        (x) =>
+          x.sourceType === origin.sourceType && x.sourceId === origin.sourceId,
+      )
+    )
       asset.origins.push(origin);
     return asset;
   }
@@ -294,7 +303,8 @@ export class MemoryPlatformRepository implements PlatformRepository {
     const derived = [...this.assets.values()].some(
       (item) =>
         item.id !== assetId &&
-        (item.lineageRootId === assetId || item.parentAssetIds.includes(assetId)),
+        (item.lineageRootId === assetId ||
+          item.parentAssetIds.includes(assetId)),
     );
     if (derived)
       throw new DomainError("ASSET_IN_USE", 409, "素材仍被派生版本引用");

@@ -121,43 +121,43 @@ export class PostgresDataGovernanceRepository implements DataGovernanceRepositor
         `SELECT id asset_id,storage_provider,storage_key FROM media_assets a WHERE created_at<$1 AND NOT EXISTS(SELECT 1 FROM media_asset_references r WHERE r.asset_id=a.id) ORDER BY created_at,id LIMIT $2 FOR UPDATE SKIP LOCKED`,
         [input.olderThan, input.limit],
       );
-        const candidates = r.rows.map(candidate),
-          queued: BlobGcItem[] = [];
-        for (const item of candidates) {
-          await c.query("SAVEPOINT asset_gc_item");
-          try {
-            const variants = await c.query(
-              "SELECT storage_provider,storage_key FROM media_asset_variants WHERE asset_id=$1 ORDER BY kind",
-              [item.assetId],
-            );
-            const blobs = [
-              item,
-              ...variants.rows.map((row) => ({
-                id: randomUUID(),
-                assetId: item.assetId,
-                storageProvider: String(row.storage_provider),
-                storageKey: String(row.storage_key),
-              })),
-            ];
-            const removed = await c.query(
-              "DELETE FROM media_assets WHERE id=$1 RETURNING id",
-              [item.assetId],
-            );
-            if (removed.rowCount) {
-              for (const blob of blobs) {
-                await c.query(
-                  "INSERT INTO media_blob_gc(id,asset_id,storage_provider,storage_key,state,created_at,updated_at) VALUES($1,$2,$3,$4,'pending',$5,$5) ON CONFLICT(storage_key) DO NOTHING",
-                  [
-                    blob.id,
-                    blob.assetId,
-                    blob.storageProvider,
-                    blob.storageKey,
-                    input.now,
-                  ],
-                );
-                queued.push(blob);
-              }
+      const candidates = r.rows.map(candidate),
+        queued: BlobGcItem[] = [];
+      for (const item of candidates) {
+        await c.query("SAVEPOINT asset_gc_item");
+        try {
+          const variants = await c.query(
+            "SELECT storage_provider,storage_key FROM media_asset_variants WHERE asset_id=$1 ORDER BY kind",
+            [item.assetId],
+          );
+          const blobs = [
+            item,
+            ...variants.rows.map((row) => ({
+              id: randomUUID(),
+              assetId: item.assetId,
+              storageProvider: String(row.storage_provider),
+              storageKey: String(row.storage_key),
+            })),
+          ];
+          const removed = await c.query(
+            "DELETE FROM media_assets WHERE id=$1 RETURNING id",
+            [item.assetId],
+          );
+          if (removed.rowCount) {
+            for (const blob of blobs) {
+              await c.query(
+                "INSERT INTO media_blob_gc(id,asset_id,storage_provider,storage_key,state,created_at,updated_at) VALUES($1,$2,$3,$4,'pending',$5,$5) ON CONFLICT(storage_key) DO NOTHING",
+                [
+                  blob.id,
+                  blob.assetId,
+                  blob.storageProvider,
+                  blob.storageKey,
+                  input.now,
+                ],
+              );
+              queued.push(blob);
             }
+          }
           await c.query("RELEASE SAVEPOINT asset_gc_item");
         } catch (error) {
           await c.query("ROLLBACK TO SAVEPOINT asset_gc_item");

@@ -554,7 +554,14 @@ export class PostgresPlatformRepository implements PlatformRepository {
       for (const origin of asset.origins)
         await client.query(
           "INSERT INTO media_asset_origins(id,asset_id,source_type,source_id,metadata,created_at) VALUES($1,$2,$3,$4,$5::jsonb,$6) ON CONFLICT(asset_id,source_type,source_id) DO NOTHING",
-          [origin.id, result.rows[0].id, origin.sourceType, origin.sourceId, JSON.stringify(origin.metadata), origin.createdAt],
+          [
+            origin.id,
+            result.rows[0].id,
+            origin.sourceType,
+            origin.sourceId,
+            JSON.stringify(origin.metadata),
+            origin.createdAt,
+          ],
         );
       const stored = await client.query(
         `SELECT a.*,COALESCE((SELECT jsonb_agg(v ORDER BY v.kind) FROM media_asset_variants v WHERE v.asset_id=a.id),'[]'::jsonb) variants,
@@ -582,7 +589,11 @@ export class PostgresPlatformRepository implements PlatformRepository {
     );
     return result.rows[0] ? mapAsset(result.rows[0]) : null;
   }
-  async addAssetOrigin(userId: string, assetId: string, origin: AssetRecord["origins"][number]) {
+  async addAssetOrigin(
+    userId: string,
+    assetId: string,
+    origin: AssetRecord["origins"][number],
+  ) {
     const asset = await this.getAsset(userId, assetId);
     if (!asset) throw new DomainError("ASSET_NOT_FOUND", 404, "素材不存在");
     await this.requireWorkspaceRoleWithClient(
@@ -593,7 +604,14 @@ export class PostgresPlatformRepository implements PlatformRepository {
     );
     await this.pool.query(
       "INSERT INTO media_asset_origins(id,asset_id,source_type,source_id,metadata,created_at) VALUES($1,$2,$3,$4,$5::jsonb,$6) ON CONFLICT(asset_id,source_type,source_id) DO NOTHING",
-      [origin.id, assetId, origin.sourceType, origin.sourceId, JSON.stringify(origin.metadata), origin.createdAt],
+      [
+        origin.id,
+        assetId,
+        origin.sourceType,
+        origin.sourceId,
+        JSON.stringify(origin.metadata),
+        origin.createdAt,
+      ],
     );
     return (await this.getAsset(userId, assetId))!;
   }
@@ -740,16 +758,19 @@ function mapAsset(r: Record<string, unknown>): AssetRecord {
             createdAt: iso(value.created_at),
           };
         })
-        : [],
+      : [],
     lineageRootId: String(r.lineage_root_id || r.id),
     version: Number(r.version || 1),
-    parentAssetIds: Array.isArray(r.parent_asset_ids) ? r.parent_asset_ids.map(String) : [],
+    parentAssetIds: Array.isArray(r.parent_asset_ids)
+      ? r.parent_asset_ids.map(String)
+      : [],
     origins: Array.isArray(r.origins)
       ? r.origins.map((origin) => {
           const value = origin as Record<string, unknown>;
           return {
             id: String(value.id),
-            sourceType: value.source_type as AssetRecord["origins"][number]["sourceType"],
+            sourceType:
+              value.source_type as AssetRecord["origins"][number]["sourceType"],
             sourceId: String(value.source_id),
             metadata: (value.metadata || {}) as Record<string, unknown>,
             createdAt: iso(value.created_at),
