@@ -10,6 +10,7 @@ import {
 import {
   DomainError,
   type AssetRecord,
+  type AssetOriginRecord,
   type MediaKind,
   type PlatformRepository,
 } from "./domain.js";
@@ -56,7 +57,12 @@ export class AssetService {
   async upload(
     userId: string,
     workspaceId: string,
-    input: { bytes: Buffer; originalName: string },
+    input: {
+      bytes: Buffer;
+      originalName: string;
+      origin?: Pick<AssetOriginRecord, "sourceType" | "sourceId" | "metadata">;
+      parentAssetIds?: string[];
+    },
   ) {
     if (!input.bytes.length || input.bytes.length > this.maxUploadBytes)
       throw new DomainError("UPLOAD_SIZE_INVALID", 400, "上传文件大小无效");
@@ -70,7 +76,27 @@ export class AssetService {
       workspaceId,
       sha256,
     );
-    if (existing) return { asset: existing, deduplicated: true };
+    const createdAt = new Date().toISOString();
+    const origin: AssetOriginRecord = {
+      id: randomUUID(),
+      sourceType: input.origin?.sourceType || "upload",
+      sourceId: input.origin?.sourceId || randomUUID(),
+      metadata: input.origin?.metadata || {},
+      createdAt,
+    };
+    if (existing)
+      return {
+        asset: await this.repository.addAssetOrigin(userId, existing.id, origin),
+        deduplicated: true,
+      };
+    const parents = await Promise.all(
+      [...new Set(input.parentAssetIds || [])].map(async (parentId) => {
+        const parent = await this.repository.getAsset(userId, parentId);
+        if (!parent || parent.workspaceId !== workspaceId)
+          throw new DomainError("ASSET_PARENT_NOT_FOUND", 404, "父素材不存在");
+        return parent;
+      }),
+    );
     const id = randomUUID();
     const storageKey = `${workspaceId}/${id}.${detected.ext}`;
     const asset: AssetRecord = {
@@ -84,8 +110,12 @@ export class AssetService {
       mimeType: detected.mime,
       kind,
       originalName: safeName(input.originalName, detected.ext),
-      createdAt: new Date().toISOString(),
+      createdAt,
       variants: [],
+      lineageRootId: parents[0]?.lineageRootId || id,
+      version: parents.length ? Math.max(...parents.map((x) => x.version)) + 1 : 1,
+      parentAssetIds: parents.map((x) => x.id),
+      origins: [origin],
     };
     const previewBytes =
       kind === "image" ? await createPreview(input.bytes) : null;

@@ -57,6 +57,17 @@ export type AssetRecord = {
   originalName: string;
   createdAt: string;
   variants: AssetVariantRecord[];
+  lineageRootId: string;
+  version: number;
+  parentAssetIds: string[];
+  origins: AssetOriginRecord[];
+};
+export type AssetOriginRecord = {
+  id: string;
+  sourceType: "upload" | "generation_job" | "drama_render" | "import";
+  sourceId: string;
+  metadata: Record<string, unknown>;
+  createdAt: string;
 };
 export type AssetVariantRecord = {
   kind: "preview";
@@ -141,6 +152,7 @@ export interface PlatformRepository {
     sha256: string,
   ): Promise<AssetRecord | null>;
   createAsset(userId: string, asset: AssetRecord): Promise<AssetRecord>;
+  addAssetOrigin(userId: string, assetId: string, origin: AssetOriginRecord): Promise<AssetRecord>;
   getAsset(userId: string, assetId: string): Promise<AssetRecord | null>;
   listAssets(userId: string, workspaceId: string): Promise<AssetRecord[]>;
   deleteAsset(userId: string, assetId: string): Promise<AssetRecord>;

@@ -5,8 +5,8 @@
 ## Summary
 
 - Requirements: 133
-- Direct test references: 32
-- Without direct test reference: 101
+- Direct test references: 33
+- Without direct test reference: 100
 
 ## Direct references
 
@@ -43,6 +43,7 @@
 | AST-006 | P1 | `apps/api/src/app.test.ts` |
 | AST-008 | P1 | `web/src/services/api/prompts.test.ts` |
 | AST-009 | P1 | `apps/api/src/admin-service.test.ts` |
+| AST-010 | P2 | `apps/api/src/asset-service.test.ts` |
 | COL-007 | P2 | `apps/api/src/app.test.ts` |
 
 ## Missing direct references
@@ -90,7 +91,6 @@
 - WFL-010 (P2)
 - AST-002 (P0)
 - AST-007 (P1)
-- AST-010 (P2)
 - PLG-001 (P0)
 - PLG-002 (P0)
 - PLG-003 (P0)

@@ -16,9 +16,54 @@ const historical: AssetRecord = {
   originalName: "old.png",
   createdAt: new Date(0).toISOString(),
   variants: [],
+  lineageRootId: "asset-old",
+  version: 1,
+  parentAssetIds: [],
+  origins: [],
 };
 
 describe("AssetService storage provider routing", () => {
+  it("[AST-010] derives a version from parents and preserves provenance", async () => {
+    let created: AssetRecord | undefined;
+    const repository = {
+      findAssetByHash: vi.fn(async () => null),
+      getAsset: vi.fn(async (_userId: string, id: string) =>
+        id === historical.id ? historical : null,
+      ),
+      createAsset: vi.fn(async (_userId: string, asset: AssetRecord) => {
+        created = asset;
+        return asset;
+      }),
+    } as unknown as PlatformRepository;
+    const service = new AssetService(repository, new MemoryAssetBlobStore(), 1024 * 1024);
+    const png = Buffer.from(
+      "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=",
+      "base64",
+    );
+    await service.upload("user", "workspace", {
+      bytes: png,
+      originalName: "derived.png",
+      parentAssetIds: [historical.id],
+      origin: {
+        sourceType: "generation_job",
+        sourceId: "job-1",
+        metadata: { model: "image-v1" },
+      },
+    });
+    expect(created).toMatchObject({
+      lineageRootId: historical.id,
+      version: 2,
+      parentAssetIds: [historical.id],
+      origins: [
+        expect.objectContaining({
+          sourceType: "generation_job",
+          sourceId: "job-1",
+          metadata: { model: "image-v1" },
+        }),
+      ],
+    });
+  });
+
   it("reads and deletes historical assets from their immutable provider after a switch", async () => {
     const local = new MemoryAssetBlobStore();
     const s3 = new MemoryAssetBlobStore();

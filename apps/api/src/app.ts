@@ -2088,6 +2088,16 @@ export function createApp(services: AppServices) {
     const result = await services.assets.upload(job.ownerId, job.workspaceId, {
       bytes: await services.assets.readUpload(c.req.raw),
       originalName: c.req.header("x-file-name") || `${job.id}-result`,
+      parentAssetIds: collectAssetIds(job.input),
+      origin: {
+        sourceType: "generation_job",
+        sourceId: job.id,
+        metadata: {
+          capability: job.capability,
+          logicalModelId: job.logicalModelId,
+          attempt: job.attempt,
+        },
+      },
     });
     return c.json({ data: result, requestId: requestId(c) }, 201);
   });
@@ -3593,6 +3603,18 @@ async function readBoundedJson(
 }
 function requestId(c: Context<ApiEnv>) {
   return c.get("requestId");
+}
+function collectAssetIds(value: unknown) {
+  const result = new Set<string>();
+  const visit = (item: unknown) => {
+    if (Array.isArray(item)) return item.forEach(visit);
+    if (!item || typeof item !== "object") return;
+    const record = item as Record<string, unknown>;
+    if (typeof record.assetId === "string") result.add(record.assetId);
+    Object.values(record).forEach(visit);
+  };
+  visit(value);
+  return [...result];
 }
 function isTerminalPhase(phase: string) {
   return ["succeeded", "failed", "cancelled", "needs_review"].includes(phase);

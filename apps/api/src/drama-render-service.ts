@@ -150,6 +150,16 @@ export class DramaRenderService {
     const result = await this.assets.upload(job.ownerId, job.workspaceId, {
       bytes,
       originalName: name,
+      parentAssetIds: job.input.assetIds,
+      origin: {
+        sourceType: "drama_render",
+        sourceId: job.id,
+        metadata: {
+          projectId: job.projectId,
+          kind: job.kind,
+          attempt: job.attempt,
+        },
+      },
     });
     if (job.kind === "ffmpeg" && result.asset.kind !== "video")
       throw new DomainError(

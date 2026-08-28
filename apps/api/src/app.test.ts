@@ -524,6 +524,9 @@ describe("workspace asset API", () => {
           mimeType: string;
           originalName: string;
           storageKey: string;
+          lineageRootId: string;
+          version: number;
+          origins: Array<{ sourceType: string; sourceId: string }>;
           variants: Array<{ kind: string; mimeType: string }>;
         };
         deduplicated: boolean;
@@ -534,6 +537,11 @@ describe("workspace asset API", () => {
     expect(firstData.data.asset.storageKey).toMatch(
       /^[0-9a-f-]{36}\/[0-9a-f-]{36}\.png$/,
     );
+    expect(firstData.data.asset.lineageRootId).toBe(firstData.data.asset.id);
+    expect(firstData.data.asset.version).toBe(1);
+    expect(firstData.data.asset.origins).toEqual([
+      expect.objectContaining({ sourceType: "upload" }),
+    ]);
     expect(firstData.data.asset.variants).toEqual([
       expect.objectContaining({ kind: "preview", mimeType: "image/webp" }),
     ]);
@@ -543,6 +551,7 @@ describe("workspace asset API", () => {
     const duplicateData = (await duplicate.json()) as typeof firstData;
     expect(duplicateData.data.asset.id).toBe(firstData.data.asset.id);
     expect(duplicateData.data.deduplicated).toBe(true);
+    expect(duplicateData.data.asset.origins).toHaveLength(2);
 
     const listed = await app.request(
       `/api/v1/workspaces/${workspaceId}/assets`,

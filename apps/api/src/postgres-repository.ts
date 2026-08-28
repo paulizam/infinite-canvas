@@ -493,7 +493,9 @@ export class PostgresPlatformRepository implements PlatformRepository {
       "viewer",
     );
     const result = await this.pool.query(
-      `SELECT a.*,COALESCE((SELECT jsonb_agg(v ORDER BY v.kind) FROM media_asset_variants v WHERE v.asset_id=a.id),'[]'::jsonb) variants
+      `SELECT a.*,COALESCE((SELECT jsonb_agg(v ORDER BY v.kind) FROM media_asset_variants v WHERE v.asset_id=a.id),'[]'::jsonb) variants,
+       COALESCE((SELECT jsonb_agg(p.parent_asset_id ORDER BY p.position) FROM media_asset_parents p WHERE p.asset_id=a.id),'[]'::jsonb) parent_asset_ids,
+       COALESCE((SELECT jsonb_agg(o ORDER BY o.created_at,o.id) FROM media_asset_origins o WHERE o.asset_id=a.id),'[]'::jsonb) origins
        FROM media_assets a WHERE a.workspace_id=$1 AND a.sha256=$2`,
       [workspaceId, sha256],
     );
@@ -510,7 +512,7 @@ export class PostgresPlatformRepository implements PlatformRepository {
         "editor",
       );
       const result = await client.query(
-        "INSERT INTO media_assets(id,workspace_id,owner_id,storage_provider,storage_key,sha256,bytes,mime_type,kind,original_name,created_at) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11) ON CONFLICT(workspace_id,sha256) DO UPDATE SET sha256=EXCLUDED.sha256 RETURNING *",
+        "INSERT INTO media_assets(id,workspace_id,owner_id,storage_provider,storage_key,sha256,bytes,mime_type,kind,original_name,created_at,lineage_root_id,version) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13) ON CONFLICT(workspace_id,sha256) DO UPDATE SET sha256=EXCLUDED.sha256 RETURNING *",
         [
           asset.id,
           asset.workspaceId,
@@ -523,6 +525,8 @@ export class PostgresPlatformRepository implements PlatformRepository {
           asset.kind,
           asset.originalName,
           asset.createdAt,
+          asset.lineageRootId,
+          asset.version,
         ],
       );
       if (String(result.rows[0].id) === asset.id)
@@ -540,8 +544,22 @@ export class PostgresPlatformRepository implements PlatformRepository {
               variant.createdAt,
             ],
           );
+      if (String(result.rows[0].id) === asset.id) {
+        for (const [position, parentId] of asset.parentAssetIds.entries())
+          await client.query(
+            "INSERT INTO media_asset_parents(asset_id,parent_asset_id,position) VALUES($1,$2,$3)",
+            [asset.id, parentId, position],
+          );
+      }
+      for (const origin of asset.origins)
+        await client.query(
+          "INSERT INTO media_asset_origins(id,asset_id,source_type,source_id,metadata,created_at) VALUES($1,$2,$3,$4,$5::jsonb,$6) ON CONFLICT(asset_id,source_type,source_id) DO NOTHING",
+          [origin.id, result.rows[0].id, origin.sourceType, origin.sourceId, JSON.stringify(origin.metadata), origin.createdAt],
+        );
       const stored = await client.query(
-        `SELECT a.*,COALESCE((SELECT jsonb_agg(v ORDER BY v.kind) FROM media_asset_variants v WHERE v.asset_id=a.id),'[]'::jsonb) variants
+        `SELECT a.*,COALESCE((SELECT jsonb_agg(v ORDER BY v.kind) FROM media_asset_variants v WHERE v.asset_id=a.id),'[]'::jsonb) variants,
+         COALESCE((SELECT jsonb_agg(p.parent_asset_id ORDER BY p.position) FROM media_asset_parents p WHERE p.asset_id=a.id),'[]'::jsonb) parent_asset_ids,
+         COALESCE((SELECT jsonb_agg(o ORDER BY o.created_at,o.id) FROM media_asset_origins o WHERE o.asset_id=a.id),'[]'::jsonb) origins
          FROM media_assets a WHERE a.id=$1`,
         [result.rows[0].id],
       );
@@ -556,11 +574,28 @@ export class PostgresPlatformRepository implements PlatformRepository {
   }
   async getAsset(userId: string, assetId: string) {
     const result = await this.pool.query(
-      `SELECT a.*,COALESCE((SELECT jsonb_agg(v ORDER BY v.kind) FROM media_asset_variants v WHERE v.asset_id=a.id),'[]'::jsonb) variants
+      `SELECT a.*,COALESCE((SELECT jsonb_agg(v ORDER BY v.kind) FROM media_asset_variants v WHERE v.asset_id=a.id),'[]'::jsonb) variants,
+       COALESCE((SELECT jsonb_agg(p.parent_asset_id ORDER BY p.position) FROM media_asset_parents p WHERE p.asset_id=a.id),'[]'::jsonb) parent_asset_ids,
+       COALESCE((SELECT jsonb_agg(o ORDER BY o.created_at,o.id) FROM media_asset_origins o WHERE o.asset_id=a.id),'[]'::jsonb) origins
        FROM media_assets a JOIN workspace_members m ON m.workspace_id=a.workspace_id WHERE a.id=$1 AND m.user_id=$2`,
       [assetId, userId],
     );
     return result.rows[0] ? mapAsset(result.rows[0]) : null;
+  }
+  async addAssetOrigin(userId: string, assetId: string, origin: AssetRecord["origins"][number]) {
+    const asset = await this.getAsset(userId, assetId);
+    if (!asset) throw new DomainError("ASSET_NOT_FOUND", 404, "素材不存在");
+    await this.requireWorkspaceRoleWithClient(
+      this.pool,
+      userId,
+      asset.workspaceId,
+      "editor",
+    );
+    await this.pool.query(
+      "INSERT INTO media_asset_origins(id,asset_id,source_type,source_id,metadata,created_at) VALUES($1,$2,$3,$4,$5::jsonb,$6) ON CONFLICT(asset_id,source_type,source_id) DO NOTHING",
+      [origin.id, assetId, origin.sourceType, origin.sourceId, JSON.stringify(origin.metadata), origin.createdAt],
+    );
+    return (await this.getAsset(userId, assetId))!;
   }
   async listAssets(userId: string, workspaceId: string) {
     await this.requireWorkspaceRoleWithClient(
@@ -570,7 +605,9 @@ export class PostgresPlatformRepository implements PlatformRepository {
       "viewer",
     );
     const result = await this.pool.query(
-      `SELECT a.*,COALESCE((SELECT jsonb_agg(v ORDER BY v.kind) FROM media_asset_variants v WHERE v.asset_id=a.id),'[]'::jsonb) variants
+      `SELECT a.*,COALESCE((SELECT jsonb_agg(v ORDER BY v.kind) FROM media_asset_variants v WHERE v.asset_id=a.id),'[]'::jsonb) variants,
+       COALESCE((SELECT jsonb_agg(p.parent_asset_id ORDER BY p.position) FROM media_asset_parents p WHERE p.asset_id=a.id),'[]'::jsonb) parent_asset_ids,
+       COALESCE((SELECT jsonb_agg(o ORDER BY o.created_at,o.id) FROM media_asset_origins o WHERE o.asset_id=a.id),'[]'::jsonb) origins
        FROM media_assets a WHERE a.workspace_id=$1 ORDER BY a.created_at DESC`,
       [workspaceId],
     );
@@ -581,7 +618,9 @@ export class PostgresPlatformRepository implements PlatformRepository {
     try {
       await client.query("BEGIN");
       const result = await client.query(
-        `SELECT a.*,COALESCE((SELECT jsonb_agg(v ORDER BY v.kind) FROM media_asset_variants v WHERE v.asset_id=a.id),'[]'::jsonb) variants
+        `SELECT a.*,COALESCE((SELECT jsonb_agg(v ORDER BY v.kind) FROM media_asset_variants v WHERE v.asset_id=a.id),'[]'::jsonb) variants,
+         COALESCE((SELECT jsonb_agg(p.parent_asset_id ORDER BY p.position) FROM media_asset_parents p WHERE p.asset_id=a.id),'[]'::jsonb) parent_asset_ids,
+         COALESCE((SELECT jsonb_agg(o ORDER BY o.created_at,o.id) FROM media_asset_origins o WHERE o.asset_id=a.id),'[]'::jsonb) origins
          FROM media_assets a WHERE a.id=$1 FOR UPDATE`,
         [assetId],
       );
@@ -600,6 +639,12 @@ export class PostgresPlatformRepository implements PlatformRepository {
       );
       if (references.rows[0])
         throw new DomainError("ASSET_IN_USE", 409, "素材仍被项目引用");
+      const descendants = await client.query(
+        "SELECT 1 FROM media_assets WHERE id<>$1 AND lineage_root_id=$1 UNION ALL SELECT 1 FROM media_asset_parents WHERE parent_asset_id=$1 LIMIT 1",
+        [assetId],
+      );
+      if (descendants.rows[0])
+        throw new DomainError("ASSET_IN_USE", 409, "素材仍被派生版本引用");
       const now = new Date().toISOString();
       const blobs = [
         {
@@ -692,6 +737,21 @@ function mapAsset(r: Record<string, unknown>): AssetRecord {
             sha256: String(value.sha256),
             bytes: Number(value.bytes),
             mimeType: String(value.mime_type),
+            createdAt: iso(value.created_at),
+          };
+        })
+        : [],
+    lineageRootId: String(r.lineage_root_id || r.id),
+    version: Number(r.version || 1),
+    parentAssetIds: Array.isArray(r.parent_asset_ids) ? r.parent_asset_ids.map(String) : [],
+    origins: Array.isArray(r.origins)
+      ? r.origins.map((origin) => {
+          const value = origin as Record<string, unknown>;
+          return {
+            id: String(value.id),
+            sourceType: value.source_type as AssetRecord["origins"][number]["sourceType"],
+            sourceId: String(value.source_id),
+            metadata: (value.metadata || {}) as Record<string, unknown>,
             createdAt: iso(value.created_at),
           };
         })
