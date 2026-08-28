@@ -137,6 +137,13 @@ export class AdminService {
   listContent(kind?: "announcement" | "prompt") {
     return this.repository.listContent(kind);
   }
+  publishedPrompts(category?: string, tag?: string, now = new Date().toISOString()) {
+    return this.repository.listPublishedPrompts({
+      category: category?.trim() || undefined,
+      tag: tag?.trim() || undefined,
+      now,
+    });
+  }
 }
 const bounded = (n: number, max: number) =>
   Number.isSafeInteger(n) && n > 0 ? Math.min(n, max) : 50;

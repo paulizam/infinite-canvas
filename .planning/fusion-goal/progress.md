@@ -57,3 +57,4 @@
 - BAS-002/CAN-008 Local 离线闭环补强：无账号项目 CRUD、LocalForage 刷新恢复、v3/v4 导入及含媒体 ZIP round-trip 获得直接测试；Import manifest 拒绝 traversal、重复 storageKey、单文件/总量超限，并对缺失或 bytes 漂移的包 fail-closed，不再静默制造坏链。
 - AST-003/005/006 Asset Variant 纵切：原始媒体保持不可变，图片自动生成独立 WebP preview（旋转、1024px、不放大、像素上限），variant 固化 provider/key/hash/mime；鉴权读取支持独立 signed URL。普通删除与 retention GC 均在数据库事务内为原件和全部 variants 写入 durable outbox，引用保护、provider 切换及失败重试边界得以闭环。
 - AST-001/004/008 素材验收补强：Cloud Asset API 直接测试覆盖 magic-byte、去重、UUID object key、文件名清洗、跨租户隐藏、大小/格式拒绝和鉴权下载；Prompt Sources 直接测试覆盖七内置 registry、自定义 JSON、关键词/标签/分类检索、LocalForage 缓存与显式刷新。
+- AST-009 运营 Prompt Catalog 后端纵切：Admin 内容增加 category/tags 及 Agent/Canvas/Drama targets；公开 Catalog 仅返回 published 且命中 startsAt/endsAt 时间窗的 Prompt，并支持分类、标签过滤。三端一键消费 UI 仍待接续。

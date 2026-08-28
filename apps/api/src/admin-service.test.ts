@@ -33,6 +33,7 @@ function repository() {
     }),
     content: vi.fn(async (x) => x),
     listContent: vi.fn(async () => []),
+    listPublishedPrompts: vi.fn(async () => []),
   };
   return repo;
 }
@@ -81,5 +82,15 @@ describe("AdminService", () => {
     expect(() => service.updateUser(crypto.randomUUID(), {}, actor)).toThrow(
       "用户变更为空",
     );
+  });
+  it("[AST-009] exposes only repository-filtered published prompt catalog entries", async () => {
+    const repo = repository();
+    const service = new AdminService(repo, new SecretCipher(Buffer.alloc(32, 9).toString("base64")));
+    await service.publishedPrompts(" portrait ", " featured ", "2026-01-01T00:00:00.000Z");
+    expect(repo.listPublishedPrompts).toHaveBeenCalledWith({
+      category: "portrait",
+      tag: "featured",
+      now: "2026-01-01T00:00:00.000Z",
+    });
   });
 });

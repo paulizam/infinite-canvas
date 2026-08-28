@@ -300,12 +300,15 @@ export class PostgresAdminRepository implements AdminRepository {
         throw new DomainError("REVISION_CONFLICT", 409, "运营内容已被修改");
       const now = new Date().toISOString();
       const r = await c.query(
-        `INSERT INTO admin_content_entries(id,kind,title,content,status,starts_at,ends_at,revision,created_by,created_at,updated_at) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$10) ON CONFLICT(id) DO UPDATE SET title=EXCLUDED.title,content=EXCLUDED.content,status=EXCLUDED.status,starts_at=EXCLUDED.starts_at,ends_at=EXCLUDED.ends_at,revision=EXCLUDED.revision,updated_at=EXCLUDED.updated_at RETURNING *`,
+        `INSERT INTO admin_content_entries(id,kind,title,content,category,tags,targets,status,starts_at,ends_at,revision,created_by,created_at,updated_at) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$13) ON CONFLICT(id) DO UPDATE SET title=EXCLUDED.title,content=EXCLUDED.content,category=EXCLUDED.category,tags=EXCLUDED.tags,targets=EXCLUDED.targets,status=EXCLUDED.status,starts_at=EXCLUDED.starts_at,ends_at=EXCLUDED.ends_at,revision=EXCLUDED.revision,updated_at=EXCLUDED.updated_at RETURNING *`,
         [
           input.id,
           input.kind,
           input.title,
           input.content,
+          input.category,
+          [...new Set(input.tags)],
+          [...new Set(input.targets)],
           input.status,
           input.startsAt || null,
           input.endsAt || null,
@@ -326,6 +329,16 @@ export class PostgresAdminRepository implements AdminRepository {
     const r = await this.pool.query(
       "SELECT * FROM admin_content_entries WHERE ($1::text IS NULL OR kind=$1) ORDER BY updated_at DESC,id",
       [kind || null],
+    );
+    return r.rows.map(mapContent);
+  }
+  async listPublishedPrompts(input: { category?: string; tag?: string; now: string }) {
+    const r = await this.pool.query(
+      `SELECT * FROM admin_content_entries WHERE kind='prompt' AND status='published'
+       AND (starts_at IS NULL OR starts_at<=$1) AND (ends_at IS NULL OR ends_at>$1)
+       AND ($2::text IS NULL OR category=$2) AND ($3::text IS NULL OR $3=ANY(tags))
+       ORDER BY updated_at DESC,id`,
+      [input.now, input.category || null, input.tag || null],
     );
     return r.rows.map(mapContent);
   }
@@ -428,6 +441,9 @@ const mapContent = (x: any) => ({
   kind: x.kind,
   title: x.title,
   content: x.content,
+  category: x.category,
+  tags: x.tags || [],
+  targets: x.targets || [],
   status: x.status,
   startsAt: x.starts_at ? iso(x.starts_at) : null,
   endsAt: x.ends_at ? iso(x.ends_at) : null,

@@ -34,6 +34,7 @@ function adminRepository(): AdminRepository {
     })),
     content: vi.fn(async (x) => x),
     listContent: vi.fn(async () => []),
+    listPublishedPrompts: vi.fn(async () => []),
   };
 }
 describe("admin model and commerce API", () => {

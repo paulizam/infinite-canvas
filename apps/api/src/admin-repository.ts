@@ -66,6 +66,9 @@ export interface AdminRepository {
       kind: "announcement" | "prompt";
       title: string;
       content: string;
+      category: string;
+      tags: string[];
+      targets: ("agent" | "canvas" | "drama")[];
       status: "draft" | "published" | "archived";
       startsAt?: string | null;
       endsAt?: string | null;
@@ -74,4 +77,9 @@ export interface AdminRepository {
     actor: AdminActor,
   ): Promise<unknown>;
   listContent(kind?: "announcement" | "prompt"): Promise<unknown[]>;
+  listPublishedPrompts(input: {
+    category?: string;
+    tag?: string;
+    now: string;
+  }): Promise<unknown[]>;
 }

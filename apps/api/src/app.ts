@@ -189,6 +189,16 @@ export function createApp(services: AppServices) {
         requestId: requestId(c),
       }),
     );
+  if (services.admin)
+    app.get("/api/public/v1/prompts", async (c) =>
+      c.json({
+        data: await services.admin!.publishedPrompts(
+          c.req.query("category"),
+          c.req.query("tag"),
+        ),
+        requestId: requestId(c),
+      }),
+    );
   if (services.payments)
     app.post("/api/public/v1/billing/webhooks/payment", async (c) =>
       c.json({

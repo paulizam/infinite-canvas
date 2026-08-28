@@ -28,5 +28,6 @@
   "027_provider_adapters.sql": "cd6521e0aad365424e88fdc7d2e62688152b100f221acfa829f0e17f7d2b9d62",
   "028_volcengine_adapter.sql": "e2e3aaf315dff58c314fa22a8085c63c8cdda60959fdff63122e79fcbab72361",
   "029_asset_storage_provider.sql": "bce801a6f5f5e6eeb8f853520958d6c281cfb96a9b2caf4e5c7e9560635c81ec",
-  "030_asset_variants.sql": "bd7e7ca7a212965a820d4973bf355f792ea7e55cfaab092644978456b776ca09"
+  "030_asset_variants.sql": "bd7e7ca7a212965a820d4973bf355f792ea7e55cfaab092644978456b776ca09",
+  "031_prompt_catalog.sql": "6d5a12f17ee18061a04be79293a2f1fca92839f145dd3cb08812817d6c9309b2"
 }
